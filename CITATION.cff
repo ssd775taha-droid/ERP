@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you reference this modified skill, please credit مدرسة الذكاء الاصطناعي."
+type: software
+title: "hiring-panel-skill: four reviewers assess and rebuild your resume"
+abstract: "A Claude Code skill in which an automated screen, a hiring manager, a recruiter and a teammate independently assess a resume before it is rebuilt."
+authors:
+  - name: "مدرسة الذكاء الاصطناعي"
+license: MIT
+version: "2.0.0"
+date-released: "2026-10-13"
+keywords:
+  - claude-code
+  - claude-skills
+  - resume
+  - job-search
