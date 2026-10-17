@@ -213,21 +213,27 @@
     if (document.getElementById('tp-srv')) return;
     var b = document.createElement('div');
     b.id = 'tp-srv';
-    b.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:99999;display:flex;gap:6px;font:12px "IBM Plex Sans Arabic",sans-serif;opacity:.55';
-    b.onmouseenter = function () { b.style.opacity = 1; };
-    b.onmouseleave = function () { b.style.opacity = .55; };
-    var mk = function (t, f) {
-      var a = document.createElement('button');
-      a.type = 'button'; a.textContent = t; a.onclick = f;
-      a.style.cssText = 'padding:4px 9px;border:1px solid #888;border-radius:6px;background:#fff;color:#222;cursor:pointer;font:inherit';
-      return a;
+    b.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:99999;display:flex;flex-direction:column-reverse;align-items:flex-start;gap:6px;font:12px "IBM Plex Sans Arabic",sans-serif';
+    var btn = 'padding:6px 11px;border:1px solid rgba(128,128,128,.5);border-radius:8px;background:#fff;color:#222;cursor:pointer;font:inherit;box-shadow:0 1px 4px rgba(0,0,0,.15)';
+    var menu = document.createElement('div');
+    menu.style.cssText = 'display:none;flex-direction:column;gap:6px;align-items:stretch';
+    var t = document.createElement('button');
+    t.type = 'button'; t.textContent = '⋯'; t.title = 'خيارات المنصة'; t.setAttribute('aria-expanded', 'false');
+    t.style.cssText = btn + ';width:32px;height:32px;border-radius:50%;padding:0;font-size:18px;line-height:1;opacity:.6';
+    t.onclick = function () {
+      var open = menu.style.display === 'none';
+      menu.style.display = open ? 'flex' : 'none'; t.setAttribute('aria-expanded', String(open)); t.style.opacity = open ? 1 : .6;
     };
-    b.appendChild(mk('خروج من المنصة', function () {
-      api('/api/auth/logout').then(function () { location.href = '/login.html'; });
-    }));
+    var mk = function (label, f) {
+      var a = document.createElement('button');
+      a.type = 'button'; a.textContent = label; a.onclick = f; a.style.cssText = btn;
+      menu.appendChild(a); return a;
+    };
     who().then(function (u) {
-      if (u.role === 'owner') b.insertBefore(mk('حسابات المنصة', function () { window.open('/admin.html', '_blank'); }), b.firstChild);
+      if (u.role === 'owner') mk('حسابات المنصة', function () { window.open('/admin.html', '_blank'); });
+      mk('خروج من المنصة', function () { api('/api/auth/logout').then(function () { location.href = '/login.html'; }); });
     }, function () {});
+    b.appendChild(t); b.appendChild(menu);
     document.body.appendChild(b);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bar); else bar();
