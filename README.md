@@ -21,6 +21,10 @@ Docker: `docker compose up -d --build` (البيانات في الوحدة `erp-
 | `DB_FILE` | `data/erp.sqlite` | ملف قاعدة البيانات |
 | `COOKIE_SECURE` | 0 | اجعله 1 خلف HTTPS |
 | `TRUST_PROXY` | 0 | اجعله 1 خلف وكيل عكسي |
+| `BACKUP` | 1 | نسخ احتياطي تلقائي عند التشغيل ثم كل 24 ساعة (0 للإيقاف) |
+| `BACKUP_DIR` / `BACKUP_KEEP` | `data/backups` / 14 | مجلد النسخ وعدد النسخ المحفوظة |
+
+فحص الصحة: `GET /healthz`.
 
 ## المعمارية
 

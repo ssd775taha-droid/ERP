@@ -164,6 +164,30 @@
   };
   var db = { doc: DocRef, collection: function (p) { return Query(p, {}); } };
 
+  /* شريط المنصة: إدارة الحسابات (للمالك) وخروج الخادم */
+  function bar() {
+    if (document.getElementById('tp-srv')) return;
+    var b = document.createElement('div');
+    b.id = 'tp-srv';
+    b.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:99999;display:flex;gap:6px;font:12px "IBM Plex Sans Arabic",sans-serif;opacity:.55';
+    b.onmouseenter = function () { b.style.opacity = 1; };
+    b.onmouseleave = function () { b.style.opacity = .55; };
+    var mk = function (t, f) {
+      var a = document.createElement('button');
+      a.type = 'button'; a.textContent = t; a.onclick = f;
+      a.style.cssText = 'padding:4px 9px;border:1px solid #888;border-radius:6px;background:#fff;color:#222;cursor:pointer;font:inherit';
+      return a;
+    };
+    b.appendChild(mk('خروج من المنصة', function () {
+      api('/api/auth/logout').then(function () { location.href = '/login.html'; });
+    }));
+    who().then(function (u) {
+      if (u.role === 'owner') b.insertBefore(mk('حسابات المنصة', function () { window.open('/admin.html', '_blank'); }), b.firstChild);
+    }, function () {});
+    document.body.appendChild(b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bar); else bar();
+
   window.claude = {
     use: function (name) {
       if (name === 'db') return Promise.resolve(db);

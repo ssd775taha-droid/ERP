@@ -2,9 +2,10 @@ const path = require('node:path');
 const express = require('express');
 const { Store, httpError } = require('./store');
 const { Auth } = require('./auth');
+const { schedule } = require('./backup');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
-const OPEN = [/^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
+const OPEN = [/^\/healthz$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
 
 function cookie(req, name) {
   const m = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(`${name}=`));
@@ -40,6 +41,11 @@ function createApp({ dbFile = process.env.DB_FILE || path.join(__dirname, '..', 
     res.set('Set-Cookie', `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`);
 
   app.get('/favicon.ico', (req, res) => res.redirect(301, '/favicon.svg'));
+
+  app.get('/healthz', (req, res) => {
+    store.db.prepare('SELECT 1').get();
+    res.json({ ok: true });
+  });
 
   // ---- المصادقة ----
   app.get('/api/auth/state', (req, res) => res.json({ needsSetup: auth.userCount() === 0, user: req.user }));
@@ -119,7 +125,11 @@ function createApp({ dbFile = process.env.DB_FILE || path.join(__dirname, '..', 
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
-  const { app } = createApp();
+  const { app, store } = createApp();
+  const file = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite');
+  if (process.env.BACKUP !== '0') {
+    schedule(store, process.env.BACKUP_DIR || path.join(path.dirname(file), 'backups'), { keep: Number(process.env.BACKUP_KEEP) || 14 });
+  }
   app.listen(port, () => console.log(`تمام برو يعمل على http://localhost:${port}`));
 }
 

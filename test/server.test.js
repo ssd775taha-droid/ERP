@@ -113,3 +113,19 @@ test('تقييد محاولات الدخول الفاشلة', async () => {
     assert.equal((await t.call('POST', '/api/auth/login', { username: 'owner', password: 'password123' })).status, 429);
   } finally { t.close(); }
 });
+
+test('فحص الصحة والنسخ الاحتياطي مع الإبقاء على الأحدث', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { backup } = require('../server/backup');
+  const t = await boot();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erp-bk-'));
+  const srv = createApp({ dbFile: ':memory:' });
+  try {
+    assert.equal((await t.call('GET', '/healthz')).body.ok, true);
+    srv.store.setDoc('a/b', { x: 1 });
+    for (let i = 0; i < 4; i++) { backup(srv.store, dir, 2); await new Promise((r) => setTimeout(r, 5)); }
+    assert.equal(fs.readdirSync(dir).length, 2);
+  } finally { t.close(); srv.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
