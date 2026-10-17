@@ -21,6 +21,15 @@ Docker: `docker compose up -d --build` (البيانات في الوحدة `erp-
 2. `npm install` ثم `npm run share`.
 3. يطبع الأمر رابطًا مثل `https://xxxx.trycloudflare.com`؛ شاركه مع من تريد. البيانات تُحفظ في `data/erp.sqlite` على جهازك، والرابط يتغيّر في كل تشغيل ويتوقف بإغلاق النافذة.
 
+### تشغيل دائم على جهاز ويندوز
+
+1. ثبّت Node 22 وcloudflared، وفكّ ضغط المشروع.
+2. انقر مرتين على `scripts\windows\install.cmd`. يثبّت الاعتماديات وينشئ مهمة تبدأ مع تسجيل دخول ويندوز وتعيد التشغيل إن توقف الموقع، ويمنع سكون الجهاز أثناء الشحن.
+3. بعد 15 ثانية اقرأ الرابط من `data\public-url.txt`. هذا رابط مؤقت يتغيّر عند كل إعادة تشغيل.
+4. للإيقاف: `scripts\windows\uninstall.cmd`. السجل في `data\server.log`.
+
+**رابط ثابت على نطاقك (مثل tmam.pro):** انقل سيرفرات أسماء النطاق إلى Cloudflare (مجاني)، ثم من Zero Trust > Networks > Tunnels أنشئ نفقًا من نوع cloudflared، وأضف Public Hostname للنطاق يشير إلى `http://localhost:3000`، وانسخ الرمز (token) إلى الملف `data\tunnel-token.txt`، ثم أعد تشغيل المهمة. بعدها يعمل الموقع على نطاقك بشهادة HTTPS ما دام الجهاز شغّالًا ومتصلًا بالإنترنت.
+
 ### نشر برابط عام (Render)
 
 1. ادمج الفرع في `main`، ثم من Render: **New > Blueprint** واختر المستودع (يقرأ `render.yaml`).
