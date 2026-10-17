@@ -1,0 +1,27 @@
+# تشغيل التطبيق مع HTTPS تلقائي عبر Caddy. المتغير DOMAIN مثل: 1-2-3-4.sslip.io أو نطاقك الخاص.
+services:
+  app:
+    build: ../..
+    restart: unless-stopped
+    environment:
+      COOKIE_SECURE: "1"
+      TRUST_PROXY: "1"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - erp-data:/data
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?حدد DOMAIN في ملف .env}
+    command: caddy reverse-proxy --from ${DOMAIN} --to app:3000
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      - app
+volumes:
+  erp-data:
+  caddy-data:
