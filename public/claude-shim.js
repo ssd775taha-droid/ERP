@@ -234,6 +234,9 @@
       mk('خروج من المنصة', function () { api('/api/auth/logout').then(function () { location.href = '/login.html'; }); });
     }, function () {});
     b.appendChild(t); b.appendChild(menu);
+    var st = document.createElement('style');
+    st.textContent = '@media (max-width:900px){#tp-srv{bottom:76px!important}}';
+    document.head.appendChild(st);
     document.body.appendChild(b);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bar); else bar();
