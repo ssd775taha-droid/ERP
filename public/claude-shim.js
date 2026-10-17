@@ -1,5 +1,5 @@
 /* جسر المنصة: يوفّر window.claude.use(...) الذي تعتمد عليه الأقسام، فوق خادم تمام برو.
-   db: واجهة مستندات/مجموعات بأسلوب Firestore · user · downloads. أما sample (الذكاء الاصطناعي) فغير متاح. */
+   db: واجهة مستندات/مجموعات بأسلوب Firestore · user · downloads · sample (المساعد الذكي عبر الخادم، إن وُجد مفتاح). */
 (function () {
   'use strict';
   var enc = function (v) {
@@ -150,7 +150,7 @@
     isOwner: function () { return who().then(function (u) { return u.role === 'owner'; }); },
     profiles: function (ids) { return api('/api/profiles', { ids: ids }).then(function (r) { return r.profiles; }); },
     can: function () { return Promise.resolve(true); },
-    me: function () { return who().then(function (u) { return { id: u.id, name: u.name, avatarUrl: '' }; }); }
+    me: function () { return who().then(function (u) { return { id: u.id, username: u.username, name: u.name, role: u.role, avatarUrl: '' }; }); }
   };
   var downloads = {
     save: function (o) {
@@ -162,13 +162,91 @@
       return Promise.resolve({ saved: true });
     }
   };
+  /* المساعد الذكي: حلقة أدوات في المتصفح فوق وكيل الخادم (المفتاح لا يغادر الخادم) */
+  function aiErr(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
+  function sample(messages, opts) {
+    opts = opts || {};
+    var tools = opts.tools || [];
+    var defs = tools.map(function (t) { return { name: t.name, description: t.description, input_schema: t.inputSchema }; });
+    var msgs = messages.map(function (m) { return { role: m.role, content: m.content }; });
+    var round = 0;
+    function step() {
+      if (opts.signal && opts.signal.aborted) return Promise.reject(aiErr('cancelled'));
+      if (++round > 8) return Promise.reject(aiErr('tool_loop', 'تجاوز حد جولات الأدوات'));
+      return fetch('/api/ai', {
+        method: 'POST', credentials: 'same-origin', signal: opts.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: msgs, tools: defs })
+      }).then(function (r) {
+        if (r.status === 401) { location.href = '/login.html'; throw aiErr('unauthorized'); }
+        return r.json().then(function (j) {
+          if (!r.ok) throw aiErr(r.status === 429 ? 'rate_limited' : r.status === 503 ? 'sampling_disabled' : 'failed', j.error);
+          return j;
+        });
+      }, function (e) { throw aiErr(e && e.name === 'AbortError' ? 'cancelled' : 'failed', e && e.message); })
+      .then(function (j) {
+        var text = j.content.filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
+        if (text && opts.onText) { try { opts.onText({ text: text }); } catch (_) {} }
+        var uses = j.content.filter(function (b) { return b.type === 'tool_use'; });
+        if (j.stop_reason !== 'tool_use' || !uses.length) return { text: text, truncated: j.stop_reason === 'max_tokens' };
+        msgs.push({ role: 'assistant', content: j.content });
+        return Promise.all(uses.map(function (u) {
+          var t = tools.filter(function (x) { return x.name === u.name; })[0];
+          return Promise.resolve().then(function () { return t.execute(u.input || {}); }).then(
+            function (out) { return { type: 'tool_result', tool_use_id: u.id, content: String(out) }; },
+            function (er) { return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: String(er && er.message || er) }; });
+        })).then(function (results) { msgs.push({ role: 'user', content: results }); return step(); });
+      });
+    }
+    return step();
+  }
+  sample.limits = function () { return Promise.resolve({ tools: { maxCount: 20 } }); };
+  var sampleP = null;
+  function sampleUse() {
+    return sampleP || (sampleP = fetch('/api/ai/status', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (s) { return s.enabled ? sample : null; }, function () { return null; }));
+  }
   var db = { doc: DocRef, collection: function (p) { return Query(p, {}); } };
+
+  /* شريط المنصة: إدارة الحسابات (للمالك) وخروج الخادم */
+  function bar() {
+    if (document.getElementById('tp-srv')) return;
+    var b = document.createElement('div');
+    b.id = 'tp-srv';
+    b.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:99999;display:flex;flex-direction:column-reverse;align-items:flex-start;gap:6px;font:12px "IBM Plex Sans Arabic",sans-serif';
+    var btn = 'padding:6px 11px;border:1px solid rgba(128,128,128,.5);border-radius:8px;background:#fff;color:#222;cursor:pointer;font:inherit;box-shadow:0 1px 4px rgba(0,0,0,.15)';
+    var menu = document.createElement('div');
+    menu.style.cssText = 'display:none;flex-direction:column;gap:6px;align-items:stretch';
+    var t = document.createElement('button');
+    t.type = 'button'; t.textContent = '⋯'; t.title = 'خيارات المنصة'; t.setAttribute('aria-expanded', 'false');
+    t.style.cssText = btn + ';width:32px;height:32px;border-radius:50%;padding:0;font-size:18px;line-height:1;opacity:.6';
+    t.onclick = function () {
+      var open = menu.style.display === 'none';
+      menu.style.display = open ? 'flex' : 'none'; t.setAttribute('aria-expanded', String(open)); t.style.opacity = open ? 1 : .6;
+    };
+    var mk = function (label, f) {
+      var a = document.createElement('button');
+      a.type = 'button'; a.textContent = label; a.onclick = f; a.style.cssText = btn;
+      menu.appendChild(a); return a;
+    };
+    who().then(function (u) {
+      if (u.role === 'owner') mk('حسابات المنصة', function () { window.open('/admin.html', '_blank'); });
+      mk('خروج من المنصة', function () { api('/api/auth/logout').then(function () { location.href = '/login.html'; }); });
+    }, function () {});
+    b.appendChild(t); b.appendChild(menu);
+    var st = document.createElement('style');
+    st.textContent = '@media (max-width:900px){#tp-srv{bottom:76px!important}}';
+    document.head.appendChild(st);
+    document.body.appendChild(b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bar); else bar();
 
   window.claude = {
     use: function (name) {
       if (name === 'db') return Promise.resolve(db);
       if (name === 'user') return Promise.resolve(user);
       if (name === 'downloads') return Promise.resolve(downloads);
+      if (name === 'sample') return sampleUse();
       return Promise.resolve(null);
     }
   };
