@@ -24,9 +24,9 @@ Docker: `docker compose up -d --build` (البيانات في الوحدة `erp-
 ### تشغيل دائم على جهاز ويندوز
 
 1. ثبّت Node 22 (وcloudflared فقط إن أردت رابطًا عامًا)، وفكّ ضغط المشروع.
-2. انقر مرتين على `scripts\windows\install.cmd`. يثبّت الاعتماديات وينشئ اختصار تشغيل تلقائي في مجلد Startup وتعيد التشغيل إن توقف الموقع، ويمنع سكون الجهاز أثناء الشحن.
+2. انقر مرتين على `scripts\windows\install.bat`. يثبّت الاعتماديات وينشئ اختصار تشغيل تلقائي في مجلد Startup وتعيد التشغيل إن توقف الموقع، ويمنع سكون الجهاز أثناء الشحن.
 3. تفتح المنصة وحدها على `http://localhost:3000` ويظهر اختصار `TamamPro` على سطح المكتب. دون cloudflared تعمل على هذا الجهاز فقط. معه اقرأ الرابط العام من `data\public-url.txt`. هذا رابط مؤقت يتغيّر عند كل إعادة تشغيل.
-4. للتحديث: انقر مرتين على `scripts\windows\update.cmd` (لا يمس مجلد data). للإيقاف: `scripts\windows\uninstall.cmd`. السجل في `data\server.log`.
+4. للتحديث: انقر مرتين على `scripts\windows\update.bat` (لا يمس مجلد data). للإيقاف: `scripts\windows\uninstall.bat`. السجل في `data\server.log`.
 
 **رابط ثابت على نطاقك (مثل tmam.pro):** انقل سيرفرات أسماء النطاق إلى Cloudflare (مجاني)، ثم من Zero Trust > Networks > Tunnels أنشئ نفقًا من نوع cloudflared، وأضف Public Hostname للنطاق يشير إلى `http://localhost:3000`، وانسخ الرمز (token) إلى الملف `data\tunnel-token.txt`، ثم أعد تشغيل المهمة. بعدها يعمل الموقع على نطاقك بشهادة HTTPS ما دام الجهاز شغّالًا ومتصلًا بالإنترنت.
 
