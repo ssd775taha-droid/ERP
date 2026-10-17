@@ -1,0 +1,369 @@
+/* مولَّد بواسطة scripts/vendor.js */
+/* ibm-plex-sans-arabic-arabic-400-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-latin-400-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-latin-400-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-arabic-500-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-latin-500-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-latin-500-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-arabic-600-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-latin-600-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-latin-600-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-arabic-700-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-arabic-700-normal.woff2) format('woff2');
+}
+/* ibm-plex-sans-arabic-latin-700-normal */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/ibm-plex-sans-arabic-latin-700-normal.woff2) format('woff2');
+}
+/* readex-pro-arabic-500-normal */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(/vendor/fonts/readex-pro-arabic-500-normal.woff2) format('woff2');
+}
+/* readex-pro-latin-500-normal */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(/vendor/fonts/readex-pro-latin-500-normal.woff2) format('woff2');
+}
+/* readex-pro-arabic-600-normal */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/readex-pro-arabic-600-normal.woff2) format('woff2');
+}
+/* readex-pro-latin-600-normal */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/readex-pro-latin-600-normal.woff2) format('woff2');
+}
+/* readex-pro-arabic-700-normal */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/readex-pro-arabic-700-normal.woff2) format('woff2');
+}
+/* readex-pro-latin-700-normal */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/readex-pro-latin-700-normal.woff2) format('woff2');
+}
+/* alexandria-arabic-500-normal */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(/vendor/fonts/alexandria-arabic-500-normal.woff2) format('woff2');
+}
+/* alexandria-latin-500-normal */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(/vendor/fonts/alexandria-latin-500-normal.woff2) format('woff2');
+}
+/* alexandria-arabic-600-normal */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/alexandria-arabic-600-normal.woff2) format('woff2');
+}
+/* alexandria-latin-600-normal */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/alexandria-latin-600-normal.woff2) format('woff2');
+}
+/* alexandria-arabic-700-normal */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/alexandria-arabic-700-normal.woff2) format('woff2');
+}
+/* alexandria-latin-700-normal */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/alexandria-latin-700-normal.woff2) format('woff2');
+}
+/* cairo-arabic-400-normal */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/cairo-arabic-400-normal.woff2) format('woff2');
+}
+/* cairo-latin-400-normal */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/cairo-latin-400-normal.woff2) format('woff2');
+}
+/* cairo-arabic-600-normal */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/cairo-arabic-600-normal.woff2) format('woff2');
+}
+/* cairo-latin-600-normal */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/cairo-latin-600-normal.woff2) format('woff2');
+}
+/* tajawal-arabic-400-normal */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/tajawal-arabic-400-normal.woff2) format('woff2');
+}
+/* tajawal-latin-400-normal */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/tajawal-latin-400-normal.woff2) format('woff2');
+}
+/* tajawal-arabic-700-normal */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/tajawal-arabic-700-normal.woff2) format('woff2');
+}
+/* tajawal-latin-700-normal */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/tajawal-latin-700-normal.woff2) format('woff2');
+}
+/* almarai-arabic-400-normal */
+@font-face {
+  font-family: 'Almarai';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/almarai-arabic-400-normal.woff2) format('woff2');
+}
+/* almarai-latin-400-normal */
+@font-face {
+  font-family: 'Almarai';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/almarai-latin-400-normal.woff2) format('woff2');
+}
+/* almarai-arabic-700-normal */
+@font-face {
+  font-family: 'Almarai';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/almarai-arabic-700-normal.woff2) format('woff2');
+}
+/* almarai-latin-700-normal */
+@font-face {
+  font-family: 'Almarai';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/almarai-latin-700-normal.woff2) format('woff2');
+}
+/* noto-naskh-arabic-arabic-400-normal */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/noto-naskh-arabic-arabic-400-normal.woff2) format('woff2');
+}
+/* noto-naskh-arabic-latin-400-normal */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/noto-naskh-arabic-latin-400-normal.woff2) format('woff2');
+}
+/* noto-naskh-arabic-arabic-600-normal */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/noto-naskh-arabic-arabic-600-normal.woff2) format('woff2');
+}
+/* noto-naskh-arabic-latin-600-normal */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/noto-naskh-arabic-latin-600-normal.woff2) format('woff2');
+}
+/* noto-naskh-arabic-arabic-700-normal */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/noto-naskh-arabic-arabic-700-normal.woff2) format('woff2');
+}
+/* noto-naskh-arabic-latin-700-normal */
+@font-face {
+  font-family: 'Noto Naskh Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/noto-naskh-arabic-latin-700-normal.woff2) format('woff2');
+}
+/* amiri-arabic-400-normal */
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/amiri-arabic-400-normal.woff2) format('woff2');
+}
+/* amiri-latin-400-normal */
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(/vendor/fonts/amiri-latin-400-normal.woff2) format('woff2');
+}
+/* amiri-arabic-700-normal */
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/amiri-arabic-700-normal.woff2) format('woff2');
+}
+/* amiri-latin-700-normal */
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/amiri-latin-700-normal.woff2) format('woff2');
+}
+/* noto-kufi-arabic-arabic-600-normal */
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/noto-kufi-arabic-arabic-600-normal.woff2) format('woff2');
+}
+/* noto-kufi-arabic-latin-600-normal */
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(/vendor/fonts/noto-kufi-arabic-latin-600-normal.woff2) format('woff2');
+}
+/* noto-kufi-arabic-arabic-700-normal */
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/noto-kufi-arabic-arabic-700-normal.woff2) format('woff2');
+}
+/* noto-kufi-arabic-latin-700-normal */
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(/vendor/fonts/noto-kufi-arabic-latin-700-normal.woff2) format('woff2');
+}

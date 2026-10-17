@@ -1,0 +1,1033 @@
+<!doctype html><html><head><script>(function(){
+var MOD="cafe",PRE="m/cafe/";
+var P=null;try{if(window.parent&&window.parent!==window&&window.parent.document)P=window.parent}catch(e){P=null}
+window.__tpH=window.__tpH||"";
+if(!P)return;
+function syncTheme(){try{var t=P.document.documentElement.getAttribute("data-theme"),r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme")}catch(e){}}
+syncTheme();
+try{if(P.__tpAuth){
+  if(MOD==="gov"&&!/^#p-/.test(String(location.hash||window.__tpH||"")))sessionStorage.setItem("mizan.in","1");
+  if(MOD==="audit"&&P.__tpUid)sessionStorage.setItem("tp.sess",JSON.stringify({uid:P.__tpUid,t:Date.now()}));
+}}catch(e){}
+["pointerdown","keydown"].forEach(function(ev){document.addEventListener(ev,function(){try{P.__tpAct&&P.__tpAct()}catch(e){}},{passive:true,capture:true})});
+try{new P.MutationObserver(syncTheme).observe(P.document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}
+var dead=false,unsubs=[];
+function sub(start){var u=start();unsubs.push(u);return u}
+window.__tpDispose=function(){dead=true;unsubs.forEach(function(u){try{u&&u()}catch(e){}});unsubs=[]};
+window.addEventListener("pagehide",window.__tpDispose);
+var fnMap=new WeakMap();
+function wrapCb(f){var w=fnMap.get(f);if(!w){w=function(){var r=f.apply(this,arguments);return r&&typeof r.then==="function"?r.then(toP):toP(r)};fnMap.set(f,w)}return w}
+function toP(x){
+  if(typeof x==="function")return wrapCb(x);
+  if(x===null||typeof x!=="object")return x;
+  try{
+    if(typeof File!=="undefined"&&x instanceof File)return new P.File([x],x.name,{type:x.type,lastModified:x.lastModified});
+    if(typeof Blob!=="undefined"&&x instanceof Blob)return new P.Blob([x],{type:x.type});
+    if(x instanceof ArrayBuffer)return new P.Uint8Array(new Uint8Array(x)).buffer;
+    if(ArrayBuffer.isView(x)){var C=P[x.constructor&&x.constructor.name];if(C&&x.constructor.name!=="DataView")return new C(x);return new P.Uint8Array(new Uint8Array(x.buffer,x.byteOffset,x.byteLength))}
+    if(typeof AbortSignal!=="undefined"&&x instanceof AbortSignal){var c=new P.AbortController();if(x.aborted)c.abort(x.reason);else x.addEventListener("abort",function(){c.abort(x.reason)},{once:true});return c.signal}
+    if(x instanceof Date)return new P.Date(+x);
+    if(Array.isArray(x)){var a=new P.Array();for(var i=0;i<x.length;i++)a.push(toP(x[i]));return a}
+    var pr=Object.getPrototypeOf(x);
+    if(pr===Object.prototype||pr===null){var o=new P.Object();Object.keys(x).forEach(function(k){o[k]=toP(x[k])});return o}
+  }catch(e){}
+  return x;
+}
+function args(a){return Array.prototype.map.call(a,toP)}
+function wrapNs(ns){
+  if(ns===null||(typeof ns!=="object"&&typeof ns!=="function"))return ns;
+  var isF=typeof ns==="function",memo={};
+  return new Proxy(isF?function(){}:{},{
+    get:function(_,k){var v=ns[k];if(typeof v!=="function")return v;if(!memo[k])memo[k]=function(){return v.apply(ns,args(arguments))};return memo[k]},
+    has:function(_,k){return k in ns},
+    apply:function(_,t,a){return ns.apply(undefined,args(a))}
+  });
+}
+function cp(d){if(d===undefined||d===null)return d;try{return structuredClone(d)}catch(e){return JSON.parse(JSON.stringify(d))}}
+function wSnap(s){return {id:s.id,exists:s.exists,metadata:s.metadata,data:function(){return cp(s.data())}}}
+function wQS(q){return {docs:Array.prototype.map.call(q.docs,wSnap),size:q.size,empty:q.empty,metadata:q.metadata,docChanges:function(){return Array.prototype.map.call(q.docChanges(),function(c){return {type:c.type,doc:wSnap(c.doc),oldIndex:c.oldIndex,newIndex:c.newIndex}})}}}
+function strip(p){p=String(p||"");return p.indexOf(PRE)===0?p.slice(PRE.length):p}
+function wDoc(r){return {id:r.id,path:strip(r.path),
+  get:function(){return Promise.resolve(r.get()).then(wSnap)},
+  set:function(d){return Promise.resolve(r.set(toP(d)))},
+  update:function(d){return Promise.resolve(r.update(toP(d)))},
+  delete:function(){return Promise.resolve(r.delete())},
+  acquire:function(o){return Promise.resolve(r.acquire(toP(o)))},
+  onSnapshot:function(n,e){return sub(function(){return r.onSnapshot(function(s){if(!dead)n(wSnap(s))},e?function(er){if(!dead)e(er)}:undefined)})},
+  collection:function(p){return wCol(r.collection(p))}}}
+function wQ(q,o){o=o||{};
+  o.where=function(f,op,v){return wQ(q.where(f,op,toP(v)))};
+  o.orderBy=function(f,d){return wQ(d===undefined?q.orderBy(f):q.orderBy(f,d))};
+  o.limit=function(n){return wQ(q.limit(n))};
+  o.get=function(){return Promise.resolve(q.get()).then(wQS)};
+  o.onSnapshot=function(n,e){return sub(function(){return q.onSnapshot(function(s){if(!dead)n(wQS(s))},e?function(er){if(!dead)e(er)}:undefined)})};
+  return o}
+function wCol(c){return wQ(c,{path:strip(c.path),
+  doc:function(id){return wDoc(id===undefined?c.doc():c.doc(String(id)))},
+  add:function(d){return Promise.resolve(c.add(toP(d))).then(wDoc)}})}
+function pre(p){p=String(p);if(p.indexOf("data/users/")===0||p==="data/users"){if(MOD!=="feas")return p;var a=p.split("/");return a.length<3?p:a.slice(0,3).concat(["feas","studies"],a.slice(3)).join("/")}return PRE+p}
+function wrapDb(db){return {doc:function(p){return wDoc(db.doc(pre(p)))},collection:function(p){return wCol(db.collection(pre(p)))}}}
+function parentClaude(){return new Promise(function(res){var n=0;(function t(){var c=null;try{c=P.claude&&P.claude.use?P.claude:null}catch(e){}if(c)return res(c);if(++n>30)return res(null);setTimeout(t,150)})()})}
+var memo={};
+window.claude={use:function(n){
+  if(!memo[n])memo[n]=parentClaude().then(function(c){if(!c)return null;return Promise.resolve(c.use(n)).then(function(ns){if(!ns)return null;return n==="db"?wrapDb(ns):wrapNs(ns)})}).catch(function(){return null});
+  return memo[n]}};
+try{P.__tpReady&&P.__tpReady(MOD,window)}catch(e){}
+})();
+</script><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>تمام برو لدفتر المقهى</title>
+<link rel="stylesheet" href="/vendor/fonts.css">
+<style>
+/* Layout: side rail (sections + language) and one working pane; rail becomes a strip on phones. */
+:root{
+  --bg:#F2F5F4; --surface:#FFFFFF; --ink:#15211E; --muted:#5A6A65; --line:#D8E0DD;
+  --accent:#0F5B4C; --accent-ink:#FFFFFF; --accent-soft:#DDEBE6;
+  --good:#1B7548; --good-soft:#DCEFE4; --warn:#9A5B00; --warn-soft:#F6E8CF; --bad:#AE2A22; --bad-soft:#F6DEDB;
+  --display:"Alexandria","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F1514; --surface:#172120; --ink:#E6EEEB; --muted:#9AABA5; --line:#2A3835;
+  --accent:#5CC0A6; --accent-ink:#06211B; --accent-soft:#1D3A34;
+  --good:#6FD09A; --good-soft:#173527; --warn:#E9B45A; --warn-soft:#3A2D12; --bad:#F08A80; --bad-soft:#3F1D1A; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0F1514; --surface:#172120; --ink:#E6EEEB; --muted:#9AABA5; --line:#2A3835;
+  --accent:#5CC0A6; --accent-ink:#06211B; --accent-soft:#1D3A34;
+  --good:#6FD09A; --good-soft:#173527; --warn:#E9B45A; --warn-soft:#3A2D12; --bad:#F08A80; --bad-soft:#3F1D1A; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
+#app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+.nav{background:var(--surface);border-inline-end:1px solid var(--line);padding:20px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;align-self:start;height:100vh;overflow:auto}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 10px 14px}
+.brand img{width:40px;height:40px;object-fit:contain;border-radius:6px}
+.brand b{font-family:var(--display);font-size:16px;line-height:1.4;display:block}
+.brand small{display:block;font-size:12px;color:var(--muted)}
+.nav button{font:inherit;text-align:start;background:none;border:0;color:var(--ink);padding:9px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.nav button:hover{background:var(--accent-soft)}
+.nav button[aria-current="page"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.nav .out{margin-top:auto;border:1px solid var(--line);text-align:center}
+.nav .lang{border:1px solid var(--line);text-align:center}
+#app[data-gate] .nav button[data-v],#app[data-gate] .nav .out{display:none}
+#app[data-gate] .nav .lang{margin-top:auto}
+.cafes{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.cafe{font:inherit;text-align:start;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.cafe:hover,.cafe[aria-current]{border-color:var(--accent)}
+.cafe span{font-size:12.5px;color:var(--muted)}
+main{min-width:0;padding-block:22px 48px;padding-inline:24px;display:flex;flex-direction:column;gap:18px}
+h1{font-family:var(--display);font-size:24px;margin:0;text-wrap:balance}
+h2{font-family:var(--display);font-size:16px;margin:0}
+h3{font-size:14px;margin:0;font-weight:600}
+.sub{color:var(--muted);font-size:13px;margin:0}
+.navh{font-size:11.5px;color:var(--muted);padding:12px 12px 2px;letter-spacing:.02em}
+#app[data-gate] .navh,#app[data-gate] .gs{display:none}
+.hbar{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px}
+.gs{position:relative;flex:1 1 auto;max-width:460px}
+#app[data-nav-off]{grid-template-columns:minmax(0,1fr)}
+#app[data-nav-off] .nav{display:none}
+#gs-out{position:absolute;inset-inline:0;top:100%;z-index:5;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:4px;padding:4px;display:flex;flex-direction:column;box-shadow:0 6px 18px rgb(0 0 0 / .12)}
+#gs-out button{font:inherit;text-align:start;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+#gs-out button:hover,#gs-out button:focus-visible{background:var(--accent-soft)}
+#gs-out span{color:var(--muted);font-size:12px;white-space:nowrap}
+#gs-out p{margin:0;padding:8px 10px;color:var(--muted);font-size:13px}
+.crumb{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--muted);margin-bottom:8px;min-height:30px}
+.crumb b{color:var(--ink);font-weight:600}
+#notice{display:flex;flex-direction:column;gap:8px}
+#notice:empty{display:none}
+#view{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.93em}
+body.dense th,body.dense td{padding:4px 8px}
+body.dense td input,body.dense td select{padding:4px 7px}
+body.dense .card{padding:12px;gap:9px}
+th,td{padding:8px 8px;border-bottom:1px solid var(--line);text-align:start;white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:12.5px}
+td.n,th.n{text-align:end;font-variant-numeric:tabular-nums;direction:ltr}
+td.sz{color:var(--muted)}
+.chip{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:500}
+.ok{background:var(--good-soft);color:var(--good)} .wr{background:var(--warn-soft);color:var(--warn)} .bd{background:var(--bad-soft);color:var(--bad)}
+.ex{background:var(--accent-soft);color:var(--accent);margin-inline-start:6px}
+.up{color:var(--bad)} .down{color:var(--good)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.sizes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.size{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+b.tot{font-variant-numeric:tabular-nums}
+.szblock{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.szblock input,.szblock select{background:var(--surface)}
+.size .full{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+div.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);min-width:0}
+div.f label{color:var(--ink)}
+input[type=color]{padding:2px;height:38px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-width:0;width:100%}
+.size input{background:var(--surface)}
+input[type=checkbox]{width:17px;height:17px;padding:0;accent-color:var(--accent)}
+input[type=number]{direction:ltr;text-align:end;font-variant-numeric:tabular-nums}
+td input,td select{min-width:88px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sp{justify-content:space-between}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.bar label.f{flex:1 1 150px;max-width:260px}
+.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 14px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.55;cursor:progress}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.sm{padding:3px 10px;font-size:13px}
+.btn.danger{color:var(--bad)}
+.btn[data-armed]{background:var(--bad);color:var(--surface);border-color:var(--bad)}
+.note{background:var(--accent-soft);border-radius:8px;padding:10px 14px;font-size:13.5px}
+.note.warn{background:var(--warn-soft)}
+.empty{color:var(--muted);padding:18px 4px;text-align:center}
+ol.steps{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:2px}
+.kpi b{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums;direction:ltr;text-align:end}
+.kpi span{color:var(--muted);font-size:12.5px}
+ul.alerts{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+ul.alerts li{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}
+ul.errs{margin:0;padding-inline-start:20px;font-size:13.5px;color:var(--bad)}
+.logo-box{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.logo-box img{width:84px;height:84px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
+#toast{position:fixed;inset-inline:0;bottom:calc(18px + env(safe-area-inset-bottom,0px));margin-inline:auto;width:max-content;max-width:90%;background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:8px;font-size:14px;z-index:9}
+body.ro form,body.ro .w{display:none}
+body.ro form.keepf{display:flex}
+@media (max-width:760px){
+  #app{grid-template-columns:minmax(0,1fr)}
+  .nav{position:static;height:auto;flex-direction:row;overflow-x:auto;padding:10px 12px;border-inline-end:0;border-bottom:1px solid var(--line)}
+  .brand,.navh{display:none}
+  .nav .out{margin-top:0;margin-inline-start:auto}
+  #app[data-gate] .nav .lang{margin-top:0;margin-inline-start:auto}
+  main{padding-inline:16px}
+}
+</style>
+
+<div id="app" dir="rtl" lang="ar">
+  <nav class="nav" id="nav">
+    <div class="brand"><img id="brand-logo" alt="" hidden><div><b id="cafe-name"></b><small id="brand-sub"></small></div></div>
+  </nav>
+  <main>
+    <header><div class="hbar"><button type="button" class="btn" id="nav-tg" aria-controls="nav"></button><div class="gs"><input id="gs" type="search" autocomplete="off"><div id="gs-out" hidden></div></div></div><div id="crumb" class="crumb"></div><h1 id="vt"></h1><p class="sub" id="vs"></p></header>
+    <div id="notice"></div>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="toast" hidden role="status"></div>
+
+<script>
+const L={ar:{
+  app:'تمام برو لدفتر المقهى',tag:'رسبي · مواد خام · تكاليف',products:'المنتجات والرسبي',productsS:'تكلفة الكوب وهامش الربح لكل منتج وحجم',preps:'المستحضرات الوسيطة',prepsS:'ما يُحضَّر داخلياً ويدخل في رسبي منتجات أخرى',materials:'المواد الخام',materialsS:'أسعار الشراء وتكلفة وحدة الرسبي',imp:'استيراد وتصدير',impS:'إدخال البيانات من Excel وتصديرها إلى فودكس',settings:'بيانات المقهى',settingsS:'الاسم والشعار وما يظهر في التقارير',
+  langBtn:'English',newProd:'منتج جديد',newPrep:'مستحضر جديد',xls:'Excel',pdf:'PDF',product:'المنتج',prep:'المستحضر',size:'الحجم',cat:'التصنيف',price:'سعر البيع',cost:'تكلفة الرسبي',ratio:'نسبة التكلفة',gp:'مجمل الربح',margin:'الهامش',suggest:'السعر المقترح',status:'الحالة',
+  edit:'تعديل',del:'حذف',dup:'نسخ',copyOf:'نسخة',confirmDel:'تأكيد الحذف',confirm:'تأكيد',card:'بطاقة',noProducts:'لا منتجات بعد. اضغطوا «منتج جديد» لإضافة أول رسبي.',noPreps:'لا مستحضرات بعد. المستحضر رسبي له ناتج (مثل لتر سيرب) تُحسب تكلفة وحدته وتُستخدم في المنتجات.',noMatch:'لا نتائج مطابقة للبحث.',priceNote:'سعر البيع والسعر المقترح شاملان الضريبة. السعر المقترح يحقق نسبة التكلفة المستهدفة',
+  okS:'ضمن المستهدف',highS:'أعلى من المستهدف',noPrice:'بلا سعر',example:'مثال',search:'بحث',all:'الكل',selAll:'تحديد الكل',selHint:'يُصدَّر المحدَّد فقط، وإن لم تحددوا شيئاً يُصدَّر كل المعروض.',
+  report:'التقرير',rCosting:'ملخص التكاليف',rCards:'بطاقات الرسبي',rMenu:'قائمة الأسعار',repLang:'لغة التقرير',lUi:'لغة الواجهة',lAr:'العربية',lEn:'English',lBoth:'باللغتين',export:'تصدير',
+  newProdT:'منتج جديد',newPrepT:'مستحضر جديد',editRecipe:'تعديل رسبي',nameAr:'الاسم بالعربية',nameEn:'الاسم بالإنجليزية',priceInc:'سعر البيع شامل الضريبة',sizesT:'الأحجام والأسعار',sizeN:'حجم',sizeAr:'اسم الحجم بالعربية',sizeEn:'اسم الحجم بالإنجليزية',addSize:'إضافة حجم',addSizeHint:'تُنسخ مكوّنات الحجم السابق لتعدّلوا كمياتها.',sizeOne:'السعر والمكوّنات',rmSize:'حذف الحجم',
+  component:'المكوّن',material:'المادة',qty:'الكمية',unit:'الوحدة',unitCost:'تكلفة الوحدة',lineCost:'تكلفة البند',note:'ملاحظة',remove:'إزالة',addLine:'إضافة مكوّن',method:'طريقة التحضير',gMat:'المواد الخام',gPrep:'المستحضرات',
+  yieldQty:'كمية الناتج',yieldUnit:'وحدة الناتج',yield:'الناتج',batchCost:'تكلفة التحضيرة',costPerUnit:'تكلفة الوحدة',
+  gpCup:'مجمل الربح للكوب',suggestInc:'السعر المقترح شامل الضريبة',saveProd:'حفظ',cancel:'إلغاء',choose:'— اختر —',
+  addMat:'إضافة مادة خام',editMat:'تعديل مادة خام',buyUnit:'وحدة الشراء (مثال: كيس 1 كجم)',buyUnitH:'وحدة الشراء',buyPrice:'سعر الشراء قبل الضريبة',packSize:'حجم العبوة بوحدة الرسبي',packSizeH:'حجم العبوة',recUnit:'وحدة الرسبي',waste:'نسبة الهالك %',wasteH:'الهالك',save:'حفظ',matList:'قائمة المواد',usedIn:'تُستخدم في',noMaterials:'لا مواد بعد. أضيفوا أول مادة من النموذج أعلاه.',
+  lastChange:'آخر تغيّر في السعر',prevPrice:'السعر السابق',priceLog:'سجل الأسعار السابقة',
+  cafeInfo:'بيانات المقهى',cafeAr:'اسم المقهى بالعربية',cafeEn:'اسم المقهى بالإنجليزية',address:'العنوان',phone:'الهاتف',cr:'السجل التجاري',vatNo:'الرقم الضريبي',logo:'الشعار',upload:'رفع شعار',rmLogo:'إزالة الشعار',logoHint:'يظهر الشعار والبيانات أعلى كل تقرير مُصدَّر.',
+  calc:'إعدادات الحساب',vat:'ضريبة القيمة المضافة %',target:'نسبة تكلفة المواد المستهدفة %',saveSet:'حفظ البيانات',exData:'البيانات التوضيحية',exNote:'المواد والمنتجات المعلَّمة بكلمة «مثال» أُدخلت للتجربة فقط. عدّلوها أو احذفوها عند إدخال بياناتكم.',wipe:'حذف كل البيانات التوضيحية',
+  impHow:'طريقة الاستيراد',imp1:'نزّلوا ملف البيانات. يحتوي ورقة للمواد الخام وورقة للرسبي، وفيهما بياناتكم الحالية.',imp2:'عدّلوا أو أضيفوا الصفوف في Excel دون تغيير ترتيب الأعمدة. في ورقة الرسبي كل صف يمثل مكوّناً واحداً لحجم واحد.',imp3:'ارفعوا الملف، راجعوا الملخص، ثم أكّدوا. الأسماء المطابقة تُحدَّث والجديدة تُضاف، ولا يُحذف شيء.',
+  dlData:'تنزيل ملف البيانات',pickFile:'رفع ملف Excel',impPrev:'ملخص الاستيراد',impMatNew:'مواد جديدة',impMatUpd:'مواد تُحدَّث',impProdNew:'رسبي جديد',impProdUpd:'رسبي يُحدَّث',impErrs:'صفوف لم تُقبل',impGo:'تأكيد الاستيراد',impDone:'اكتمل الاستيراد',impEmpty:'لم أجد صفوفاً صالحة في الملف.',eFile:'تعذّرت قراءة الملف. تأكدوا أنه بصيغة xlsx ومبني على ملف البيانات.',
+  eNoComp:'مكوّن غير معرّف',eBadPack:'حجم عبوة غير صالح',eSizes:'أكثر من 3 أحجام',eYield:'ناتج المستحضر مفقود',row:'صف',
+  offline:'تعذّر الاتصال بقاعدة البيانات. ما تُدخلونه الآن لن يُحفظ بعد إغلاق الصفحة. سجّلوا الدخول ثم أعيدوا فتحها.',exBanner:'الأرقام المعلَّمة بكلمة «مثال» بيانات توضيحية وليست بيانات مقهاكم. عدّلوها أو احذفوها من «بيانات المقهى».',loading:'جارٍ تحميل البيانات. ستظهر هنا المنتجات والمواد الخام.',
+  saved:'تم الحفظ',deleted:'تم الحذف',wiped:'حُذفت البيانات التوضيحية',needName:'أدخلوا الاسم.',needYield:'أدخلوا كمية ناتج أكبر من صفر.',needPack:'أدخلوا اسم المادة وحجم عبوة أكبر من صفر.',needTarget:'النسبة المستهدفة يجب أن تكون أكبر من صفر.',inUse:'لا يمكن الحذف: العنصر مستخدم في رسبي. أزيلوه من الرسبي أولاً.',
+  eQuota:'امتلأت مساحة التخزين. احذفوا بيانات قديمة ثم أعيدوا المحاولة.',ePerm:'لا تملكون صلاحية التعديل على هذه البيانات.',eNet:'تعذّر الحفظ. تحققوا من الاتصال وأعيدوا المحاولة.',
+  exporting:'جارٍ تجهيز الملف…',exported:'تم تصدير الملف',eDl:'التصدير غير متاح في هذا العرض. افتحوا الصفحة من داخل Claude.',eLib:'تعذّر تجهيز الملف. تحققوا من الاتصال وأعيدوا المحاولة.',eDeclined:'أُلغي التصدير.',eLogo:'تعذّرت قراءة الصورة. جرّبوا ملف PNG أو JPG.',eNone:'لا يوجد ما يُصدَّر.',
+  rKitchen:'بطاقات التحضير للمطبخ',rKitchenT:'بطاقة تحضير',orient:'اتجاه الصفحة',oP:'عمودي',oL:'أفقي',sPrep:'أعدّه',sRev:'راجعه',sAppr:'اعتمده',accent:'لون التقارير',sku:'رمز SKU (اختياري)',printSet:'مستندات الطباعة',fx:'تصدير إلى فودكس',fx1:'ملفات CSV بترتيب أعمدة قوالب الاستيراد في لوحة فودكس: المنتجات من «القائمة ← المنتجات ← استيراد»، ومواد المخزون من «المخزون ← المواد ← استيراد».',fx2:'فودكس لا يوفّر استيراد المكوّنات (الرسبي) بالجملة، فملف «مرجع المكوّنات» للإدخال اليدوي داخل فودكس وليس للاستيراد.',fx3:'قارنوا الملف بقالب محمَّل من حسابكم قبل الرفع، وأدخلوا مراجع التصنيفات والضريبة من «بيانات المقهى».',fxP:'ملف المنتجات',fxI:'ملف مواد المخزون',fxG:'مرجع المكوّنات',fxSet:'ربط فودكس',fxLang:'اللغة الأساسية في حساب فودكس',fxTax:'مرجع مجموعة الضريبة',fxInv:'مرجع تصنيف مواد المخزون',fxCat:'مرجع تصنيف',fxHint:'المراجع تجدونها في صفحة تفاصيل التصنيف أو مجموعة الضريبة داخل لوحة فودكس. تُترك فارغة إن لم تتوفر.',eng:'هندسة المنيو',engS:'ربحية كل منتج ورواجه من مبيعات الشهر',log:'النسخ والسجل',logS:'نسخة احتياطية كاملة وسجل آخر التعديلات',
+  month:'الشهر',salesEntry:'مبيعات الشهر بالكمية',saveSales:'حفظ المبيعات',impSales:'استيراد المبيعات (Excel / CSV)',impSalesHint:'ملف فيه عمود للكمية وعمود لرمز SKU أو اسم المنتج، مثل تقرير مبيعات المنتجات المُصدَّر من فودكس.',salesRead:'قُرئت كميات المنتجات المطابقة. راجعوها ثم احفظوا. صفوف لم تُطابق:',salesNone:'لم أجد في الملف عموداً للكمية مع عمود لاسم المنتج أو SKU.',
+  qtySold:'الكمية',mix:'حصة المبيعات',unitGp:'ربح الوحدة',totalGp:'إجمالي الربح',revenue:'المبيعات قبل الضريبة',klass:'التصنيف',action:'التوصية',avgGp:'متوسط ربح الوحدة',totalQty:'إجمالي الكمية',analysis:'تحليل المنيو',
+  cStar:'نجم',cHorse:'حصان عمل',cPuzzle:'لغز',cDog:'خاسر',cNone:'بلا مبيعات',aStar:'حافظوا على الجودة والسعر وأبرزوه في المنيو.',aHorse:'رائج بهامش منخفض: ارفعوا السعر قليلاً أو خفّضوا تكلفة الرسبي.',aPuzzle:'مربح وقليل الطلب: روّجوا له أو غيّروا موضعه في المنيو.',aDog:'قليل الطلب والربح: راجعوا بقاءه في المنيو.',aNone:'',
+  engNote:'الرواج: حصة المنتج من الكمية مقابل 70% من الحصة المتساوية بين المنتجات المباعة. الربحية: ربح الوحدة مقابل متوسط ربح الوحدة المرجّح بالكميات.',engEmpty:'أدخلوا كميات مبيعات الشهر أو استوردوها ليظهر التصنيف.',rEng:'تقرير هندسة المنيو',
+  suppliers:'المورّدون',supplier:'المورّد',addSup:'إضافة مورّد',approved:'معتمد',cheaper:'يوجد أرخص',supHint:'تُحسب التكلفة على سعر المورّد المعتمد. بدون مورّدين تُستخدم حقول السعر أعلاه.',apprSup:'المورّد المعتمد',
+  backup:'نسخة احتياطية',bk1:'الملف يحتوي كل شيء: بيانات المقهى والشعار، المواد والمورّدين، الرسبي، والمبيعات الشهرية.',dlBackup:'تنزيل نسخة احتياطية',upBackup:'استعادة من ملف',restT:'استعادة نسخة احتياطية',restWarn:'الاستعادة تستبدل كل البيانات الحالية بمحتوى الملف، وما ليس في الملف يُحذف.',restGo:'تأكيد الاستعادة',restDone:'تمت الاستعادة',eBackup:'الملف ليس نسخة احتياطية صالحة من هذا النظام.',bkDate:'تاريخ النسخة',months:'أشهر مبيعات',
+  logT:'آخر التعديلات',when:'الوقت',what:'الإجراء',item:'العنصر',noLog:'لا تعديلات مسجلة بعد. يظهر هنا كل حفظ أو حذف أو استيراد.',lAdd:'إضافة',lEdit:'تعديل',lDel:'حذف',lImport:'استيراد',lRestore:'استعادة',kMaterial:'مادة خام',kSales:'مبيعات',kSettings:'بيانات المقهى',kData:'بيانات',kProduct:'منتج',kPrep:'مستحضر',
+  prepMin:'زمن التحضير (دقيقة)',allergens:'مسببات الحساسية',calories:'السعرات (kcal)',pImg:'صورة المنتج',upImg:'رفع صورة',rmImg:'إزالة الصورة',
+  expT:'المصروفات الشهرية غير المباشرة',alloc:'طريقة تحميل المصروفات',aCups:'بالتساوي على كل كوب',aRev:'حسب حصة المنتج من المبيعات',ohU:'نصيب الوحدة من المصروفات',netU:'صافي ربح الوحدة',netT:'صافي الربح',totalExp:'إجمالي المصروفات',beCups:'نقطة التعادل (وحدة)',beSales:'نقطة التعادل (مبيعات)',
+  copyT:'نسخ من مقهى آخر',copyHint:'تُنسخ المواد والرسبي إلى المقهى الحالي. الأسماء المطابقة تُحدَّث ولا يُحذف شيء، ولا تُنسخ المبيعات.',srcCafe:'المقهى المصدر',srcPin:'رمز دخول المصدر (إن وُجد)',cMats:'كل المواد الخام',cRecs:'الرسبي والمستحضرات مع موادها',copyGo:'نسخ إلى هذا المقهى',copied:'تم النسخ',needSrc:'اختاروا المقهى المصدر وما يُنسخ.',
+  cmpT:'مقارنة المقاهي',cmpGo:'تحديث المقارنة',cmpLocked:'ادخلوا المقهى برمزه مرة لإظهار أرقامه',cmpHint:'أرقام كل مقهى من بياناته الحالية ومن آخر شهر مبيعات مسجّل فيه.',nMat:'المواد',nProd:'المنتجات',avgRatio:'متوسط نسبة التكلفة',above:'فوق المستهدف',lastMonth:'آخر شهر مبيعات',cafeL:'المقهى',
+  navTg:'القائمة',navShow:'إظهار القائمة',navHide:'إخفاء القائمة',look:'المظهر',dLook:'الوضع الفاتح أو الداكن، حجم الخط، وكثافة الجداول على هذا الجهاز.',theme:'الوضع',thSys:'حسب النظام',thLight:'فاتح',thDark:'داكن',fsize:'حجم الخط',dens:'كثافة الجداول',dComfy:'مريحة',dDense:'مضغوطة',lookNote:'هذه الخيارات تُحفظ على هذا الجهاز فقط ولا تغيّر ما يراه غيركم.',
+  docFont:'خط مستندات PDF',xlFont:'خط ملفات Excel',fontNote:'خط PDF يُضمَّن في الملف فيظهر كما في المعاينة على أي جهاز. خط Excel يظهر فقط إن كان مثبتاً على الجهاز الذي يفتح الملف، وإلا استُبدل بخط قريب.',
+  help:'دليل الاستخدام',helpS:'خطوات الإعداد وشرح كل قسم',gRecipes:'الرسبي والتكاليف',gAnalysis:'التحليل والتخطيط',gData:'البيانات والإعداد',gsPh:'بحث عن منتج، مادة، عرض، أو صفحة',gsNone:'لا نتائج مطابقة.',gsPage:'صفحة',
+  setup:'قائمة الإعداد',setupDone:'مكتمل',setupTodo:'لم يكتمل',doIt:'انتقال',c1:'إدخال اسم المقهى وبياناته',c2:'رفع الشعار',c3:'إضافة موادكم الخام بأسعارها',c4:'إضافة منتجاتكم ورسبيها',c5:'حذف البيانات التوضيحية',c6:'إدخال مبيعات شهر واحد على الأقل',c7:'إدخال المصروفات الشهرية',sections:'شرح الأقسام',
+  offers:'العروض والباقات',offersS:'تكلفة وهامش كل عرض وأقصى خصم ممكن',buy:'خطة المشتريات',buyS:'احتياج المواد وطلبات الشراء من مبيعات الشهر',
+  newOffer:'عرض جديد',editOffer:'تعديل عرض',offer:'العرض',oItems:'مكوّنات العرض',fullPrice:'السعر الكامل',offerPrice:'سعر العرض شامل الضريبة',disc:'الخصم',minPrice:'أدنى سعر ضمن المستهدف',maxDisc:'أقصى خصم',addItem:'إضافة منتج',noOffers:'لا عروض بعد. العرض منتج بخصم أو باقة من عدة منتجات بسعر واحد.',needItems:'أضيفوا منتجاً واحداً على الأقل وسعراً للعرض.',kOffer:'عرض',rOffers:'تقرير العروض والباقات',unitPrice:'سعر الوحدة',
+  buyIn:'أساس الخطة',buyPct:'تغيّر متوقع في المبيعات %',buySafe:'هامش أمان %',buyOut:'احتياج المواد',need:'الاحتياج',packs:'عدد العبوات',packPrice:'سعر العبوة',lineTotal:'الإجمالي',noSup:'بدون مورّد محدد',buyEmpty:'لا مبيعات مسجلة لهذا الشهر. أدخلوا المبيعات أولاً لتُحسب الاحتياجات.',buyNote:'الاحتياج = كميات الرسبي × المبيعات، مع الهالك وهامش الأمان، مقرَّباً لأعلى عبوة كاملة. الخطة لا تطرح المخزون الموجود لديكم.',totalEx:'الإجمالي قبل الضريبة',totalInc:'الإجمالي شامل الضريبة',rBuy:'خطة المشتريات',po:'طلب شراء',
+  home:'الرئيسية',homeS:'ملخص المقهى وما يحتاج انتباهكم',sim:'محاكاة التسعير',simS:'أثر تغيّر أسعار المواد على التكلفة والهامش قبل أن يحدث',chan:'قنوات البيع',chanS:'هامش كل منتج في تطبيقات التوصيل بعد العمولة',
+  kAbove:'منتجات فوق المستهدف',kAvg:'متوسط نسبة التكلفة',alerts:'يحتاج انتباهكم',noAlerts:'لا تنبيهات. كل المنتجات ضمن النسبة المستهدفة ولا تغيّرات في الأسعار.',shortcuts:'اختصارات',open:'فتح',alAbove:'نسبة التكلفة',alNoPrice:'بلا سعر بيع',alUp:'ارتفع سعرها',alCheap:'مورّد أرخص متاح',lastSales:'آخر شهر مبيعات',
+  simIn:'افتراضات المحاكاة',simPct:'تغيّر عام في أسعار كل المواد %',simOv:'أسعار مواد محددة',simNew:'سعر العبوة الجديد',simAdd:'إضافة مادة',simRound:'تقريب السعر المقترح',rNone:'بدون تقريب',rHalf:'لأقرب نصف ريال',rOne:'لأقرب ريال',simOnly:'تعديل المنتجات التي تتجاوز المستهدف فقط',simOut:'الأثر على المنتجات',costNow:'التكلفة الحالية',costNew:'التكلفة الجديدة',ratioNew:'النسبة الجديدة',priceNew:'السعر المقترح',willChange:'سيتغيّر',simApply:'اعتماد الأسعار المقترحة',simHint:'المحاكاة لا تغيّر أسعار المواد. زر الاعتماد يغيّر أسعار بيع المنتجات المعلَّمة فقط، ويُسجَّل في السجل.',simDone:'عُدّلت أسعار المنتجات',simNone:'لا منتجات تحتاج تعديلاً بهذه الافتراضات.',
+  chList:'القنوات',chName:'اسم القناة',chComm:'العمولة %',chUp:'زيادة السعر في القناة %',chAdd:'إضافة قناة',chSave:'حفظ القنوات',chOut:'هامش المنتجات في كل قناة',chPrice:'السعر',chProfit:'الربح بعد العمولة',chKeep:'السعر الحافظ للهامش',chEmpty:'أضيفوا قناة بيع بنسبة عمولتها ليظهر هامش كل منتج فيها.',chNote:'العمولة محسوبة على سعر القناة قبل الضريبة. إن كان عقدكم يحسبها على السعر شامل الضريبة فالربح الفعلي أقل قليلاً. «السعر الحافظ للهامش» هو السعر الذي يُبقي ربح الوحدة كما في البيع المحلي.',dineIn:'محلي',rChan:'تقرير قنوات البيع',
+  dirtyMsg:'لديكم تعديلات غير محفوظة في هذه الصفحة.',dirtyGo:'متابعة دون حفظ',dirtyStay:'البقاء في الصفحة',trash:'سلة المحذوفات',dTrash:'استرجاع منتج أو مادة حُذفت.',noTrash:'السلة فارغة. المنتجات والمواد المحذوفة تظهر هنا ويمكن استرجاعها.',restore:'استرجاع',purge:'حذف نهائي',restored:'تم الاسترجاع',
+  head:'ترويسة المستندات',dHead:'موضع الشعار وحجمه، ما يظهر في الترويسة والتذييل، ولون التقارير.',hdLayout:'تخطيط الترويسة',hlStart:'الشعار والبيانات في جهة واحدة',hlEnd:'الشعار في الجهة المقابلة للبيانات',hlCenter:'الشعار والبيانات في الوسط',hlDual:'عربي يميناً وإنجليزي يساراً والشعار في الوسط',
+  hdLogo:'حجم الشعار',szS:'صغير',szM:'متوسط',szL:'كبير',hdShowT:'ما يظهر في الترويسة',hdAddr:'العنوان',hdPhone:'الهاتف',hdCr:'السجل التجاري',hdVat:'الرقم الضريبي',hdDate:'تاريخ المستند',ftPage:'رقم الصفحة في التذييل',hdExtra:'سطر إضافي (بريد، موقع، شعار نصي)',ftText:'نص التذييل (فارغ = اسم المقهى والهاتف)',hdPrev:'معاينة الترويسة',hdPrevNote:'المعاينة تتحدث مع كل تغيير، ولا يُحفظ شيء قبل الضغط على «حفظ».',prevDoc:'اسم المستند',
+  back:'رجوع',showRes:'عرض النتائج',toExport:'تصدير التقارير',toSales:'إدخال المبيعات',toExp:'المصروفات الشهرية',addMatB:'إضافة مادة',pXl:'استيراد من Excel',calcPrint:'الحساب والطباعة',
+  dXl:'إدخال المواد والرسبي دفعة واحدة من ملف Excel.',dCopy:'نسخ المواد والرسبي من مقهى آخر إلى هذا المقهى.',dFx:'ملفات CSV بترتيب أعمدة قوالب الاستيراد في فودكس.',dBackup:'تنزيل نسخة كاملة من بيانات المقهى أو استعادتها.',dLog:'كل إضافة وتعديل وحذف واستيراد بوقته.',
+  dCafe:'الاسم والشعار والعنوان والأرقام الرسمية.',dCalc:'نسبة الضريبة والنسبة المستهدفة لتكلفة المواد.',dFxSet:'مراجع التصنيفات ومجموعة الضريبة ولغة الحساب.',dAccess:'رمز الدخول وحذف المقهى.',dSample:'حذف المواد والمنتجات التوضيحية.',
+  gTitle:'المقاهي',gSub:'اختاروا المقهى للدخول إلى بياناته',gPick:'اختيار المقهى',gLocked:'برمز دخول',gOpen:'بدون رمز',gNone:'لا مقاهٍ بعد. أضيفوا أول مقهى من النموذج أدناه.',gUnnamed:'مقهى بلا اسم',gPin:'رمز الدخول',gEnter:'دخول',gBad:'رمز الدخول غير صحيح.',gNew:'إضافة مقهى',gCreate:'إنشاء المقهى والدخول',gNewPinL:'رمز الدخول (اختياري)',
+  gPinHint:'لكل مقهى بياناته المنفصلة: مواده ورسبيه ومبيعاته وشعاره. رمز الدخول يمنع الدخول العرضي، وليس حماية كاملة: من تشاركون معه هذه الصفحة يستطيع تقنياً الوصول إلى بيانات كل المقاهي.',
+  gSwitch:'تبديل المقهى',gAccess:'الدخول إلى هذا المقهى',gNewPin:'رمز دخول جديد (اتركوه فارغاً لإلغاء الرمز)',gSavePin:'حفظ الرمز',gPinSaved:'تم تحديث رمز الدخول',gDel:'حذف هذا المقهى وكل بياناته',gMain:'المقهى الرئيسي',
+  rSummary:'تقرير تكاليف المنتجات',rMaterials:'تقرير المواد الخام',rCard:'بطاقة رسبي',rPreps:'تقرير المستحضرات الوسيطة',rMenuT:'قائمة الأسعار',menuNote:'الأسعار بالريال السعودي وتشمل ضريبة القيمة المضافة.',sSummary:'الملخص',date:'التاريخ',page:'صفحة',of:'من',ingredients:'المكونات',costing:'التكلفة والتسعير',total:'الإجمالي',priceEx:'قبل الضريبة',targetL:'النسبة المستهدفة',vatL:'الضريبة',telL:'هاتف',crL:'س.ت',vatNoL:'الرقم الضريبي',type:'النوع',tProduct:'منتج',tPrep:'مستحضر'
+},en:{
+  app:'Tamam Pro · Café Cost Ledger',tag:'Recipes · Materials · Costing',products:'Products & Recipes',productsS:'Cost per cup and margin for each product and size',preps:'Preparations',prepsS:'Made in-house and used inside other recipes',materials:'Raw Materials',materialsS:'Purchase prices and cost per recipe unit',imp:'Import & Export',impS:'Load data from Excel and export it to Foodics',settings:'Café Details',settingsS:'Name, logo and what appears on reports',
+  langBtn:'العربية',newProd:'New product',newPrep:'New preparation',xls:'Excel',pdf:'PDF',product:'Product',prep:'Preparation',size:'Size',cat:'Category',price:'Selling price',cost:'Recipe cost',ratio:'Cost %',gp:'Gross profit',margin:'Margin',suggest:'Suggested price',status:'Status',
+  edit:'Edit',del:'Delete',dup:'Copy',copyOf:'copy',confirmDel:'Confirm delete',confirm:'Confirm',card:'Card',noProducts:'No products yet. Press “New product” to add the first recipe.',noPreps:'No preparations yet. A preparation is a recipe with a yield (such as a litre of syrup) whose unit cost feeds your products.',noMatch:'Nothing matches the search.',priceNote:'Selling and suggested prices include VAT. The suggested price meets the target cost ratio',
+  okS:'On target',highS:'Above target',noPrice:'No price',example:'Sample',search:'Search',all:'All',selAll:'Select all',selHint:'Only ticked rows are exported; with none ticked, everything shown is exported.',
+  report:'Report',rCosting:'Costing summary',rCards:'Recipe cards',rMenu:'Price list',repLang:'Report language',lUi:'Interface language',lAr:'العربية',lEn:'English',lBoth:'Both languages',export:'Export',
+  newProdT:'New product',newPrepT:'New preparation',editRecipe:'Edit recipe',nameAr:'Arabic name',nameEn:'English name',priceInc:'Selling price incl. VAT',sizesT:'Sizes and prices',sizeN:'Size',sizeAr:'Size name (Arabic)',sizeEn:'Size name (English)',addSize:'Add size',addSizeHint:'The previous size’s components are copied for you to adjust.',sizeOne:'Price and components',rmSize:'Remove size',
+  component:'Component',material:'Material',qty:'Quantity',unit:'Unit',unitCost:'Unit cost',lineCost:'Line cost',note:'Note',remove:'Remove',addLine:'Add component',method:'Preparation method',gMat:'Raw materials',gPrep:'Preparations',
+  yieldQty:'Yield quantity',yieldUnit:'Yield unit',yield:'Yield',batchCost:'Batch cost',costPerUnit:'Cost per unit',
+  gpCup:'Gross profit per cup',suggestInc:'Suggested price incl. VAT',saveProd:'Save',cancel:'Cancel',choose:'— Select —',
+  addMat:'Add raw material',editMat:'Edit raw material',buyUnit:'Purchase unit (e.g. 1 kg bag)',buyUnitH:'Purchase unit',buyPrice:'Purchase price excl. VAT',packSize:'Pack size in recipe units',packSizeH:'Pack size',recUnit:'Recipe unit',waste:'Waste %',wasteH:'Waste',save:'Save',matList:'Materials list',usedIn:'Used in',noMaterials:'No materials yet. Add the first one with the form above.',
+  lastChange:'Last price change',prevPrice:'Previous price',priceLog:'Previous prices',
+  cafeInfo:'Café details',cafeAr:'Café name (Arabic)',cafeEn:'Café name (English)',address:'Address',phone:'Phone',cr:'Commercial registration',vatNo:'VAT number',logo:'Logo',upload:'Upload logo',rmLogo:'Remove logo',logoHint:'The logo and details appear at the top of every exported report.',
+  calc:'Calculation settings',vat:'VAT %',target:'Target material cost %',saveSet:'Save details',exData:'Sample data',exNote:'Materials and products tagged “Sample” were added for trial only. Edit or delete them when you enter your own data.',wipe:'Delete all sample data',
+  impHow:'How import works',imp1:'Download the data file. It has one sheet for raw materials and one for recipes, filled with your current data.',imp2:'Edit or add rows in Excel without changing the column order. In the recipes sheet each row is one component for one size.',imp3:'Upload the file, review the summary, then confirm. Matching names are updated, new ones are added, and nothing is deleted.',
+  dlData:'Download data file',pickFile:'Upload Excel file',impPrev:'Import summary',impMatNew:'New materials',impMatUpd:'Materials to update',impProdNew:'New recipes',impProdUpd:'Recipes to update',impErrs:'Rows not accepted',impGo:'Confirm import',impDone:'Import complete',impEmpty:'No valid rows were found in the file.',eFile:'Could not read the file. Make sure it is an xlsx built from the data file.',
+  eNoComp:'unknown component',eBadPack:'invalid pack size',eSizes:'more than 3 sizes',eYield:'preparation yield missing',row:'Row',
+  offline:'Could not reach the database. What you enter now will not be kept after closing the page. Sign in and reopen it.',exBanner:'Figures tagged “Sample” are illustrative, not your café’s data. Edit them or delete them from “Café Details”.',loading:'Loading data. Products and raw materials will appear here.',
+  saved:'Saved',deleted:'Deleted',wiped:'Sample data deleted',needName:'Enter a name.',needYield:'Enter a yield quantity above zero.',needPack:'Enter the material name and a pack size above zero.',needTarget:'The target ratio must be above zero.',inUse:'Cannot delete: this item is used in a recipe. Remove it from the recipe first.',
+  eQuota:'Storage is full. Delete old data and try again.',ePerm:'You do not have permission to change this data.',eNet:'Could not save. Check the connection and try again.',
+  exporting:'Preparing the file…',exported:'File exported',eDl:'Export is not available in this view. Open the page inside Claude.',eLib:'Could not prepare the file. Check the connection and try again.',eDeclined:'Export cancelled.',eLogo:'Could not read the image. Try a PNG or JPG file.',eNone:'Nothing to export.',
+  rKitchen:'Kitchen prep cards',rKitchenT:'Prep Card',orient:'Page orientation',oP:'Portrait',oL:'Landscape',sPrep:'Prepared by',sRev:'Reviewed by',sAppr:'Approved by',accent:'Report colour',sku:'SKU (optional)',printSet:'Print documents',fx:'Export to Foodics',fx1:'CSV files in the column order of the Foodics console import templates: products under Menu → Products → Import, inventory items under Inventory → Items → Import.',fx2:'Foodics has no bulk import for ingredients (recipes), so the “Ingredients reference” file is for manual entry inside Foodics, not for import.',fx3:'Compare the file with a template downloaded from your account before uploading, and enter the category and tax references under “Café Details”.',fxP:'Products file',fxI:'Inventory items file',fxG:'Ingredients reference',fxSet:'Foodics link',fxLang:'Primary language of the Foodics account',fxTax:'Tax group reference',fxInv:'Inventory items category reference',fxCat:'Category reference',fxHint:'References are shown on the category or tax group details page in the Foodics console. Leave blank if not available.',eng:'Menu Engineering',engS:'Profitability and popularity of each product from monthly sales',log:'Backup & Log',logS:'Full backup and a log of recent changes',
+  month:'Month',salesEntry:'Monthly sales by quantity',saveSales:'Save sales',impSales:'Import sales (Excel / CSV)',impSalesHint:'A file with a quantity column and a SKU or product name column, such as the product sales report exported from Foodics.',salesRead:'Matching product quantities were read. Review them, then save. Rows not matched:',salesNone:'No quantity column with a product name or SKU column was found in the file.',
+  qtySold:'Quantity',mix:'Sales mix',unitGp:'Unit profit',totalGp:'Total profit',revenue:'Sales excl. VAT',klass:'Class',action:'Recommendation',avgGp:'Average unit profit',totalQty:'Total quantity',analysis:'Menu analysis',
+  cStar:'Star',cHorse:'Plowhorse',cPuzzle:'Puzzle',cDog:'Dog',cNone:'No sales',aStar:'Keep quality and price steady and feature it on the menu.',aHorse:'Popular with a thin margin: raise the price slightly or cut the recipe cost.',aPuzzle:'Profitable but rarely ordered: promote it or move it on the menu.',aDog:'Low demand and low profit: reconsider keeping it.',aNone:'',
+  engNote:'Popularity: the product’s share of quantity against 70% of an equal share among sold products. Profitability: unit profit against the quantity-weighted average unit profit.',engEmpty:'Enter or import the month’s sales quantities to see the classification.',rEng:'Menu Engineering Report',
+  suppliers:'Suppliers',supplier:'Supplier',addSup:'Add supplier',approved:'Approved',cheaper:'Cheaper available',supHint:'Costing uses the approved supplier’s price. With no suppliers, the price fields above are used.',apprSup:'Approved supplier',
+  backup:'Backup',bk1:'The file holds everything: café details and logo, materials and suppliers, recipes, and monthly sales.',dlBackup:'Download backup',upBackup:'Restore from file',restT:'Restore backup',restWarn:'Restoring replaces all current data with the file’s contents; anything not in the file is deleted.',restGo:'Confirm restore',restDone:'Restore complete',eBackup:'The file is not a valid backup from this system.',bkDate:'Backup date',months:'Sales months',
+  logT:'Recent changes',when:'Time',what:'Action',item:'Item',noLog:'No changes logged yet. Every save, delete or import appears here.',lAdd:'Add',lEdit:'Edit',lDel:'Delete',lImport:'Import',lRestore:'Restore',kMaterial:'Raw material',kSales:'Sales',kSettings:'Café details',kData:'Data',kProduct:'Product',kPrep:'Preparation',
+  prepMin:'Prep time (minutes)',allergens:'Allergens',calories:'Calories (kcal)',pImg:'Product photo',upImg:'Upload photo',rmImg:'Remove photo',
+  expT:'Monthly indirect expenses',alloc:'Expense allocation',aCups:'Equally per unit sold',aRev:'By each product’s share of sales',ohU:'Expenses per unit',netU:'Net profit per unit',netT:'Net profit',totalExp:'Total expenses',beCups:'Break-even (units)',beSales:'Break-even (sales)',
+  copyT:'Copy from another café',copyHint:'Materials and recipes are copied into the current café. Matching names are updated, nothing is deleted, and sales are not copied.',srcCafe:'Source café',srcPin:'Source access code (if any)',cMats:'All raw materials',cRecs:'Recipes and preparations with their materials',copyGo:'Copy into this café',copied:'Copied',needSrc:'Choose the source café and what to copy.',
+  cmpT:'Café comparison',cmpGo:'Refresh comparison',cmpLocked:'Enter this café with its code once to show its figures',cmpHint:'Each café’s figures come from its current data and its latest recorded sales month.',nMat:'Materials',nProd:'Products',avgRatio:'Average cost %',above:'Above target',lastMonth:'Latest sales month',cafeL:'Café',
+  navTg:'Menu',navShow:'Show menu',navHide:'Hide menu',look:'Appearance',dLook:'Light or dark mode, text size and table density on this device.',theme:'Mode',thSys:'Follow system',thLight:'Light',thDark:'Dark',fsize:'Text size',dens:'Table density',dComfy:'Comfortable',dDense:'Compact',lookNote:'These options are saved on this device only and do not change what others see.',
+  docFont:'PDF document font',xlFont:'Excel file font',fontNote:'The PDF font is embedded in the file, so it looks like the preview on any device. The Excel font appears only if it is installed on the device opening the file; otherwise a similar font is used.',
+  help:'User Guide',helpS:'Setup steps and what each section does',gRecipes:'Recipes & costing',gAnalysis:'Analysis & planning',gData:'Data & setup',gsPh:'Search for a product, material, offer or page',gsNone:'Nothing matches.',gsPage:'Page',
+  setup:'Setup checklist',setupDone:'Done',setupTodo:'Not done',doIt:'Go',c1:'Enter the café name and details',c2:'Upload the logo',c3:'Add your raw materials with prices',c4:'Add your products and recipes',c5:'Delete the sample data',c6:'Enter sales for at least one month',c7:'Enter monthly expenses',sections:'What each section does',
+  offers:'Offers & Bundles',offersS:'Cost and margin of each offer and the largest possible discount',buy:'Purchase Plan',buyS:'Material needs and purchase orders from monthly sales',
+  newOffer:'New offer',editOffer:'Edit offer',offer:'Offer',oItems:'Offer items',fullPrice:'Full price',offerPrice:'Offer price incl. VAT',disc:'Discount',minPrice:'Lowest price on target',maxDisc:'Largest discount',addItem:'Add product',noOffers:'No offers yet. An offer is a discounted product or a bundle of several products at one price.',needItems:'Add at least one product and an offer price.',kOffer:'Offer',rOffers:'Offers & Bundles Report',unitPrice:'Unit price',
+  buyIn:'Plan basis',buyPct:'Expected change in sales %',buySafe:'Safety margin %',buyOut:'Material needs',need:'Need',packs:'Packs',packPrice:'Pack price',lineTotal:'Total',noSup:'No supplier set',buyEmpty:'No sales recorded for this month. Enter sales first so needs can be calculated.',buyNote:'Need = recipe quantities × sales, with waste and the safety margin, rounded up to whole packs. The plan does not deduct stock you already hold.',totalEx:'Total excl. VAT',totalInc:'Total incl. VAT',rBuy:'Purchase Plan',po:'Purchase Order',
+  home:'Home',homeS:'Café summary and what needs your attention',sim:'Pricing Simulation',simS:'The effect of material price changes on cost and margin before they happen',chan:'Sales Channels',chanS:'Each product’s margin on delivery apps after commission',
+  kAbove:'Products above target',kAvg:'Average cost %',alerts:'Needs attention',noAlerts:'No alerts. Every product is on target and no prices have changed.',shortcuts:'Shortcuts',open:'Open',alAbove:'cost ratio',alNoPrice:'no selling price',alUp:'price went up',alCheap:'cheaper supplier available',lastSales:'Latest sales month',
+  simIn:'Simulation assumptions',simPct:'Overall change in all material prices %',simOv:'Specific material prices',simNew:'New pack price',simAdd:'Add material',simRound:'Round the suggested price',rNone:'No rounding',rHalf:'To the nearest half riyal',rOne:'To the nearest riyal',simOnly:'Change only products that exceed the target',simOut:'Effect on products',costNow:'Current cost',costNew:'New cost',ratioNew:'New ratio',priceNew:'Suggested price',willChange:'Will change',simApply:'Apply suggested prices',simHint:'The simulation does not change material prices. The apply button changes selling prices of the marked products only, and is logged.',simDone:'Product prices updated',simNone:'No products need a change under these assumptions.',
+  chList:'Channels',chName:'Channel name',chComm:'Commission %',chUp:'Price uplift in channel %',chAdd:'Add channel',chSave:'Save channels',chOut:'Product margins per channel',chPrice:'Price',chProfit:'Profit after commission',chKeep:'Margin-keeping price',chEmpty:'Add a sales channel with its commission to see each product’s margin on it.',chNote:'Commission is calculated on the channel price excluding VAT. If your contract applies it to the VAT-inclusive price, actual profit is slightly lower. The “margin-keeping price” keeps unit profit the same as in-store.',dineIn:'In-store',rChan:'Sales Channels Report',
+  dirtyMsg:'You have unsaved changes on this page.',dirtyGo:'Continue without saving',dirtyStay:'Stay on this page',trash:'Deleted items',dTrash:'Restore a deleted product or material.',noTrash:'Nothing here. Deleted products and materials appear here and can be restored.',restore:'Restore',purge:'Delete permanently',restored:'Restored',
+  head:'Document header',dHead:'Logo position and size, what the header and footer show, and the report colour.',hdLayout:'Header layout',hlStart:'Logo and details on one side',hlEnd:'Logo opposite the details',hlCenter:'Logo and details centred',hlDual:'Arabic on the right, English on the left, logo centred',
+  hdLogo:'Logo size',szS:'Small',szM:'Medium',szL:'Large',hdShowT:'Shown in the header',hdAddr:'Address',hdPhone:'Phone',hdCr:'Commercial registration',hdVat:'VAT number',hdDate:'Document date',ftPage:'Page number in the footer',hdExtra:'Extra line (email, website, slogan)',ftText:'Footer text (blank = café name and phone)',hdPrev:'Header preview',hdPrevNote:'The preview updates with every change; nothing is saved until you press “Save”.',prevDoc:'Document name',
+  back:'Back',showRes:'Show results',toExport:'Export reports',toSales:'Enter sales',toExp:'Monthly expenses',addMatB:'Add material',pXl:'Import from Excel',calcPrint:'Calculation and printing',
+  dXl:'Load materials and recipes in bulk from an Excel file.',dCopy:'Copy materials and recipes from another café into this one.',dFx:'CSV files in the column order of the Foodics import templates.',dBackup:'Download a full copy of this café’s data or restore one.',dLog:'Every add, edit, delete and import with its time.',
+  dCafe:'Name, logo, address and official numbers.',dCalc:'VAT rate and target material cost ratio.',dFxSet:'Category and tax group references and account language.',dAccess:'Access code and deleting the café.',dSample:'Delete the sample materials and products.',
+  gTitle:'Cafés',gSub:'Choose a café to open its data',gPick:'Choose café',gLocked:'Access code',gOpen:'No code',gNone:'No cafés yet. Add the first one with the form below.',gUnnamed:'Unnamed café',gPin:'Access code',gEnter:'Enter',gBad:'The access code is not correct.',gNew:'Add café',gCreate:'Create café and enter',gNewPinL:'Access code (optional)',
+  gPinHint:'Each café has its own separate data: materials, recipes, sales and logo. The access code prevents casual entry; it is not full protection: anyone you share this page with can technically reach every café’s data.',
+  gSwitch:'Switch café',gAccess:'Access to this café',gNewPin:'New access code (leave blank to remove it)',gSavePin:'Save code',gPinSaved:'Access code updated',gDel:'Delete this café and all its data',gMain:'Main Café',
+  rSummary:'Product Costing Report',rMaterials:'Raw Materials Report',rCard:'Recipe Card',rPreps:'Preparations Report',rMenuT:'Price List',menuNote:'Prices are in Saudi riyals and include VAT.',sSummary:'Summary',date:'Date',page:'Page',of:'of',ingredients:'Ingredients',costing:'Costing and pricing',total:'Total',priceEx:'Excl. VAT',targetL:'Target ratio',vatL:'VAT',telL:'Tel',crL:'CR',vatNoL:'VAT No.',type:'Type',tProduct:'Product',tPrep:'Preparation'
+}};
+const UNITS={'جم':'g','مل':'ml','حبة':'pc'},CATS={'ساخن':'Hot','بارد':'Cold','حلويات':'Desserts','أخرى':'Other'};
+const ALG={milk:['حليب','Milk'],gluten:['غلوتين','Gluten'],nuts:['مكسرات','Tree nuts'],peanut:['فول سوداني','Peanuts'],soy:['صويا','Soy'],egg:['بيض','Egg'],sesame:['سمسم','Sesame']};
+const EXP={sal:['رواتب','Salaries'],rent:['إيجار','Rent'],util:['كهرباء وماء','Utilities'],mkt:['تسويق','Marketing'],maint:['صيانة','Maintenance'],fees:['رسوم واشتراكات','Fees and subscriptions'],other:['أخرى','Other']};
+const NAVG=[['',['home']],['gRecipes',['products','preps','materials','offers']],['gAnalysis',['eng','sim','chan','buy']],['gData',['imp','log','settings','help']]];
+const PT={sim:{setup:'simIn'},chan:{setup:'chList',export:'toExport'},buy:{setup:'buyIn',export:'toExport'},offers:{export:'toExport'},products:{export:'toExport'},preps:{export:'toExport'},materials:{export:'toExport'},eng:{sales:'salesEntry',exp:'expT',export:'toExport'},imp:{xl:'pXl',copy:'copyT',fx:'fx'},log:{backup:'backup',list:'logT',trash:'trash'},settings:{cafe:'cafeInfo',head:'head',look:'look',calc:'calc',fx:'fxSet',access:'gAccess',sample:'exData'}};
+const HELP={ar:{home:'ملخص المقهى: المؤشرات، التنبيهات التي تحتاج تصرفاً، واختصارات العمليات المتكررة.',products:'لكل منتج رسبيه وأحجامه وأسعاره. تُحسب تكلفة الكوب ونسبة التكلفة والسعر المقترح تلقائياً من أسعار المواد.',preps:'ما يُحضَّر داخلياً مثل السيرب والصوص. تُدخلون مكوناته وكمية الناتج فتُحسب تكلفة وحدته ويُستخدم مكوّناً في المنتجات.',materials:'أسعار الشراء وحجم العبوة ونسبة الهالك والمورّدون. أي تغيير في السعر ينعكس فوراً على تكلفة كل منتج.',offers:'خصم على منتج أو باقة من عدة منتجات بسعر واحد، مع أدنى سعر يبقيها ضمن النسبة المستهدفة.',eng:'تدخلون مبيعات الشهر ومصروفاته فيُصنَّف كل منتج حسب رواجه وربحيته، ويظهر صافي الربح ونقطة التعادل.',sim:'تجربون ارتفاع أسعار المواد قبل حدوثه وترون أثره على كل منتج، ثم تعتمدون الأسعار المقترحة إن شئتم.',chan:'لكل تطبيق توصيل عمولته وزيادة سعره، ويظهر ربح كل منتج فيه والسعر الذي يحفظ هامشكم.',buy:'من مبيعات الشهر تُحسب كمية كل مادة وعدد العبوات وتكلفتها، ويصدر طلب شراء لكل مورّد.',imp:'استيراد المواد والرسبي من Excel، نسخها من مقهى آخر، وتصدير ملفات فودكس.',log:'نسخة احتياطية كاملة واستعادتها، سجل التعديلات، وسلة المحذوفات.',settings:'بيانات المقهى والشعار، ترويسة المستندات، نسبة الضريبة والمستهدف، ربط فودكس، ورمز الدخول.'},
+ en:{home:'Café summary: key figures, alerts that need action, and shortcuts to frequent tasks.',products:'Each product has its recipe, sizes and prices. Cost per cup, cost ratio and suggested price are calculated from material prices.',preps:'Items made in-house such as syrups and sauces. Enter the components and yield; the unit cost is calculated and used inside products.',materials:'Purchase prices, pack size, waste and suppliers. Any price change immediately updates every product’s cost.',offers:'A discounted product or a bundle at one price, with the lowest price that keeps it on target.',eng:'Enter the month’s sales and expenses; each product is classed by popularity and profitability, with net profit and break-even.',sim:'Try material price rises before they happen, see the effect on each product, then apply suggested prices if you wish.',chan:'Each delivery app has its commission and price uplift; see each product’s profit there and the price that keeps your margin.',buy:'From monthly sales, the quantity, packs and cost of each material are calculated, with a purchase order per supplier.',imp:'Import materials and recipes from Excel, copy them from another café, and export Foodics files.',log:'Full backup and restore, the change log, and deleted items.',settings:'Café details and logo, document header, VAT and target ratio, Foodics link, and the access code.'}};
+const DFONTS=['Arial','IBM Plex Sans Arabic','Cairo','Tajawal','Almarai','Noto Naskh Arabic','Amiri'],XFONTS=['Arial','Tahoma','Calibri','Times New Roman','Sakkal Majalla','Traditional Arabic'];
+const VIEWS=['home','products','preps','materials','eng','sim','chan','offers','buy','imp','log','settings','help'],COLLS=['materials','products'],MAXS=3;
+const DEF={name:'',nameEn:'',address:'',phone:'',cr:'',vatNo:'',logo:'',vat:.15,target:.30,accent:'#0F5B4C',fxLang:'en',fxTax:'',fxInv:'',fxCat0:'',fxCat1:'',fxCat2:'',fxCat3:'',hdLayout:'start',hdLogo:'m',hdAddr:true,hdPhone:true,hdCr:true,hdVat:true,hdDate:true,ftPage:true,hdExtra:'',ftText:'',channels:[],docFont:'IBM Plex Sans Arabic',xlFont:'Arial'};
+const S={cafes:[],cafe:null,regReady:false,gate:{sel:null},cfg:{...DEF},materials:[],products:[],db:null,dl:null,ready:false,offline:false,edit:null,draft:null,
+  q:{products:'',preps:'',materials:''},fcat:'',sel:new Set(),rep:'costing',repLang:'ui',orient:'p',imp:null,sales:{},log:[],month:'',sq:null,sx:null,sa:null,cmp:null,unlocked:new Set(),trash:[],offers:[],od:null,buy:{pct:'',safe:'10'},dirty:false,pending:null,chd:null,sim:{pct:'',ov:[],round:'0.5',only:true},msup:[],msel:0,rest:null};
+let lang='ar';try{lang=localStorage.getItem('lang')==='en'?'en':'ar'}catch(e){}
+const LOOK={theme:'sys',fs:'m',dens:'comfy',nav:'on'};try{Object.assign(LOOK,JSON.parse(localStorage.getItem('look')||'{}'))}catch(e){}
+const HOST_THEME=document.documentElement.getAttribute('data-theme');
+function applyLook(save){const r=document.documentElement;try{if(LOOK.theme==='light'||LOOK.theme==='dark')r.setAttribute('data-theme',LOOK.theme);else if(HOST_THEME)r.setAttribute('data-theme',HOST_THEME);else r.removeAttribute('data-theme')}catch(e){}
+  document.body.style.fontSize={s:'13.5px',m:'15px',l:'16.5px'}[LOOK.fs]||'15px';document.body.classList.toggle('dense',LOOK.dens==='dense');const a=document.getElementById('app');if(a)a.toggleAttribute('data-nav-off',LOOK.nav==='off');
+  if(save)try{localStorage.setItem('look',JSON.stringify(LOOK))}catch(e){}}
+const SUBS={sim:['setup'],chan:['setup','export'],buy:['setup','export'],offers:['export'],products:['export'],preps:['export'],materials:['export'],eng:['sales','exp','export'],imp:['xl','copy','fx'],log:['backup','list','trash'],settings:['cafe','head','look','calc','fx','access','sample']};
+const H0=location.hash.slice(1).split('.');
+let view=VIEWS.includes(H0[0])?H0[0]:'home',sub=(SUBS[view]||[]).includes(H0[1])?H0[1]:'',skipKeep=false,raf=0;
+
+const $=id=>document.getElementById(id);
+const t=k=>L[lang][k]??L.ar[k]??k;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
+const fmt=(n,d=2)=>(isFinite(n)&&Math.abs(n)>=.5/10**d?n:0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct=n=>isFinite(n)?fmt(n*100,1)+'%':'—';
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const byId=(arr,id)=>arr.find(x=>x.id===id);
+const nmL=(x,l)=>x?(l==='en'?(x.nameEn||x.name):(x.name||x.nameEn))||'':'';
+const nm=x=>nmL(x,lang);
+const un=u=>lang==='en'?(UNITS[u]||u||''):(u||'');
+const ct=c=>lang==='en'?(CATS[c]||c||''):(c||'');
+const cafe=()=>nm(S.cfg)||t('app');
+const exTag=x=>x&&x.example?`<span class="chip ex">${t('example')}</span>`:'';
+const sorted=a=>a.slice().sort((x,y)=>nm(x).localeCompare(nm(y),lang));
+const hit=(x,q)=>!q||((x.name||'')+' '+(x.nameEn||'')).toLowerCase().includes(q.trim().toLowerCase());
+function toast(s){const el=$('toast');el.textContent=s;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,3000)}
+
+/* ---------- model ---------- */
+const norm=p=>({type:'product',cat:'ساخن',method:'',...p,sizes:p.sizes&&p.sizes.length?p.sizes:[{name:'',nameEn:'',price:p.price||0}],lines:(p.lines||[]).map(l=>({m:l.m,note:l.note||'',qtys:l.qtys||[l.qty]}))});
+const prods=()=>S.products.filter(p=>p.type!=='prep'),preps=()=>S.products.filter(p=>p.type==='prep');
+const mat=id=>byId(S.materials,id),prepOf=id=>S.products.find(x=>x.id===id&&x.type==='prep'),comp=id=>mat(id)||prepOf(id);
+const unitCost=m=>m&&m.packSize>0?m.price/m.packSize/(1-Math.min(num(m.waste),.95)):0;
+function cCost(id,seen){const m=mat(id);if(m)return unitCost(m);const p=prepOf(id);if(!p||seen.has(id))return 0;const s=new Set(seen);s.add(id);const y=num(p.yieldQty);return y>0?cost(p,0,s)/y:0}
+const cUnit=id=>{const m=mat(id);return m?m.unit:(prepOf(id)||{}).yieldUnit||''};
+function cost(p,i,seen){seen=seen||new Set([p.id]);return(p.lines||[]).reduce((s,l)=>s+num(l.qtys[i])*cCost(l.m,seen),0)}
+function calc(c,price){const ex=num(price)/(1+S.cfg.vat);return{c,ex,ratio:ex>0?c/ex:NaN,gp:ex-c,margin:ex>0?(ex-c)/ex:NaN,suggest:c/S.cfg.target*(1+S.cfg.vat)}}
+const stats=(p,i)=>calc(cost(p,i),p.sizes[i].price);
+const dCost=(d,j)=>{const seen=new Set([d.id]);return d.sizes[j].lines.reduce((s,l)=>s+num(l.qty)*cCost(l.m,seen),0)};
+const stKey=r=>!isFinite(r)?'noPrice':r>S.cfg.target?'highS':'okS';
+const statusChip=r=>`<span class="chip ${!isFinite(r)?'wr':r>S.cfg.target?'bd':'ok'}">${t(stKey(r))}</span>`;
+const usedIn=id=>S.products.filter(p=>(p.lines||[]).some(l=>l.m===id)).length;
+
+/* ---------- storage: each café keeps its data under cafes/<id>/…; the first café ('default') uses the root paths ---------- */
+const PX=()=>S.cafe&&S.cafe!=='default'?'cafes/'+S.cafe+'/':'',C=c=>S.db.collection(PX()+c);
+async function save(coll,id,data){
+  if(S.db){try{await C(coll).doc(id).set(data)}catch(e){fail(e);return false}}
+  else{const a=S[coll],i=a.findIndex(x=>x.id===id),row=coll==='products'?norm({id,...data}):{id,...data};i<0?a.push(row):a[i]=row}
+  return true}
+async function del(coll,id){
+  if(S.db){try{await C(coll).doc(id).delete()}catch(e){fail(e);return false}}
+  else S[coll]=S[coll].filter(x=>x.id!==id);
+  return true}
+async function saveCfg(c){const next={...S.cfg,...c};if(S.db){try{await S.db.doc(PX()+'config/main').set(next)}catch(e){fail(e);return false}}S.cfg=next;return true}
+function fail(e){const c=e&&e.code;toast(c==='quota_exceeded'?t('eQuota'):c==='invalid_argument'?t('ePerm'):t('eNet'));
+  if(c==='invalid_argument'||c==='revoked'||c==='not_granted')document.body.classList.add('ro')}
+function schedule(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render)}
+const withHistory=(old,price,pack)=>old&&num(old.price)>0&&(num(old.price)!==price||(pack!=null&&num(old.packSize)!==pack))?[...(old.history||[]),{d:today(),p:num(old.price),s:num(old.packSize)}].slice(-12):(old&&old.history)||[];
+
+function logAct(a,k,n){const e={t:new Date().toISOString(),a,k,n:String(n||'')};
+  if(S.db)C('log').doc(Date.now().toString(36)+Math.random().toString(36).slice(2,5)).set(e).catch(()=>{});else S.log.unshift(e)}
+async function saveSales(mo,qty,exp,alloc){const d={qty,exp:exp||{},alloc:alloc||'cups'};if(S.db){try{await C('sales').doc(mo).set(d)}catch(e){fail(e);return false}}else S.sales[mo]=d;return true}
+const curExp=()=>S.sx||(S.sales[S.month]||{}).exp||{},curAlloc=()=>S.sa||(S.sales[S.month]||{}).alloc||'cups';
+const curQty=()=>S.sq||(S.sales[S.month]||{}).qty||{};
+function engData(){const q=curQty(),rows=[];sorted(prods()).forEach(p=>p.sizes.forEach((z,j)=>{const s=stats(p,j),n=num(q[p.id+'|'+j]);rows.push({p,j,n,s,gpT:n*s.gp,rev:n*s.ex,costT:n*s.c})}));
+  const sold=rows.filter(r=>r.n>0),sum=f=>sold.reduce((a,r)=>a+f(r),0),tq=sum(r=>r.n),tg=sum(r=>r.gpT),avg=tq?tg/tq:0,thr=sold.length?.7/sold.length:0;
+  rows.forEach(r=>{r.mix=tq?r.n/tq:0;r.cls=!r.n?'cNone':r.mix>=thr?(r.s.gp>=avg?'cStar':'cHorse'):(r.s.gp>=avg?'cPuzzle':'cDog')});
+  const rev=sum(r=>r.rev),ex=curExp(),te=Object.keys(EXP).reduce((a,k)=>a+num(ex[k]),0),byRev=curAlloc()==='rev';
+  rows.forEach(r=>{r.oh=r.n?(byRev?(rev?te*r.rev/rev/r.n:0):te/tq):0;r.netU=r.s.gp-r.oh;r.netT=r.n*r.netU});
+  return{rows,tq,tg,avg,rev,cost:sum(r=>r.costT),te,net:tg-te,beCups:avg>0?te/avg:NaN,beSales:tg>0?te/(tg/rev):NaN}}
+const CLS={cStar:'ok',cHorse:'wr',cPuzzle:'ex',cDog:'bd',cNone:''};
+const pLabel=(p,j)=>nm(p)+(p.sizes.length>1||nm(p.sizes[j])?' · '+(nm(p.sizes[j])||j+1):'');
+function engOut(){const d=engData();if(!d.tq)return`<p class="empty">${t('engEmpty')}</p>`;const ord=['cStar','cHorse','cPuzzle','cDog','cNone'];
+  const rows=d.rows.slice().sort((a,b)=>ord.indexOf(a.cls)-ord.indexOf(b.cls)||b.gpT-a.gpT).map(r=>`<tr><td>${esc(pLabel(r.p,r.j))}</td><td class="n">${fmt(r.n,0)}</td><td class="n">${pct(r.mix)}</td><td class="n">${fmt(r.s.gp)}</td><td class="n">${fmt(r.gpT,0)}</td><td class="n">${pct(r.s.ratio)}</td>${d.te?`<td class="n">${fmt(r.oh)}</td><td class="n">${fmt(r.netU)}</td><td class="n">${fmt(r.netT,0)}</td>`:''}<td><span class="chip ${CLS[r.cls]}">${t(r.cls)}</span></td><td style="white-space:normal;min-width:220px">${t('a'+r.cls.slice(1))}</td></tr>`);
+  return`${tbl([[t('totalQty'),'n'],[t('revenue'),'n'],[t('ratio'),'n'],[t('totalGp'),'n'],[t('avgGp'),'n'],...(d.te?[[t('totalExp'),'n'],[t('netT'),'n'],[t('beCups'),'n'],[t('beSales'),'n']]:[])],[`<tr><td class="n">${fmt(d.tq,0)}</td><td class="n">${fmt(d.rev,0)}</td><td class="n">${pct(d.rev?d.cost/d.rev:NaN)}</td><td class="n">${fmt(d.tg,0)}</td><td class="n">${fmt(d.avg)}</td>${d.te?`<td class="n">${fmt(d.te,0)}</td><td class="n">${fmt(d.net,0)}</td><td class="n">${isFinite(d.beCups)?fmt(d.beCups,0):'—'}</td><td class="n">${isFinite(d.beSales)?fmt(d.beSales,0):'—'}</td>`:''}</tr>`],'')}
+  ${tbl([[t('product')],[t('qtySold'),'n'],[t('mix'),'n'],[t('unitGp'),'n'],[t('totalGp'),'n'],[t('ratio'),'n'],...(d.te?[[t('ohU'),'n'],[t('netU'),'n'],[t('netT'),'n']]:[]),[t('klass')],[t('action')]],rows,'')}<p class="sub">${t('engNote')}</p>`}
+function supBox(){const a=S.msup,e=S.edit,u=e?e.unit:'';return`<h3>${t('suppliers')}</h3><p class="sub">${t('supHint')}</p>${a.length?`<div class="scroll"><table><thead><tr><th>${t('approved')}</th><th>${t('supplier')}</th><th>${t('buyUnitH')}</th><th class="n">${t('buyPrice')}</th><th class="n">${t('packSizeH')}</th><th class="n">${t('costPerUnit')}</th><th></th></tr></thead><tbody>
+    ${a.map((x,i)=>`<tr><td><input type="radio" name="sup" data-supr="${i}" ${S.msel===i?'checked':''} aria-label="${t('approved')}"></td><td><input id="sp${i}-n" data-sup="${i}" data-k="name" value="${esc(x.name||'')}" aria-label="${t('supplier')}"></td><td><input id="sp${i}-b" data-sup="${i}" data-k="buyUnit" value="${esc(x.buyUnit||'')}" aria-label="${t('buyUnitH')}"></td>
+      <td><input id="sp${i}-p" type="number" step="any" min="0" data-sup="${i}" data-k="price" value="${esc(x.price??'')}" aria-label="${t('buyPrice')}"></td><td><input id="sp${i}-s" type="number" step="any" min="0" data-sup="${i}" data-k="packSize" value="${esc(x.packSize??'')}" aria-label="${t('packSizeH')}"></td>
+      <td class="n" id="sp${i}-u">${fmt(num(x.packSize)>0?num(x.price)/num(x.packSize):0,4)}</td><td><button type="button" class="btn sm danger" data-act="rmsup" data-id="${i}">${t('remove')}</button></td></tr>`).join('')}</tbody></table></div>`:''}
+    <div class="row"><button type="button" class="btn" data-act="addsup">${t('addSup')}</button></div>`}
+const supInfo=m=>{const a=m.suppliers||[];if(!a.length)return'—';const ap=a[Math.min(num(m.sup),a.length-1)],uc=x=>num(x.packSize)>0?num(x.price)/num(x.packSize):Infinity,best=a.slice().sort((x,y)=>uc(x)-uc(y))[0];
+  return esc(ap.name||'—')+(best!==ap&&uc(best)<uc(ap)*.999?` <span class="chip wr">${t('cheaper')}: ${esc(best.name||'')} <span dir="ltr">${fmt((uc(best)/uc(ap)-1)*100,1)}%</span></span>`:'')};
+
+/* ---------- views ---------- */
+const actBtn=(a,id,label,cls='')=>`<button class="btn sm ${cls}" data-act="${a}" data-id="${esc(id)}">${label}</button>`;
+const delBtn=(c,id)=>`<button class="btn sm danger w" data-act="del" data-coll="${c}" data-id="${esc(id)}">${t('del')}</button>`;
+const tbl=(head,rows,empty)=>rows.length?`<div class="scroll"><table><thead><tr>${head.map(h=>`<th class="${h[1]||''}">${h[0]}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`:`<p class="empty">${empty}</p>`;
+const inp=(id,label,val,type='text',extra='')=>`<label class="f" for="${id}">${label}<input id="${id}" data-keep type="${type}" value="${esc(val??'')}" ${type==='number'?'step="any" min="0" inputmode="decimal"':''} ${extra}></label>`;
+const sel=(id,label,opts,val,attr='')=>`<label class="f" for="${id}">${label}<select id="${id}" ${attr}>${opts.map(o=>`<option value="${esc(o[0])}" ${String(val)===String(o[0])?'selected':''}>${esc(o[1])}</option>`).join('')}</select></label>`;
+const searchBox=v=>`<label class="f" for="q-${v}">${t('search')}<input id="q-${v}" data-keep data-q="${v}" type="search" value="${esc(S.q[v])}"></label>`;
+const langSel=()=>sel('rep-lang',t('repLang'),[['ui',t('lUi')],['ar',t('lAr')],['en',t('lEn')],['both',t('lBoth')]],S.repLang,'data-st="repLang"');
+const orientSel=()=>sel('rep-or',t('orient'),[['p',t('oP')],['l',t('oL')]],S.orient,'data-st="orient"');
+const expBtns=r=>`<button class="btn" data-act="xls" data-rep="${r}">${t('xls')}</button><button class="btn" data-act="pdf" data-rep="${r}">${t('pdf')}</button>`;
+const shownProds=()=>sorted(prods()).filter(p=>hit(p,S.q.products)&&(!S.fcat||p.cat===S.fcat));
+const prChg=m=>{const h=m.history&&m.history[m.history.length-1];if(!h||!h.p)return 0;const o=h.p/(h.s||num(m.packSize)||1),c=num(m.price)/(num(m.packSize)||1);return o?(c-o)/o:0};
+const cheapSup=m=>{const a=m.suppliers||[];if(a.length<2)return null;const uc=x=>num(x.packSize)>0?num(x.price)/num(x.packSize):Infinity,ap=a[Math.min(num(m.sup),a.length-1)],best=a.slice().sort((x,y)=>uc(x)-uc(y))[0];return best!==ap&&uc(best)<uc(ap)*.999?best:null};
+function simData(){const sm=S.sim,g=num(sm.pct)/100,ov={},rows=[];sm.ov.forEach(o=>{if(o.m&&o.price!=='')ov[o.m]=num(o.price)});sorted(prods()).forEach(p=>p.sizes.forEach((z,j)=>rows.push({p,j,a:stats(p,j)})));
+  const bak=S.materials;S.materials=bak.map(m=>({...m,price:m.id in ov?ov[m.id]:num(m.price)*(1+g)}));try{rows.forEach(r=>{r.b=stats(r.p,r.j)})}finally{S.materials=bak}
+  const rd=num(sm.round);rows.forEach(r=>{let n=r.b.suggest;if(rd>0)n=Math.ceil(n/rd-1e-9)*rd;r.np=n;r.apply=n>0&&Math.abs(n-num(r.p.sizes[r.j].price))>.004&&(!sm.only||!isFinite(r.b.ratio)||r.b.ratio>S.cfg.target)});return rows}
+function simOut(){const rows=simData();if(!rows.length)return`<p class="empty">${t('noProducts')}</p>`;
+  return tbl([[t('product')],[t('costNow'),'n'],[t('costNew'),'n'],['Δ','n'],[t('price'),'n'],[t('ratio'),'n'],[t('ratioNew'),'n'],[t('priceNew'),'n'],[t('willChange')]],rows.map(r=>{const d=r.a.c?(r.b.c-r.a.c)/r.a.c:0;return`<tr><td>${esc(pLabel(r.p,r.j))}</td><td class="n">${fmt(r.a.c)}</td><td class="n">${fmt(r.b.c)}</td><td class="n ${d>0.0005?'up':d<-0.0005?'down':''}">${d>0?'+':''}${fmt(d*100,1)}%</td><td class="n">${fmt(num(r.p.sizes[r.j].price))}</td><td class="n">${pct(r.a.ratio)}</td><td class="n"><span class="chip ${!isFinite(r.b.ratio)?'wr':r.b.ratio>S.cfg.target?'bd':'ok'}">${pct(r.b.ratio)}</span></td><td class="n">${fmt(r.np)}</td><td>${r.apply?`<span class="chip wr">${t('willChange')}</span>`:'—'}</td></tr>`}),'')}
+const curCh=()=>S.chd||S.cfg.channels||[];
+function chanCalc(p,j,c){const z=p.sizes[j],s=stats(p,j),price=num(z.price),pr=price*(1+num(c.up)/100),ex=pr/(1+S.cfg.vat),net=ex*(1-num(c.comm)/100),prof=net-s.c,k=1-num(c.comm)/100;return{pr,prof,mg:ex>0?prof/ex:NaN,keep:k>0?price/k:NaN,s}}
+function chanOut(){const ch=curCh().filter(c=>(c.name||c.nameEn||'').trim());if(!ch.length)return`<p class="empty">${t('chEmpty')}</p>`;const rows=[];
+  sorted(prods()).forEach(p=>p.sizes.forEach((z,j)=>{const s=stats(p,j);rows.push(`<tr><td>${esc(pLabel(p,j))}</td><td class="n">${fmt(num(z.price))}</td><td class="n">${fmt(s.gp)}</td>${ch.map(c=>{const r=chanCalc(p,j,c);return`<td class="n">${fmt(r.pr)}</td><td class="n"><span class="${r.prof<=0?'chip bd':r.prof<s.gp*.75?'chip wr':''}">${fmt(r.prof)}</span></td><td class="n">${pct(r.mg)}</td><td class="n">${isFinite(r.keep)?fmt(r.keep):'—'}</td>`}).join('')}</tr>`)}));
+  return tbl([[t('product')],[t('price')+' · '+t('dineIn'),'n'],[t('gp')+' · '+t('dineIn'),'n'],...ch.flatMap(c=>{const n=esc(nm(c));return[[n+' · '+t('chPrice'),'n'],[n+' · '+t('chProfit'),'n'],[n+' · '+t('margin'),'n'],[n+' · '+t('chKeep'),'n']]})],rows,t('noProducts'))+`<p class="sub">${t('chNote')}</p>`}
+const psOpts=cur=>`<option value="">${t('choose')}</option>`+sorted(prods()).flatMap(p=>p.sizes.map((z,j)=>`<option value="${esc(p.id+'|'+j)}" ${cur===p.id+'|'+j?'selected':''}>${esc(pLabel(p,j))}</option>`)).join('');
+const psOf=k=>{const[pid,j]=String(k||'').split('|'),p=byId(S.products,pid);return p&&p.sizes[+j]?{p,j:+j}:null};
+function offerCalc(o){let full=0,c=0;(o.items||[]).forEach(it=>{const x=psOf(it.k);if(!x)return;full+=num(x.p.sizes[x.j].price)*num(it.qty);c+=cost(x.p,x.j)*num(it.qty)});
+  const minP=c/S.cfg.target*(1+S.cfg.vat);return{full,c,s:calc(c,o.price),disc:full>0&&num(o.price)>0?1-num(o.price)/full:NaN,minP,maxDisc:full>0?1-minP/full:NaN}}
+const offerText=o=>(o.items||[]).map(it=>{const x=psOf(it.k);return x?pLabel(x.p,x.j)+(num(it.qty)!==1?' ×'+fmt(num(it.qty),0):''):null}).filter(Boolean).join(' + ');
+function odTotals(){const o=S.od,box=$('od-tot');if(!o||!box)return;const r=offerCalc(o);o.items.forEach((it,i)=>{const x=psOf(it.k),set=(k,v)=>{const el=$(`od-l${i}-${k}`);if(el)el.textContent=v},pr=x?num(x.p.sizes[x.j].price):0;set('p',fmt(pr));set('t',fmt(pr*num(it.qty)))});
+  box.innerHTML=tbl([[t('fullPrice'),'n'],[t('disc'),'n'],[t('cost'),'n'],[t('ratio'),'n'],[t('gp'),'n'],[t('minPrice'),'n'],[t('maxDisc'),'n'],[t('status')]],[`<tr><td class="n">${fmt(r.full)}</td><td class="n">${pct(r.disc)}</td><td class="n">${fmt(r.c)}</td><td class="n">${pct(r.s.ratio)}</td><td class="n">${fmt(r.s.gp)}</td><td class="n">${fmt(r.minP)}</td><td class="n">${pct(r.maxDisc)}</td><td>${statusChip(r.s.ratio)}</td></tr>`],'')}
+function buyData(){const q=(S.sales[S.month]||{}).qty||{},f=(1+num(S.buy.pct)/100)*(1+num(S.buy.safe)/100),need={};
+  const add=(id,amt,seen)=>{const m=mat(id);if(m){need[id]=(need[id]||0)+amt/(1-Math.min(num(m.waste),.95));return}const p=prepOf(id);if(!p||seen.has(id)||!(num(p.yieldQty)>0))return;const s2=new Set(seen);s2.add(id);p.lines.forEach(l=>add(l.m,amt/num(p.yieldQty)*num(l.qtys[0]),s2))};
+  let sold=0;prods().forEach(p=>p.sizes.forEach((z,j)=>{const n=num(q[p.id+'|'+j]);if(!n)return;sold+=n;p.lines.forEach(l=>add(l.m,n*f*num(l.qtys[j]),new Set([p.id])))}));
+  const rows=sorted(S.materials).filter(m=>need[m.id]>0).map(m=>{const a=m.suppliers||[],sp=a.length?a[Math.min(num(m.sup),a.length-1)].name||'':'',packs=num(m.packSize)>0?Math.ceil(need[m.id]/num(m.packSize)-1e-9):0;return{m,need:need[m.id],packs,total:packs*num(m.price),sup:sp}});
+  const groups=[];rows.forEach(r=>{let g=groups.find(x=>x.sup===r.sup);if(!g){g={sup:r.sup,rows:[],total:0};groups.push(g)}g.rows.push(r);g.total+=r.total});groups.sort((a,b)=>(a.sup?0:1)-(b.sup?0:1)||a.sup.localeCompare(b.sup,lang));
+  return{sold,rows,groups,total:rows.reduce((a,r)=>a+r.total,0)}}
+function buyOut(){const d=buyData();if(!d.sold)return`<p class="empty">${t('buyEmpty')}</p><div class="row">${jump('go:eng.sales',t('toSales'),'primary')}</div>`;
+  return d.groups.map(g=>`<h3>${esc(g.sup||t('noSup'))} · <span dir="ltr">${fmt(g.total)}</span></h3>${tbl([[t('material')],[t('need'),'n'],[t('unit')],[t('buyUnitH')],[t('packs'),'n'],[t('packPrice'),'n'],[t('lineTotal'),'n']],g.rows.map(r=>`<tr><td>${esc(nm(r.m))}</td><td class="n">${fmt(r.need,0)}</td><td>${esc(un(r.m.unit))}</td><td>${esc(r.m.buyUnit||'')}</td><td class="n">${fmt(r.packs,0)}</td><td class="n">${fmt(num(r.m.price))}</td><td class="n">${fmt(r.total)}</td></tr>`),'')}`).join('')+
+    tbl([[t('totalEx'),'n'],[t('vatL'),'n'],[t('totalInc'),'n']],[`<tr><td class="n">${fmt(d.total)}</td><td class="n">${fmt(d.total*S.cfg.vat)}</td><td class="n">${fmt(d.total*(1+S.cfg.vat))}</td></tr>`],'')+`<p class="sub">${t('buyNote')}</p>`}
+const jump=(id,label,cls='')=>`<button class="btn ${cls}" data-act="jump" data-id="${id}">${label}</button>`;
+const tiles=a=>`<div class="cafes">${a.map(x=>`<button class="cafe" data-act="sub" data-id="${x[0]}"><b>${x[1]}</b><span>${x[2]}</span></button>`).join('')}</div>`;
+const subBtn=(id,label,cls='')=>`<button class="btn ${cls}" data-act="sub" data-id="${id}">${label}</button>`;
+function setSub(x){sub=x;skipKeep=true;try{history.replaceState(null,'','#'+view+(x?'.'+x:''))}catch(e){}render();window.scrollTo({top:0})}
+function pageTitle(){const d=S.draft;if(view==='offers'&&S.od)return S.od.isNew?t('newOffer'):t('editOffer')+': '+nm(S.od);if(d&&(view==='products'||view==='preps'))return d.isNew?t(d.type==='prep'?'newPrepT':'newProdT'):t('editRecipe')+': '+nm(d);
+  const m={sim:{setup:'simIn'},chan:{setup:'chList',export:'toExport'},buy:{setup:'buyIn',export:'toExport'},offers:{export:'toExport'},products:{export:'toExport'},preps:{export:'toExport'},materials:{form:S.edit?'editMat':'addMat',export:'toExport'},eng:{sales:'salesEntry',exp:'expT',export:'toExport'},imp:{xl:'pXl',copy:'copyT',fx:'fx'},log:{backup:'backup',list:'logT',trash:'trash'},settings:{cafe:'cafeInfo',head:'head',look:'look',calc:'calc',fx:'fxSet',access:'gAccess',sample:'exData'}},k=(m[view]||{})[sub];return k?t(k):''}
+function guard(fn){if(!S.dirty)return fn();S.pending=fn;render();window.scrollTo({top:0})}
+function back(){S.dirty=false;S.chd=null;S.od=null;S.draft=null;S.edit=null;S.msup=[];S.msel=0;S.imp=null;S.rest=null;setSub('')}
+const monthBar=()=>`<div class="bar">${inp('eng-month',t('month'),S.month,'month','data-st="month" data-rr="1"').replace('data-keep','')}</div>`;
+const V={
+home(){const rs=[];prods().forEach(p=>p.sizes.forEach((z,j)=>rs.push({p,j,s:stats(p,j)})));const fin=rs.filter(r=>isFinite(r.s.ratio)),above=fin.filter(r=>r.s.ratio>S.cfg.target).sort((a,b)=>b.s.ratio-a.s.ratio),noP=rs.filter(r=>!isFinite(r.s.ratio));
+  const up=S.materials.map(m=>({m,d:prChg(m)})).filter(x=>x.d>.0005).sort((a,b)=>b.d-a.d),cheap=S.materials.map(m=>({m,b:cheapSup(m)})).filter(x=>x.b),lm=Object.keys(S.sales).sort().pop();let e=null;
+  if(lm){const bm=S.month,bq=S.sq,bx=S.sx,ba=S.sa;S.month=lm;S.sq=S.sx=S.sa=null;try{e=engData()}finally{S.month=bm;S.sq=bq;S.sx=bx;S.sa=ba}}
+  const al=[...above.map(r=>[`${esc(pLabel(r.p,r.j))}: ${t('alAbove')} <span dir="ltr">${pct(r.s.ratio)}</span>`,'edit:'+r.p.id,'bd']),...noP.map(r=>[`${esc(pLabel(r.p,r.j))}: ${t('alNoPrice')}`,'edit:'+r.p.id,'wr']),...up.map(x=>[`${esc(nm(x.m))}: ${t('alUp')} <span dir="ltr">+${fmt(x.d*100,1)}%</span>`,'mat:'+x.m.id,'wr']),...cheap.map(x=>[`${esc(nm(x.m))}: ${t('alCheap')} (${esc(x.b.name||'')})`,'mat:'+x.m.id,'ex'])];
+  const kpi=(l,v,sub2='')=>`<div class="kpi"><span>${l}</span><b>${v}</b>${sub2?`<span>${sub2}</span>`:''}</div>`;
+  return`<div class="kpis">${kpi(t('products'),prods().length)}${kpi(t('materials'),S.materials.length)}${kpi(t('kAvg'),pct(fin.length?fin.reduce((a,r)=>a+r.s.ratio,0)/fin.length:NaN),t('targetL')+' '+pct(S.cfg.target))}${kpi(t('kAbove'),above.length)}${e&&e.tq?kpi(t('totalGp'),fmt(e.tg,0),t('lastSales')+' '+esc(lm))+(e.te?kpi(t('netT'),fmt(e.net,0),t('totalExp')+' '+fmt(e.te,0)):''):''}</div>
+  <div class="card"><h2>${t('alerts')}</h2>${al.length?`<ul class="alerts">${al.slice(0,10).map(a=>`<li><span><span class="chip ${a[2]}" style="margin-inline:0 6px">!</span>${a[0]}</span>${jump(a[1],t('open'),'sm')}</li>`).join('')}</ul>${al.length>10?`<p class="sub">+${al.length-10}</p>`:''}`:`<p class="empty">${t('noAlerts')}</p>`}</div>
+  <div class="card"><h2>${t('shortcuts')}</h2><div class="row w">${jump('newprod:',t('newProd'),'primary')}${jump('newmat:',t('addMatB'))}${jump('go:eng.sales',t('toSales'))}${jump('go:products.export',t('toExport'))}${jump('go:sim',t('sim'))}${jump('go:log.backup',t('dlBackup'))}</div></div>`},
+
+sim(){const sm=S.sim;if(sub!=='setup')return`<div class="card"><div class="bar">${subBtn('setup',t('simIn'),'primary')}<span class="sub">${t('simPct')}: <span dir="ltr">${fmt(num(sm.pct),1)}%</span> · ${t('simOv')}: ${sm.ov.filter(o=>o.m&&o.price!=='').length}</span></div><div id="sim-out">${simOut()}</div><p class="sub">${t('simHint')}</p><div class="row w"><button class="btn primary" data-act="simapply">${t('simApply')}</button></div></div>`;
+  return`<div class="card"><div class="grid"><label class="f" for="sim-pct">${t('simPct')}<input id="sim-pct" type="number" step="any" data-sim="pct" value="${esc(sm.pct)}" placeholder="0"></label>
+    <label class="f" for="sim-round">${t('simRound')}<select id="sim-round" data-sim="round">${[['0',t('rNone')],['0.5',t('rHalf')],['1',t('rOne')]].map(o=>`<option value="${o[0]}" ${sm.round===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></label></div>
+    <h3>${t('simOv')}</h3>${sm.ov.length?`<div class="scroll"><table><thead><tr><th>${t('material')}</th><th class="n">${t('buyPrice')}</th><th class="n">${t('simNew')}</th><th></th></tr></thead><tbody>${sm.ov.map((o,i)=>{const m=mat(o.m);return`<tr><td><select id="so${i}-m" data-so="${i}" data-k="m" aria-label="${t('material')}"><option value="">${t('choose')}</option>${sorted(S.materials).map(x=>`<option value="${esc(x.id)}" ${o.m===x.id?'selected':''}>${esc(nm(x))}</option>`).join('')}</select></td><td class="n">${m?fmt(num(m.price)):'—'}</td><td><input id="so${i}-p" type="number" step="any" min="0" data-so="${i}" data-k="price" value="${esc(o.price)}" aria-label="${t('simNew')}"></td><td><button class="btn sm danger" data-act="simrm" data-id="${i}">${t('remove')}</button></td></tr>`}).join('')}</tbody></table></div>`:''}
+    <div class="row"><button class="btn" data-act="simadd">${t('simAdd')}</button><label class="row" style="gap:4px"><input type="checkbox" id="sim-only" data-sim="only" ${sm.only?'checked':''}>${t('simOnly')}</label></div><div class="row"><button class="btn primary" data-act="back">${t('showRes')}</button></div></div>`},
+
+help(){const c=S.cfg,sm=Object.values(S.sales),items=[['c1',!!(c.name||c.nameEn),'go:settings.cafe'],['c2',!!c.logo,'go:settings.cafe'],['c3',S.materials.some(m=>!m.example),'newmat:'],['c4',prods().some(p=>!p.example),'newprod:'],['c5',!COLLS.some(k=>S[k].some(x=>x.example)),'go:settings.sample'],['c6',sm.some(x=>Object.keys(x.qty||{}).length),'go:eng.sales'],['c7',sm.some(x=>Object.keys(x.exp||{}).length),'go:eng.exp']],done=items.filter(i=>i[1]).length;
+  return`<div class="card"><h2>${t('setup')} · <span dir="ltr">${done}/${items.length}</span></h2><ul class="alerts">${items.map(i=>`<li><span><span class="chip ${i[1]?'ok':'wr'}" style="margin-inline:0 8px">${t(i[1]?'setupDone':'setupTodo')}</span>${t(i[0])}</span>${i[1]?'':jump(i[2],t('doIt'),'sm')}</li>`).join('')}</ul></div>
+  <div class="card"><h2>${t('sections')}</h2><ul class="alerts">${NAVG.flatMap(g=>g[1]).filter(v=>v!=='help').map(v=>`<li><span style="flex:1 1 320px;min-width:0"><b>${t(v)}</b><br><span class="sub">${HELP[lang][v]}</span></span>${jump('go:'+v,t('open'),'sm')}</li>`).join('')}</ul></div>`},
+
+offers(){const o=S.od;
+  if(o)return`<div class="card" data-dirty="1"><div class="grid"><label class="f" for="od-name">${t('nameAr')}<input id="od-name" data-od="name" value="${esc(o.name)}"></label><label class="f" for="od-nameEn">${t('nameEn')}<input id="od-nameEn" dir="ltr" data-od="nameEn" value="${esc(o.nameEn)}"></label><label class="f" for="od-price">${t('offerPrice')}<input id="od-price" type="number" step="any" min="0" data-od="price" value="${esc(o.price)}"></label></div>
+    <h3>${t('oItems')}</h3><div class="scroll"><table><thead><tr><th>${t('product')}</th><th class="n">${t('qty')}</th><th class="n">${t('unitPrice')}</th><th class="n">${t('lineTotal')}</th><th></th></tr></thead><tbody>${o.items.map((it,i)=>`<tr><td><select id="od-l${i}-k" data-ol="${i}" data-k="k" aria-label="${t('product')}">${psOpts(it.k)}</select></td><td><input id="od-l${i}-q" type="number" step="any" min="0" data-ol="${i}" data-k="qty" value="${esc(it.qty)}" aria-label="${t('qty')}"></td><td class="n" id="od-l${i}-p"></td><td class="n" id="od-l${i}-t"></td><td><button class="btn sm danger" data-act="odrm" data-id="${i}">${t('remove')}</button></td></tr>`).join('')}</tbody></table></div>
+    <div class="row"><button class="btn" data-act="odadd">${t('addItem')}</button></div><div id="od-tot"></div>
+    <div class="row"><button class="btn primary" data-act="odsave">${t('saveProd')}</button><button class="btn" data-act="back">${t('cancel')}</button></div></div>`;
+  if(sub==='export')return`<div class="card"><div class="bar">${langSel()}${orientSel()}${expBtns('offers')}</div></div>`;
+  const rows=sorted(S.offers).map(x=>{const r=offerCalc(x);return`<tr><td>${esc(nm(x))}</td><td style="white-space:normal;min-width:200px">${esc(offerText(x))}</td><td class="n">${fmt(r.full)}</td><td class="n">${fmt(num(x.price))}</td><td class="n">${pct(r.disc)}</td><td class="n">${fmt(r.c)}</td><td class="n"><span class="chip ${!isFinite(r.s.ratio)?'wr':r.s.ratio>S.cfg.target?'bd':'ok'}">${isFinite(r.s.ratio)?pct(r.s.ratio):t('noPrice')}</span></td><td class="n">${fmt(r.s.gp)}</td><td class="n">${fmt(r.minP)}</td><td><span class="w">${actBtn('odedit',x.id,t('edit'))}</span> ${delBtn('offers',x.id)}</td></tr>`});
+  return`<div class="card"><div class="bar"><button class="btn primary w" data-act="odnew">${t('newOffer')}</button>${S.offers.length?subBtn('export',t('toExport')):''}</div>
+    ${tbl([[t('offer')],[t('oItems')],[t('fullPrice'),'n'],[t('offerPrice'),'n'],[t('disc'),'n'],[t('cost'),'n'],[t('ratio'),'n'],[t('gp'),'n'],[t('minPrice'),'n'],['']],rows,t('noOffers'))}</div>`},
+
+buy(){if(sub==='export')return`<div class="card"><div class="bar">${langSel()}${orientSel()}${expBtns('buy')}</div></div>`;
+  if(sub!=='setup')return`<div class="card"><div class="bar">${subBtn('setup',t('buyIn'),'primary')}${subBtn('export',t('toExport'))}<span class="sub">${t('month')}: <span dir="ltr">${esc(S.month)}</span> · ${t('buyPct')}: <span dir="ltr">${fmt(num(S.buy.pct),1)}</span> · ${t('buySafe')}: <span dir="ltr">${fmt(num(S.buy.safe),1)}</span></span></div><div id="buy-out">${buyOut()}</div></div>`;
+  return`<div class="card"><div class="grid">${inp('buy-month',t('month'),S.month,'month','data-st="month" data-rr="1"').replace('data-keep','')}<label class="f" for="buy-pct">${t('buyPct')}<input id="buy-pct" type="number" step="any" data-buy="pct" value="${esc(S.buy.pct)}" placeholder="0"></label><label class="f" for="buy-safe">${t('buySafe')}<input id="buy-safe" type="number" step="any" min="0" data-buy="safe" value="${esc(S.buy.safe)}" placeholder="0"></label></div><div class="row"><button class="btn primary" data-act="back">${t('showRes')}</button></div></div>`},
+
+chan(){const ch=curCh();if(sub==='export')return`<div class="card"><div class="bar">${langSel()}${orientSel()}${expBtns('chan')}</div></div>`;
+  if(sub!=='setup')return`<div class="card"><div class="bar">${subBtn('setup',t('chList'),ch.length?'':'primary')}${ch.length?subBtn('export',t('toExport')):''}</div><div id="chan-out">${chanOut()}</div></div>`;
+  return`<div class="card" data-dirty="1">${ch.length?`<div class="scroll"><table><thead><tr><th>${t('nameAr')}</th><th>${t('nameEn')}</th><th class="n">${t('chComm')}</th><th class="n">${t('chUp')}</th><th></th></tr></thead><tbody>${ch.map((c,i)=>`<tr><td><input id="ch${i}-a" data-ch="${i}" data-k="name" value="${esc(c.name||'')}" aria-label="${t('chName')}"></td><td><input id="ch${i}-e" dir="ltr" data-ch="${i}" data-k="nameEn" value="${esc(c.nameEn||'')}" aria-label="${t('nameEn')}"></td><td><input id="ch${i}-c" type="number" step="any" min="0" max="99" data-ch="${i}" data-k="comm" value="${esc(c.comm??'')}" aria-label="${t('chComm')}"></td><td><input id="ch${i}-u" type="number" step="any" data-ch="${i}" data-k="up" value="${esc(c.up??'')}" aria-label="${t('chUp')}"></td><td><button class="btn sm danger" data-act="chrm" data-id="${i}">${t('remove')}</button></td></tr>`).join('')}</tbody></table></div>`:''}
+    <div class="row w"><button class="btn" data-act="chadd">${t('chAdd')}</button><button class="btn primary" data-act="chsave">${t('chSave')}</button><button class="btn" data-act="back">${t('cancel')}</button></div></div>`},
+
+products(){if(S.draft)return editor();
+  if(sub==='export')return`<div class="card"><div class="bar">${sel('rep-type',t('report'),[['costing',t('rCosting')],['cards',t('rCards')],['kitchen',t('rKitchen')],['menu',t('rMenu')]],S.rep,'data-st="rep"')}${langSel()}${orientSel()}${expBtns('products')}</div><p class="sub">${t('selHint')}</p></div>`;
+  const list=shownProds(),rows=[];
+  list.forEach(p=>p.sizes.forEach((sz,i)=>{const s=stats(p,i),first=i===0;rows.push(`<tr><td>${first?`<input type="checkbox" data-sel="${esc(p.id)}" ${S.sel.has(p.id)?'checked':''} aria-label="${esc(nm(p))}">`:''}</td><td>${first?esc(nm(p))+exTag(p):''}</td><td class="sz">${esc(nm(sz))||'—'}</td><td>${first?esc(ct(p.cat)):''}</td><td class="n">${fmt(num(sz.price))}</td><td class="n">${fmt(s.c)}</td><td class="n"><span class="chip ${!isFinite(s.ratio)?'wr':s.ratio>S.cfg.target?'bd':'ok'}" title="${t(stKey(s.ratio))}">${isFinite(s.ratio)?pct(s.ratio):t('noPrice')}</span></td><td class="n">${fmt(s.gp)}</td><td class="n">${pct(s.margin)}</td><td class="n">${fmt(s.suggest)}</td>
+    <td>${first?`<button class="btn sm" data-act="pdf" data-rep="card" data-id="${esc(p.id)}">${t('card')}</button> <span class="w">${actBtn('edit',p.id,t('edit'))} ${actBtn('dup',p.id,t('dup'))}</span> ${delBtn('products',p.id)}`:''}</td></tr>`)}));
+  return`<div class="card"><div class="bar">${searchBox('products')}${sel('f-cat',t('cat'),[['',t('all')],...Object.keys(CATS).map(c=>[c,ct(c)])],S.fcat,'data-st="fcat" data-rr="1"')}
+    <button class="btn primary w" data-act="newprod">${t('newProd')}</button>${prods().length?subBtn('export',t('toExport')):''}</div>
+  ${tbl([[`<input type="checkbox" id="sel-all" aria-label="${t('selAll')}">`],[t('product')],[t('size')],[t('cat')],[t('price'),'n'],[t('cost'),'n'],[t('ratio'),'n'],[t('gp'),'n'],[t('margin'),'n'],[t('suggest'),'n'],['']],rows,prods().length?t('noMatch'):t('noProducts'))}
+  <p class="sub">${t('priceNote')} (${pct(S.cfg.target)}).</p></div>`},
+
+preps(){if(S.draft)return editor();if(sub==='export')return`<div class="card"><div class="bar">${langSel()}${orientSel()}${expBtns('preps')}</div></div>`;
+  const list=sorted(preps()).filter(p=>hit(p,S.q.preps));
+  const rows=list.map(p=>{const c=cost(p,0),y=num(p.yieldQty);return`<tr><td>${esc(nm(p))}${exTag(p)}</td><td class="n">${fmt(y,y%1?2:0)}</td><td>${esc(un(p.yieldUnit))}</td><td class="n">${fmt(c)}</td><td class="n">${fmt(y>0?c/y:0,4)}</td><td class="n">${usedIn(p.id)}</td>
+    <td><button class="btn sm" data-act="pdf" data-rep="card" data-id="${esc(p.id)}">${t('card')}</button> <span class="w">${actBtn('edit',p.id,t('edit'))} ${actBtn('dup',p.id,t('dup'))}</span> ${delBtn('products',p.id)}</td></tr>`});
+  return`<div class="card"><div class="bar">${searchBox('preps')}<button class="btn primary w" data-act="newprep">${t('newPrep')}</button>${preps().length?subBtn('export',t('toExport')):''}</div>
+  ${tbl([[t('prep')],[t('yield'),'n'],[t('unit')],[t('batchCost'),'n'],[t('costPerUnit'),'n'],[t('usedIn'),'n'],['']],rows,preps().length?t('noMatch'):t('noPreps'))}</div>`},
+
+materials(){const e=S.edit,list=sorted(S.materials).filter(m=>hit(m,S.q.materials));
+  const chg=m=>{const h=m.history&&m.history[m.history.length-1];if(!h||!h.p)return'—';const o=h.p/(h.s||num(m.packSize)||1),c=num(m.price)/(num(m.packSize)||1),d=(c-o)/o;return`<span class="${d>0?'up':'down'}" dir="ltr">${d>0?'+':''}${fmt(d*100,1)}%</span> · ${esc(h.d)}`};
+  const rows=list.map(m=>`<tr><td>${esc(nm(m))}${exTag(m)}</td><td>${esc(m.buyUnit||'')}</td><td class="n">${fmt(num(m.price))}</td><td class="n">${fmt(num(m.packSize),0)}</td><td>${esc(un(m.unit))}</td><td class="n">${pct(num(m.waste))}</td><td class="n">${fmt(unitCost(m),4)}</td><td>${chg(m)}</td><td>${supInfo(m)}</td><td class="n">${usedIn(m.id)}</td><td><span class="w">${actBtn('editmat',m.id,t('edit'))}</span> ${delBtn('materials',m.id)}</td></tr>`);
+  if(sub==='export')return`<div class="card"><div class="bar">${langSel()}${orientSel()}${expBtns('materials')}</div></div>`;
+  if(sub==='form')return`<form class="card" data-form="materials"><div class="grid">
+    ${inp('m-name',t('nameAr'),e&&e.name)}${inp('m-nameEn',t('nameEn'),e&&e.nameEn,'text','dir="ltr"')}${S.msup.length?'':inp('m-buyUnit',t('buyUnit'),e&&e.buyUnit)+inp('m-price',t('buyPrice'),e&&e.price,'number','required')+inp('m-packSize',t('packSize'),e&&e.packSize,'number','required')}
+    ${sel('m-unit',t('recUnit'),Object.keys(UNITS).map(u=>[u,un(u)]),e?e.unit:'جم','data-keep')}${inp('m-waste',t('waste'),e?+(num(e.waste)*100).toFixed(4):0,'number')}${inp('m-sku',t('sku'),e&&e.sku,'text','dir="ltr"')}</div>
+    ${e&&e.history&&e.history.length?`<p class="sub">${t('priceLog')}: ${e.history.slice().reverse().map(h=>`<span dir="ltr">${fmt(h.p)}</span> (${esc(h.d)})`).join(' · ')}</p>`:''}
+    ${supBox()}
+    <div class="row"><button class="btn primary">${t('save')}</button><button type="button" class="btn" data-act="cancel">${t('cancel')}</button></div></form>`;
+  return`<div class="card"><div class="bar">${searchBox('materials')}<button class="btn primary w" data-act="newmat">${t('addMatB')}</button>${S.materials.length?subBtn('export',t('toExport')):''}</div>
+  ${tbl([[t('material')],[t('buyUnitH')],[t('buyPrice'),'n'],[t('packSizeH'),'n'],[t('unit')],[t('wasteH'),'n'],[t('unitCost'),'n'],[t('lastChange')],[t('apprSup')],[t('usedIn'),'n'],['']],rows,S.materials.length?t('noMatch'):t('noMaterials'))}</div>`},
+
+eng(){const q=curQty(),ps=sorted(prods());if(!ps.length)return`<div class="card"><p class="empty">${t('noProducts')}</p></div>`;
+  if(sub==='sales')return`<div class="card" data-dirty="1">${monthBar()}<div class="grid">${ps.flatMap(p=>p.sizes.map((z,j)=>{const k=p.id+'|'+j;return`<label class="f" for="sq-${esc(k)}">${esc(pLabel(p,j))}<input id="sq-${esc(k)}" type="number" min="0" step="1" inputmode="numeric" data-sq="${esc(k)}" value="${q[k]?esc(q[k]):''}" placeholder="0"></label>`})).join('')}</div>
+    <div class="row w"><button class="btn primary" data-act="savesales">${t('saveSales')}</button><label class="btn" for="sales-file">${t('impSales')}</label><input type="file" id="sales-file" accept=".xlsx,.csv" hidden></div><p class="sub">${t('impSalesHint')}</p></div>`;
+  if(sub==='export')return`<div class="card"><div class="bar">${langSel()}${orientSel()}${expBtns('eng')}</div><p class="sub">${t('month')}: <span dir="ltr">${esc(S.month)}</span></p></div>`;
+  if(sub==='exp')return`<div class="card" data-dirty="1">${monthBar()}<div class="grid">${Object.keys(EXP).map(k=>`<label class="f" for="sx-${k}">${EXP[k][lang==='en'?1:0]}<input id="sx-${k}" type="number" min="0" step="any" inputmode="decimal" data-sx="${k}" value="${curExp()[k]?esc(curExp()[k]):''}" placeholder="0"></label>`).join('')}${sel('sx-alloc',t('alloc'),[['cups',t('aCups')],['rev',t('aRev')]],curAlloc(),'data-sa="1"')}</div>
+    <div class="row w"><button class="btn primary" data-act="savesales">${t('saveSales')}</button></div></div>`;
+  return`<div class="card"><div class="bar">${inp('eng-month',t('month'),S.month,'month','data-st="month" data-rr="1"').replace('data-keep','')}<span class="w row">${subBtn('sales',t('toSales'),'primary')}${subBtn('exp',t('toExp'))}</span>${subBtn('export',t('toExport'))}</div>
+    <div id="eng-out">${engOut()}</div></div>`},
+
+log(){const r=S.rest,dt=x=>{try{return new Date(x).toLocaleString(lang==='ar'?'ar-SA-u-nu-latn-ca-gregory':'en-GB',{dateStyle:'short',timeStyle:'short'})}catch(e){return x}};
+  if(!sub)return`<div class="card">${tiles([['backup',t('backup'),t('dBackup')],['list',t('logT'),t('dLog')],['trash',t('trash'),t('dTrash')]])}</div>`;
+  if(sub==='trash')return`<div class="card">${tbl([[t('when')],[t('type')],[t('item')],['']],S.trash.map(x=>`<tr><td dir="ltr" style="text-align:start">${esc(dt(x.t))}</td><td>${t(x.coll==='offers'?'kOffer':x.coll==='materials'?'kMaterial':x.type==='prep'?'kPrep':'kProduct')}</td><td>${esc(x.name)}</td><td class="w">${actBtn('trest',x.tid,t('restore'))} ${actBtn('tpurge',x.tid,t('purge'),'danger')}</td></tr>`),t('noTrash'))}</div>`;
+  if(sub==='list')return`<div class="card">${tbl([[t('when')],[t('what')],[t('type')],[t('item')]],S.log.slice(0,80).map(e=>`<tr><td dir="ltr" style="text-align:start">${esc(dt(e.t))}</td><td>${esc(t(e.a))}</td><td>${esc(t(e.k))}</td><td>${esc(e.n||'')}</td></tr>`),t('noLog'))}</div>`;
+  return`<div class="card"><p class="sub">${t('bk1')}</p><div class="row"><button class="btn primary" data-act="dlbackup">${t('dlBackup')}</button><label class="btn w" for="bk-file">${t('upBackup')}</label><input type="file" id="bk-file" accept=".json,application/json" hidden></div></div>
+  ${r?`<div class="card"><h2>${t('restT')}</h2>${tbl([[''],['','n']],[[t('bkDate'),esc((r.date||'').slice(0,10))],[t('materials'),r.materials.length],[t('products'),r.products.length],[t('months'),Object.keys(r.sales).length]].map(x=>`<tr><td>${x[0]}</td><td class="n">${x[1]}</td></tr>`),'')}
+    <div class="note warn">${t('restWarn')}</div><div class="row"><button class="btn danger" data-act="restgo">${t('restGo')}</button><button class="btn" data-act="restno">${t('cancel')}</button></div></div>`:''}`},
+
+imp(){const r=S.imp,cnt=(a,f)=>a.filter(f).length,others=S.db?sorted(S.cafes).filter(c=>c.id!==S.cafe):[];
+  if(!sub)return`<div class="card">${tiles([['xl',t('pXl'),t('dXl')],...(others.length?[['copy',t('copyT'),t('dCopy')]]:[]),['fx',t('fx'),t('dFx')]])}</div>`;
+  if(sub==='copy')return`<div class="card w"><p class="sub">${t('copyHint')}</p><div class="bar">${sel('cp-src',t('srcCafe'),[['',t('choose')],...others.map(c=>[c.id,nm(c)])],'','data-keep')}${inp('cp-pin',t('srcPin'),'','password','autocomplete="off"')}</div>
+    <div class="row"><label class="row" style="gap:4px"><input type="checkbox" id="cp-m" checked>${t('cMats')}</label><label class="row" style="gap:4px"><input type="checkbox" id="cp-r" checked>${t('cRecs')}</label><button class="btn primary" data-act="copycafe">${t('copyGo')}</button></div></div>`;
+  if(sub==='fx')return`<div class="card"><ol class="steps"><li>${t('fx1')}</li><li>${t('fx2')}</li><li>${t('fx3')}</li></ol>
+    <div class="row"><button class="btn" data-act="fxp">${t('fxP')} · CSV</button><button class="btn" data-act="fxi">${t('fxI')} · CSV</button><button class="btn" data-act="fxg">${t('fxG')} · CSV</button></div></div>`;
+  return`<div class="card"><h2>${t('impHow')}</h2><ol class="steps"><li>${t('imp1')}</li><li>${t('imp2')}</li><li>${t('imp3')}</li></ol>
+    <div class="row"><button class="btn" data-act="dldata">${t('dlData')}</button><label class="btn primary w" for="imp-file">${t('pickFile')}</label><input type="file" id="imp-file" accept=".xlsx" hidden></div></div>
+  ${r?`<div class="card"><h2>${t('impPrev')}</h2>${tbl([[''],['','n']],[[t('impMatNew'),cnt(r.mats,x=>x.isNew)],[t('impMatUpd'),cnt(r.mats,x=>!x.isNew)],[t('impProdNew'),cnt(r.prods,x=>x.isNew)],[t('impProdUpd'),cnt(r.prods,x=>!x.isNew)],[t('impErrs'),r.errors.length]].map(x=>`<tr><td>${x[0]}</td><td class="n">${x[1]}</td></tr>`),'')}
+    ${r.errors.length?`<ul class="errs">${r.errors.slice(0,12).map(e=>`<li>${esc(e)}</li>`).join('')}${r.errors.length>12?'<li>…</li>':''}</ul>`:''}
+    ${r.mats.length+r.prods.length?`<div class="row"><button class="btn primary" data-act="impgo">${t('impGo')}</button><button class="btn" data-act="impno">${t('cancel')}</button></div>`:`<p class="empty">${t('impEmpty')}</p>`}</div>`:''}`},
+
+settings(){const c=S.cfg,anyEx=COLLS.some(k=>S[k].some(x=>x.example)),saveRow=`<div class="row"><button class="btn primary">${t('saveSet')}</button><button type="button" class="btn" data-act="back">${t('cancel')}</button></div>`;
+  if(!sub)return`<div class="card">${tiles([['cafe',t('cafeInfo'),t('dCafe')],['head',t('head'),t('dHead')],['look',t('look'),t('dLook')],['calc',t('calc'),t('dCalc')],['fx',t('fxSet'),t('dFxSet')],...(S.db&&S.cafe?[['access',t('gAccess'),t('dAccess')]]:[]),...(anyEx?[['sample',t('exData'),t('dSample')]]:[])])}</div>`;
+  if(sub==='cafe')return`<form class="card" data-form="settings">
+    <div class="logo-box">${c.logo?`<img src="${esc(c.logo)}" alt="${t('logo')}">`:''}<div class="row w"><label class="btn" for="logo-file">${t('upload')}</label><input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp" hidden>${c.logo?`<button type="button" class="btn danger" data-act="rmlogo">${t('rmLogo')}</button>`:''}</div><p class="sub">${t('logoHint')}</p></div>
+    <div class="grid">${inp('s-name',t('cafeAr'),c.name)}${inp('s-nameEn',t('cafeEn'),c.nameEn,'text','dir="ltr"')}${inp('s-address',t('address'),c.address)}${inp('s-phone',t('phone'),c.phone,'tel','dir="ltr"')}${inp('s-cr',t('cr'),c.cr,'text','dir="ltr"')}${inp('s-vatNo',t('vatNo'),c.vatNo,'text','dir="ltr"')}</div>${saveRow}</form>`;
+  if(sub==='calc')return`<form class="card" data-form="settings"><div class="grid">${inp('s-vat',t('vat'),+(c.vat*100).toFixed(4),'number')}${inp('s-target',t('target'),+(c.target*100).toFixed(4),'number')}</div>${saveRow}</form>`;
+  if(sub==='head'){const ck=k=>`<label class="row" style="gap:4px"><input type="checkbox" id="s-${k}" ${c[k]!==false?'checked':''}>${t(k)}</label>`;
+    return`<form class="card" data-form="settings" data-hd="1"><div class="grid">${sel('s-hdLayout',t('hdLayout'),[['start',t('hlStart')],['end',t('hlEnd')],['center',t('hlCenter')],['dual',t('hlDual')]],c.hdLayout,'data-keep')}${sel('s-hdLogo',t('hdLogo'),[['s',t('szS')],['m',t('szM')],['l',t('szL')]],c.hdLogo,'data-keep')}${inp('s-accent',t('accent'),c.accent||'#0F5B4C','color')}${sel('s-docFont',t('docFont'),DFONTS.map(f=>[f,f]),c.docFont,'data-keep')}${sel('s-xlFont',t('xlFont'),XFONTS.map(f=>[f,f]),c.xlFont,'data-keep')}</div><p class="sub">${t('fontNote')}</p>
+      <div class="f"><span>${t('hdShowT')}</span><div class="row">${['hdAddr','hdPhone','hdCr','hdVat','hdDate','ftPage'].map(ck).join('')}</div></div>
+      <div class="grid">${inp('s-hdExtra',t('hdExtra'),c.hdExtra)}${inp('s-ftText',t('ftText'),c.ftText)}</div>${saveRow}</form>
+    <div class="card"><h2>${t('hdPrev')}</h2><div class="scroll"><img id="hd-prev" alt="${t('hdPrev')}" style="width:100%;min-width:520px;border:1px solid var(--line);border-radius:6px;background:#fff"></div><p class="sub">${t('hdPrevNote')}</p></div>`}
+  if(sub==='fx')return`<form class="card" data-form="settings"><p class="sub">${t('fxHint')}</p><div class="grid">${sel('s-fxLang',t('fxLang'),[['en','English'],['ar','العربية']],c.fxLang,'data-keep')}${inp('s-fxTax',t('fxTax'),c.fxTax,'text','dir="ltr"')}${inp('s-fxInv',t('fxInv'),c.fxInv,'text','dir="ltr"')}${Object.keys(CATS).map((k,i)=>inp('s-fxCat'+i,t('fxCat')+': '+ct(k),c['fxCat'+i],'text','dir="ltr"')).join('')}</div>${saveRow}</form>`;
+  if(sub==='look')return`<div class="card"><div class="grid">${sel('lk-theme',t('theme'),[['sys',t('thSys')],['light',t('thLight')],['dark',t('thDark')]],LOOK.theme,'data-look="theme"')}${sel('lk-fs',t('fsize'),[['s',t('szS')],['m',t('szM')],['l',t('szL')]],LOOK.fs,'data-look="fs"')}${sel('lk-dens',t('dens'),[['comfy',t('dComfy')],['dense',t('dDense')]],LOOK.dens,'data-look="dens"')}</div><p class="sub">${t('lookNote')}</p></div>`;
+  if(sub==='access')return`<form class="card" data-form="pinset"><p class="sub">${t('gPinHint')}</p><div class="grid">${inp('s-pin',t('gNewPin'),'','password','autocomplete="off"')}</div><div class="row"><button class="btn primary">${t('gSavePin')}</button><button type="button" class="btn danger" data-act="delcafe">${t('gDel')}</button></div></form>`;
+  return`<div class="card w"><p class="sub">${t('exNote')}</p><div class="row">${anyEx?`<button class="btn danger" data-act="wipe">${t('wipe')}</button>`:''}</div></div>`}
+};
+function compOpts(cur,selfId){const o=(x)=>`<option value="${esc(x.id)}" ${cur===x.id?'selected':''}>${esc(nm(x))}</option>`,ps=sorted(preps()).filter(p=>p.id!==selfId);
+  return`<option value="">${t('choose')}</option><optgroup label="${t('gMat')}">${sorted(S.materials).map(o).join('')}</optgroup>${ps.length?`<optgroup label="${t('gPrep')}">${ps.map(o).join('')}</optgroup>`:''}`}
+function editor(){const d=S.draft,isP=d.type==='prep',n=d.sizes.length;
+  return`<div class="card" id="editor"><div class="grid">
+  <label class="f" for="ed-name">${t('nameAr')}<input id="ed-name" data-ed="name" value="${esc(d.name)}"></label>
+  <label class="f" for="ed-nameEn">${t('nameEn')}<input id="ed-nameEn" dir="ltr" data-ed="nameEn" value="${esc(d.nameEn)}"></label>
+  ${isP?`<label class="f" for="ed-yq">${t('yieldQty')}<input id="ed-yq" type="number" step="any" min="0" data-ed="yieldQty" value="${esc(d.yieldQty)}"></label>${sel('ed-yu',t('yieldUnit'),Object.keys(UNITS).map(u=>[u,un(u)]),d.yieldUnit,'data-ed="yieldUnit"')}`
+       :sel('ed-cat',t('cat'),Object.keys(CATS).map(c=>[c,ct(c)]),d.cat,'data-ed="cat"')}</div>
+  ${d.sizes.map((s,j)=>`<div class="szblock">
+    ${isP?`<h3>${t('ingredients')}</h3>`:`<div class="row sp"><h3 id="ed-s${j}-h"></h3>${n>1?`<button class="btn sm danger" data-act="rmsize" data-id="${j}">${t('rmSize')}</button>`:''}</div>
+    <div class="grid"><label class="f" for="ed-s${j}-a">${t('sizeAr')}<input id="ed-s${j}-a" data-sz="${j}" data-sk="name" value="${esc(s.name)}"></label><label class="f" for="ed-s${j}-e">${t('sizeEn')}<input id="ed-s${j}-e" dir="ltr" data-sz="${j}" data-sk="nameEn" value="${esc(s.nameEn)}"></label>
+    <label class="f" for="ed-s${j}-p">${t('priceInc')}<input id="ed-s${j}-p" type="number" step="any" min="0" data-sz="${j}" data-sk="price" value="${esc(s.price)}"></label><label class="f" for="ed-s${j}-k">${t('sku')}<input id="ed-s${j}-k" dir="ltr" data-sz="${j}" data-sk="sku" value="${esc(s.sku||'')}"></label><label class="f" for="ed-s${j}-c">${t('calories')}<input id="ed-s${j}-c" type="number" min="0" step="any" data-sz="${j}" data-sk="cal" value="${esc(s.cal||'')}"></label></div>`}
+    <div class="scroll"><table><thead><tr><th>${t('component')}</th><th class="n">${t('qty')}</th><th>${t('unit')}</th><th class="n">${t('unitCost')}</th><th class="n">${t('lineCost')}</th><th>${t('note')}</th><th></th></tr></thead><tbody>
+    ${s.lines.map((l,i)=>{const k=`ed-s${j}-l${i}`;return`<tr><td><select id="${k}-m" data-sj="${j}" data-li="${i}" data-lk="m" aria-label="${t('component')}">${compOpts(l.m,d.id)}</select></td>
+      <td><input id="${k}-q" type="number" step="any" min="0" data-sj="${j}" data-li="${i}" data-lk="qty" value="${esc(l.qty??'')}" aria-label="${t('qty')}"></td><td id="${k}-u"></td><td class="n" id="${k}-uc"></td><td class="n" id="${k}-c"></td>
+      <td><input id="${k}-n" data-sj="${j}" data-li="${i}" data-lk="note" value="${esc(l.note||'')}" aria-label="${t('note')}"></td><td><button class="btn sm danger" data-act="rmline" data-id="${j}:${i}">${t('remove')}</button></td></tr>`}).join('')}
+    </tbody></table></div><div class="row sp"><button class="btn" data-act="addline" data-id="${j}">${t('addLine')}</button><b class="tot" id="ed-s${j}-t"></b></div></div>`).join('')}
+  ${!isP&&n<MAXS?`<div class="row"><button class="btn" data-act="addsize">${t('addSize')}</button><span class="sub">${t('addSizeHint')}</span></div>`:''}
+  ${isP?'':`<div class="grid"><label class="f" for="ed-prep">${t('prepMin')}<input id="ed-prep" type="number" min="0" step="any" data-ed="prepMin" value="${esc(d.prepMin??'')}"></label>
+    <div class="f"><span>${t('allergens')}</span><div class="row">${Object.keys(ALG).map(k=>`<label class="row" style="gap:4px"><input type="checkbox" data-alg="${k}" ${d.allergens.includes(k)?'checked':''}>${ALG[k][lang==='en'?1:0]}</label>`).join('')}</div></div></div>
+    <div class="logo-box">${d.img?`<img src="${esc(d.img)}" alt="${t('pImg')}">`:''}<div class="row"><label class="btn" for="pimg-file">${t('upImg')}</label><input type="file" id="pimg-file" accept="image/png,image/jpeg,image/webp" hidden>${d.img?`<button class="btn danger" data-act="rmpimg">${t('rmImg')}</button>`:''}</div></div>`}
+  <label class="f" for="ed-method">${t('method')}<textarea id="ed-method" rows="4" data-ed="method">${esc(d.method||'')}</textarea></label>
+  <div id="ed-tot"></div>
+  <div class="row"><button class="btn primary" data-act="saveprod">${t('saveProd')}</button><button class="btn" data-act="closeprod">${t('cancel')}</button></div></div>`}
+function edTotals(){const d=S.draft,box=$('ed-tot');if(!d||!box)return;const seen=new Set([d.id]),set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
+  d.sizes.forEach((s,j)=>{s.lines.forEach((l,i)=>{const k=`ed-s${j}-l${i}`,uc=cCost(l.m,seen);set(k+'-u',un(cUnit(l.m)));set(k+'-uc',fmt(uc,4));set(k+'-c',fmt(num(l.qty)*uc,3))});set(`ed-s${j}-t`,t('total')+': '+fmt(dCost(d,j),3));set(`ed-s${j}-h`,d.sizes.length>1?t('sizeN')+' '+(j+1)+(nm(s)?': '+nm(s):''):t('sizeOne'))});
+  if(d.type==='prep'){const c=dCost(d,0),y=num(d.yieldQty);box.innerHTML=tbl([[t('batchCost'),'n'],[t('costPerUnit'),'n']],[`<tr><td class="n">${fmt(c)}</td><td class="n">${fmt(y>0?c/y:0,4)}</td></tr>`],'')}
+  else box.innerHTML=tbl([[t('size')],[t('cost'),'n'],[t('ratio'),'n'],[t('gpCup'),'n'],[t('suggestInc'),'n'],[t('status')]],d.sizes.map((sz,j)=>{const s=calc(dCost(d,j),sz.price);return`<tr><td>${esc(nm(sz))||'—'}</td><td class="n">${fmt(s.c)}</td><td class="n">${pct(s.ratio)}</td><td class="n">${fmt(s.gp)}</td><td class="n">${fmt(s.suggest)}</td><td>${statusChip(s.ratio)}</td></tr>`}),'')}
+
+/* ---------- cafés: copy between cafés and comparison ---------- */
+const pxOf=cid=>cid==='default'?'':'cafes/'+cid+'/';
+async function loadCafe(cid,withSales){const px=pxOf(cid),db=S.db,g=async c=>(await db.collection(px+c).limit(1000).get()).docs.map(d=>({id:d.id,...d.data()}));
+  const r={materials:await g('materials'),products:(await g('products')).map(norm)};if(withSales){r.sales=await g('sales');const c=await db.doc(px+'config/main').get();r.cfg={...DEF,...(c.exists?c.data():{})}}return r}
+async function copyFrom(src,doM,doR){const d=await loadCafe(src),key=x=>(x.name||x.nameEn||'').trim().toLowerCase(),map={},mIx={},pIx={};let nm_=0,np=0;
+  S.materials.forEach(m=>mIx[key(m)]=m.id);S.products.forEach(p=>pIx[(p.type==='prep'?'p|':'x|')+key(p)]=p.id);
+  const need=new Set();if(doR)d.products.forEach(p=>p.lines.forEach(l=>need.add(l.m)));
+  for(const m of d.materials){if(!doM&&!need.has(m.id))continue;const tid=mIx[key(m)],clash=!tid&&byId(S.materials,m.id);map[m.id]=tid||(clash?newId():m.id);if(tid&&!doM)continue;const{id,...data}=m;if(!await save('materials',map[m.id],{...data,example:false}))return null;nm_++}
+  if(doR){const ps=d.products.slice().sort((a,b)=>(a.type==='prep'?0:1)-(b.type==='prep'?0:1));ps.forEach(p=>{const tid=pIx[(p.type==='prep'?'p|':'x|')+key(p)],clash=!tid&&byId(S.products,p.id);map[p.id]=tid||(clash?newId():p.id)});
+    for(const p of ps){const{id,...data}=p;if(!await save('products',map[p.id],{...data,example:false,lines:p.lines.map(l=>({...l,m:map[l.m]||l.m}))}))return null;np++}}
+  return[nm_,np]}
+async function compare(){const out=[],bak={m:S.materials,p:S.products,c:S.cfg};
+  for(const c of sorted(S.cafes)){if(c.pin&&!S.unlocked.has(c.id)){out.push({c,locked:true});continue}
+    try{const d=await loadCafe(c.id,true);S.materials=d.materials;S.products=d.products;S.cfg=d.cfg;const rs=[];prods().forEach(p=>p.sizes.forEach((z,j)=>{const r=stats(p,j).ratio;if(isFinite(r))rs.push(r)}));
+      const last=d.sales.map(x=>x.id).sort().pop(),q=last?(d.sales.find(x=>x.id===last).qty||{}):{};let tq=0,tg=0;prods().forEach(p=>p.sizes.forEach((z,j)=>{const n=num(q[p.id+'|'+j]);tq+=n;tg+=n*stats(p,j).gp}));
+      out.push({c,nm:d.materials.length,np:prods().length,avg:rs.length?rs.reduce((a,b)=>a+b,0)/rs.length:NaN,above:rs.filter(r=>r>S.cfg.target).length,last:last||'—',tq,tg})}catch(e){out.push({c,locked:true})}
+    finally{S.materials=bak.m;S.products=bak.p;S.cfg=bak.c}}
+  return out}
+
+/* ---------- cafés: registry, access code, enter / leave ---------- */
+let subs=[];
+async function hashPin(cid,pin){const txt=cid+':'+pin;try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(txt));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){let h=0;for(const ch of txt)h=(h*31+ch.charCodeAt(0))|0;return'x'+h}}
+function gate(){const g=S.gate,c=g.sel&&byId(S.cafes,g.sel);
+  return`<div class="card"><h2>${t('gPick')}</h2>${S.cafes.length?`<div class="cafes">${sorted(S.cafes).map(x=>`<button class="cafe" data-act="pick" data-id="${esc(x.id)}" ${g.sel===x.id?'aria-current="true"':''}><b>${esc(nm(x)||t('gUnnamed'))}</b><span>${x.pin?t('gLocked'):t('gOpen')}</span></button>`).join('')}</div>`:`<p class="empty">${t('gNone')}</p>`}
+    ${c?`<form class="bar keepf" data-form="pin"><label class="f" for="pin-in">${t('gPin')}: ${esc(nm(c))}<input id="pin-in" type="password" autocomplete="off" required></label><button class="btn primary">${t('gEnter')}</button></form>`:''}</div>
+  <form class="card" data-form="newcafe"><h2>${t('gNew')}</h2><div class="grid">${inp('g-name',t('cafeAr'),'')}${inp('g-nameEn',t('cafeEn'),'','text','dir="ltr"')}${inp('g-pin',t('gNewPinL'),'','password','autocomplete="off"')}</div><p class="sub">${t('gPinHint')}</p><div class="row"><button class="btn primary">${t('gCreate')}</button></div></form>
+  ${S.cafes.length>1?`<div class="card"><div class="row sp"><h2>${t('cmpT')}</h2><button class="btn" data-act="cmp">${t('cmpGo')}</button></div><p class="sub">${t('cmpHint')}</p>
+    ${S.cmp?tbl([[t('cafeL')],[t('nMat'),'n'],[t('nProd'),'n'],[t('avgRatio'),'n'],[t('above'),'n'],[t('lastMonth')],[t('totalQty'),'n'],[t('totalGp'),'n']],S.cmp.map(r=>r.locked?`<tr><td>${esc(nm(r.c))}</td><td colspan="7" class="sz">${t('cmpLocked')}</td></tr>`:`<tr><td>${esc(nm(r.c))}</td><td class="n">${r.nm}</td><td class="n">${r.np}</td><td class="n">${pct(r.avg)}</td><td class="n">${r.above}</td><td dir="ltr" style="text-align:start">${esc(r.last)}</td><td class="n">${fmt(r.tq,0)}</td><td class="n">${fmt(r.tg,0)}</td></tr>`),''):''}</div>`:''}`}
+function leaveSubs(){subs.forEach(u=>{try{u()}catch(e){}});subs=[]}
+function enter(cid){leaveSubs();Object.assign(S,{cafe:cid,cfg:{...DEF},materials:[],products:[],sales:{},log:[],trash:[],offers:[],od:null,chd:null,dirty:false,pending:null,ready:false,draft:null,edit:null,sq:null,imp:null,rest:null,msup:[],msel:0,sel:new Set()});S.gate.sel=null;try{sessionStorage.setItem('cafe',cid)}catch(e){}
+  const loaded=new Set(),done=k=>{loaded.add(k);if(loaded.size===3)S.ready=true;schedule()},onErr=()=>{S.ready=true;schedule()};let pruned=false;
+  subs.push(C('materials').limit(1000).onSnapshot(s=>{S.materials=s.docs.map(d=>({id:d.id,...d.data()}));done('m')},onErr),
+    C('products').limit(1000).onSnapshot(s=>{S.products=s.docs.map(d=>norm({id:d.id,...d.data()}));done('p')},onErr),
+    S.db.doc(PX()+'config/main').onSnapshot(s=>{S.cfg={...DEF,...(s.exists?s.data():{})};done('cfg')},onErr),
+    C('sales').limit(120).onSnapshot(s=>{S.sales={};s.docs.forEach(d=>S.sales[d.id]=d.data());schedule()},()=>{}),
+    C('offers').limit(500).onSnapshot(s=>{S.offers=s.docs.map(d=>({id:d.id,...d.data()}));schedule()},()=>{}),
+    C('trash').orderBy('t','desc').limit(100).onSnapshot(s=>{S.trash=s.docs.map(d=>({tid:d.id,...d.data()}));if(view==='log')schedule()},()=>{}),
+    C('log').orderBy('t','desc').limit(300).onSnapshot(s=>{S.log=s.docs.map(d=>d.data());if(view==='log')schedule();if(s.size>=300&&!pruned){pruned=true;const col=C('log');s.docs.slice(-60).forEach(d=>col.doc(d.id).delete().catch(()=>{}))}},()=>{}));
+  if(S.entered){view='home';sub=''}S.entered=true;skipKeep=true;render()}
+function leave(){leaveSubs();sub='';S.dirty=false;S.cafe=null;S.left=true;S.ready=false;S.gate.sel=null;try{sessionStorage.removeItem('cafe')}catch(e){}skipKeep=true;render()}
+async function delCafe(){const cid=S.cafe,db=S.db;try{for(const c of ['materials','products','offers','sales','log','trash']){const col=C(c),sn=await col.limit(1000).get();for(const d of sn.docs)await col.doc(d.id).delete()}
+    await db.doc(PX()+'config/main').delete();await db.collection('cafes').doc(cid).delete()}catch(e){return fail(e)}leave();toast(t('deleted'))}
+
+/* ---------- render ---------- */
+function chrome(){const app=$('app');app.dir=lang==='ar'?'rtl':'ltr';app.lang=lang;try{document.documentElement.dir=app.dir;document.documentElement.lang=lang}catch(e){}
+  $('cafe-name').textContent=cafe();$('brand-sub').textContent=t('tag');const lg=$('brand-logo');lg.hidden=!S.cfg.logo;if(S.cfg.logo)lg.src=S.cfg.logo;
+  document.querySelectorAll('#nav .navh').forEach(h=>{h.textContent=t(h.dataset.g)});{const off=LOOK.nav==='off',tg=$('nav-tg');tg.textContent='☰ '+t('navTg');tg.title=t(off?'navShow':'navHide');tg.setAttribute('aria-expanded',String(!off))}$('gs').placeholder=t('gsPh');$('gs').setAttribute('aria-label',t('gsPh'));
+  document.querySelectorAll('#nav button[data-v]').forEach(b=>{b.textContent=t(b.dataset.v);b.dataset.v===view?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current')});
+  $('lang-btn').textContent=t('langBtn');const pt=S.ready&&S.cafe!==null||!S.db?pageTitle():'';$('vt').textContent=pt||t(view);$('vs').textContent=pt?'':t(view+'S');
+  const cr=$('crumb');cr.innerHTML=(pt?`<button type="button" class="btn sm" id="back-btn">${t('back')}</button>`:'')+`<span>${esc(cafe())} › ${pt?t(view)+' › <b>'+esc(pt)+'</b>':'<b>'+t(view)+'</b>'}</span>`;const bb=$('back-btn');if(bb)bb.onclick=()=>guard(back)}
+function render(){const root=$('view'),keep={},act=document.activeElement,fid=act&&root.contains(act)?act.id:'';
+  let sl=null;try{if(fid&&act.selectionStart!=null)sl=[act.selectionStart,act.selectionEnd]}catch(e){}
+  if(!skipKeep)root.querySelectorAll('[data-keep]').forEach(el=>{if(el.id)keep[el.id]=el.value});
+  skipKeep=false;chrome();
+  const anyEx=COLLS.some(c=>S[c].some(x=>x.example)),gated=!!S.db&&!S.cafe,wait=`<div class="card"><p class="empty">${t('loading')}</p></div>`;
+  $('app').toggleAttribute('data-gate',gated||(!S.db&&!S.offline));$('out-btn').textContent=t('gSwitch');$('out-btn').hidden=!S.db;
+  if(gated){$('crumb').innerHTML='';$('vt').textContent=t('gTitle');$('vs').textContent=t('gSub');$('cafe-name').textContent=t('app');$('brand-logo').hidden=true}
+  $('notice').innerHTML=gated?'':(S.pending?`<div class="note warn row sp"><span>${t('dirtyMsg')}</span><span class="row"><button type="button" class="btn danger" id="g-go">${t('dirtyGo')}</button><button type="button" class="btn" id="g-stay">${t('dirtyStay')}</button></span></div>`:'')+(S.offline?`<div class="note warn">${t('offline')}</div>`:'')+(anyEx?`<div class="note">${t('exBanner')}</div>`:'');
+  if(S.pending&&!gated){$('g-go').onclick=()=>{const f=S.pending;S.pending=null;S.dirty=false;f()};$('g-stay').onclick=()=>{S.pending=null;render()}}
+  root.innerHTML=gated?(S.regReady?gate():wait):S.ready?V[view]():wait;
+  for(const id in keep){const el=$(id);if(el)el.value=keep[id]}
+  edTotals();odTotals();hdPreview();
+  if(fid){const el=$(fid);if(el){el.focus();try{if(sl)el.setSelectionRange(sl[0],sl[1])}catch(e){}}}}
+function go(v){view=v;sub='';S.dirty=false;S.chd=null;S.od=null;S.draft=null;S.edit=null;S.msup=[];S.msel=0;S.sq=null;S.sx=null;S.sa=null;S.rest=null;skipKeep=true;try{history.replaceState(null,'','#'+v)}catch(e){}render()}
+
+/* ---------- reports: one structure feeds PDF and Excel; RL is the report language (ar | en | both) ---------- */
+let RL='ar';
+const rt=k=>RL==='both'?[L.ar[k],L.en[k]]:L[RL][k];
+const flat=v=>Array.isArray(v)?v.filter(Boolean).join(' / '):v;
+const two=(a,e)=>RL==='both'?(a&&e&&a!==e?[a,e]:a||e||''):RL==='en'?(e||a||''):(a||e||'');
+const rn=x=>x?two(x.name,x.nameEn):'';
+const ru=u=>two(u,UNITS[u]),rc=c=>two(c,CATS[c]);
+const rLabel=(p,i)=>{const s=p.sizes[i],j=(a,b)=>a?(b?a+' · '+b:a):'';return p.sizes.length>1||s.name||s.nameEn?two(j(p.name||p.nameEn,s.name||s.nameEn),j(p.nameEn||p.name,s.nameEn||s.name)):rn(p)};
+const rcafe=()=>flat(rn(S.cfg))||flat(rt('app'));
+const N=(v,d=2)=>({v:isFinite(v)?v:0,d}),P=v=>({v:isFinite(v)?v:null,p:1}),Q=q=>N(num(q),num(q)%1?2:0);
+const cellText=c=>c==null?'':Array.isArray(c)?flat(c):typeof c==='object'?(c.p?pct(c.v??NaN):fmt(c.v,c.d)):String(c);
+function cardSheet(p){const isP=p.type==='prep',n=p.sizes.length,seen=new Set([p.id]),szH=(k,j)=>{if(n<2)return rt(k);const z=p.sizes[j],a=z.name||z.nameEn||String(j+1),e=z.nameEn||z.name||String(j+1);return RL==='both'?[L.ar[k]+' · '+a,L.en[k]+' · '+e]:[L[RL][k],RL==='en'?e:a]};
+  const ing={cols:[{h:rt('component'),w:n>1?22:28},...p.sizes.map((s,j)=>({h:szH('qty',j),w:10,n:1})),{h:rt('unit'),w:8},{h:rt('unitCost'),w:11,n:1},...p.sizes.map((s,j)=>({h:szH('lineCost',j),w:11,n:1})),{h:rt('note'),w:n>2?12:18}],
+    rows:p.lines.map(l=>{const uc=cCost(l.m,seen);return[rn(comp(l.m)),...p.sizes.map((s,j)=>Q(l.qtys[j])),ru(cUnit(l.m)),N(uc,4),...p.sizes.map((s,j)=>N(num(l.qtys[j])*uc,3)),l.note||'']}),
+    foot:[rt('total'),...p.sizes.map(()=>''),'','',...p.sizes.map((s,j)=>N(cost(p,j),3)),'']};
+  const c0=cost(p,0),y=num(p.yieldQty);
+  return{name:flat(rn(p)),title:RL==='both'?`${L.ar.rCard}: ${p.name||p.nameEn} / ${L.en.rCard}: ${p.nameEn||p.name}`:L[RL].rCard+': '+flat(rn(p)),blocks:[
+    isP?{kv:[[rt('yield'),Q(y)],[rt('unit'),ru(p.yieldUnit)],[rt('batchCost'),N(c0)],[rt('costPerUnit'),N(y>0?c0/y:0,4)]]}:{kv:[[rt('cat'),rc(p.cat)],[rt('targetL'),P(S.cfg.target)]]},
+    ...(isP?[]:[{h:rt('costing')},{cols:[{h:rt('size'),w:13},{h:rt('price'),w:12,n:1},{h:rt('priceEx'),w:13,n:1},{h:rt('cost'),w:12,n:1},{h:rt('ratio'),w:11,n:1},{h:rt('gp'),w:12,n:1},{h:rt('margin'),w:9,n:1},{h:rt('suggest'),w:13,n:1},{h:rt('status'),w:15}],
+      rows:p.sizes.map((sz,j)=>{const s=stats(p,j);return[rn(sz)||'—',N(num(sz.price)),N(s.ex),N(s.c),P(s.ratio),N(s.gp),P(s.margin),N(s.suggest),rt(stKey(s.ratio))]})}]),
+    ...(n>1?p.sizes.flatMap((z,j)=>[{h:szHead(p,j)},{cols:[{h:rt('component'),w:30},{h:rt('qty'),w:11,n:1},{h:rt('unit'),w:9},{h:rt('unitCost'),w:14,n:1},{h:rt('lineCost'),w:14,n:1},{h:rt('note'),w:22}],rows:p.lines.filter(l=>num(l.qtys[j])>0).map(l=>{const uc=cCost(l.m,seen);return[rn(comp(l.m)),Q(l.qtys[j]),ru(cUnit(l.m)),N(uc,4),N(num(l.qtys[j])*uc,3),l.note||'']}),foot:[rt('total'),'','','',N(cost(p,j),3),'']}]):[{h:rt('ingredients')},ing]),...extraKv(p),...(p.method?[{h:rt('method')},{text:steps(p)}]:[]),SIGN()]}}
+const steps=p=>{const a=String(p.method||'').split(/\n/).map(x=>x.trim()).filter(Boolean);return a.length>1?a.map((x,i)=>(i+1)+'. '+x).join('\n'):a.join('')};
+const extraKv=p=>{if(p.type==='prep')return[];const kv=[],al=(p.allergens||[]).filter(k=>ALG[k]),cal=p.sizes.filter(z=>num(z.cal)>0);if(num(p.prepMin))kv.push([rt('prepMin'),N(num(p.prepMin),num(p.prepMin)%1?1:0)]);
+  if(cal.length)kv.push([rt('calories'),p.sizes.length>1?cal.map(z=>(flat(rn(z))||'')+' '+fmt(num(z.cal),0)).join(' · '):fmt(num(cal[0].cal),0)]);if(al.length)kv.push([rt('allergens'),al.map(k=>flat(two(ALG[k][0],ALG[k][1]))).join('، ')]);return[...(p.img?[{img:p.img}]:[]),...(kv.length?[{kv}]:[])]};
+const szHead=(p,j)=>{const z=p.sizes[j],a=z.name||z.nameEn||String(j+1),e=z.nameEn||z.name||String(j+1);return RL==='both'?`${L.ar.ingredients} · ${a} / ${L.en.ingredients} · ${e}`:`${L[RL].ingredients} · ${RL==='en'?e:a}`};
+const SIGN=()=>({sign:[rt('sPrep'),rt('sRev'),rt('sAppr')]});
+function kitchenSheet(p){const n=p.sizes.length;return{name:flat(rn(p)),title:flat(rn(p)),center:1,blocks:[{kv:[[rt('cat'),rc(p.cat)]]},...p.sizes.flatMap((z,j)=>[{h:n>1?szHead(p,j):rt('ingredients')},{big:1,cols:[{h:rt('component'),w:44},{h:rt('qty'),w:16,n:1},{h:rt('unit'),w:14},{h:rt('note'),w:26}],rows:p.lines.filter(l=>num(l.qtys[j])>0).map(l=>[rn(comp(l.m)),Q(l.qtys[j]),ru(cUnit(l.m)),l.note||''])}]),...extraKv(p),...(p.method?[{h:rt('method')},{text:steps(p),big:1}]:[])]}}
+function buildReport(kind,id){RL=S.repLang==='ui'?lang:S.repLang;const picked=shownProds().filter(p=>S.sel.has(p.id)),ps=picked.length?picked:shownProds(),file=k=>flat(rt(k));
+  if(kind==='card'){const p=byId(S.products,id);return{file:file('rCard')+' - '+flat(rn(p)),doc:file('rCard'),sheets:[cardSheet(p)]}}
+  if(kind==='materials')return{file:file('rMaterials'),sheets:[{name:file('materials'),title:file('rMaterials'),blocks:[
+    {cols:[{h:rt('material'),w:27},{h:rt('buyUnitH'),w:19},{h:rt('buyPrice'),w:14,n:1},{h:rt('packSizeH'),w:12,n:1},{h:rt('unit'),w:9},{h:rt('wasteH'),w:9,n:1},{h:rt('unitCost'),w:11,n:1}],
+     rows:sorted(S.materials).filter(m=>hit(m,S.q.materials)).map(m=>[rn(m),m.buyUnit||'',N(num(m.price)),N(num(m.packSize),0),ru(m.unit),P(num(m.waste)),N(unitCost(m),4)])},SIGN()]}]};
+  if(kind==='offers')return{file:file('rOffers'),sheets:[{name:file('offers'),title:file('rOffers'),blocks:[{cols:[{h:rt('offer'),w:18},{h:rt('oItems'),w:30},{h:rt('fullPrice'),w:10,n:1},{h:rt('offerPrice'),w:11,n:1},{h:rt('disc'),w:8,n:1},{h:rt('cost'),w:9,n:1},{h:rt('ratio'),w:9,n:1},{h:rt('gp'),w:10,n:1},{h:rt('minPrice'),w:11,n:1}],
+    rows:sorted(S.offers).map(x=>{const r=offerCalc(x);return[rn(x),(x.items||[]).map(it=>{const z=psOf(it.k);return z?flat(rLabel(z.p,z.j))+(num(it.qty)!==1?' ×'+fmt(num(it.qty),0):''):null}).filter(Boolean).join(' + '),N(r.full),N(num(x.price)),P(r.disc),N(r.c),P(r.s.ratio),N(r.s.gp),N(r.minP)]})},SIGN()]}]};
+  if(kind==='buy'){const d=buyData(),cols=[{h:rt('material'),w:28},{h:rt('need'),w:11,n:1},{h:rt('unit'),w:8},{h:rt('buyUnitH'),w:18},{h:rt('packs'),w:10,n:1},{h:rt('packPrice'),w:12,n:1},{h:rt('lineTotal'),w:13,n:1}],row=r=>[rn(r.m),N(r.need,0),ru(r.m.unit),r.m.buyUnit||'',N(r.packs,0),N(num(r.m.price)),N(r.total)],tot=x=>[[rt('totalEx'),N(x)],[rt('vatL'),N(x*S.cfg.vat)],[rt('totalInc'),N(x*(1+S.cfg.vat))]];
+    return{file:file('rBuy')+' '+S.month,doc:file('rBuy'),sheets:[{name:file('sSummary'),title:file('rBuy')+' · '+S.month,blocks:[{kv:tot(d.total)},{cols:[...cols,{h:rt('supplier'),w:16}],rows:d.rows.map(r=>[...row(r),r.sup||'—'])},{text:flat(rt('buyNote'))}]},
+      ...d.groups.filter(g=>g.sup).map(g=>({name:g.sup,title:file('po')+': '+g.sup,blocks:[{kv:[[rt('supplier'),g.sup],[rt('date'),today()]]},{cols,rows:g.rows.map(row),foot:[rt('total'),'','','','','',N(g.total)]},{kv:tot(g.total)},SIGN()]}))]}}
+  if(kind==='chan'){const ch=curCh().filter(c=>(c.name||c.nameEn||'').trim());return{file:file('rChan'),sheets:[{name:file('chan'),title:file('rChan'),blocks:[
+    {cols:[{h:rt('product'),w:24},{h:rt('price'),w:10,n:1},{h:rt('gp'),w:10,n:1},...ch.flatMap(c=>{const n=flat(rn(c));return[{h:[n,flat(rt('chPrice'))],w:10,n:1},{h:[n,flat(rt('chProfit'))],w:11,n:1},{h:[n,flat(rt('margin'))],w:9,n:1},{h:[n,flat(rt('chKeep'))],w:11,n:1}]})],
+     rows:sorted(prods()).flatMap(p=>p.sizes.map((z,j)=>{const s=stats(p,j);return[rLabel(p,j),N(num(z.price)),N(s.gp),...ch.flatMap(c=>{const r=chanCalc(p,j,c);return[N(r.pr),N(r.prof),P(r.mg),N(r.keep)]})]}))},{text:flat(rt('chNote'))},SIGN()]}]}}
+  if(kind==='eng'){const d=engData(),ord=['cStar','cHorse','cPuzzle','cDog','cNone'];return{file:file('rEng')+' '+S.month,doc:file('rEng'),sheets:[{name:file('eng'),title:file('rEng')+' · '+S.month,blocks:[
+    {kv:[[rt('totalQty'),N(d.tq,0)],[rt('revenue'),N(d.rev)],[rt('totalGp'),N(d.tg)],[rt('avgGp'),N(d.avg)],[rt('ratio'),P(d.rev?d.cost/d.rev:NaN)],[rt('targetL'),P(S.cfg.target)],...(d.te?[[rt('totalExp'),N(d.te)],[rt('netT'),N(d.net)],[rt('beCups'),N(d.beCups,0)],[rt('beSales'),N(d.beSales,0)]]:[])]},
+    {cols:[{h:rt('product'),w:26},{h:rt('qtySold'),w:10,n:1},{h:rt('mix'),w:11,n:1},{h:rt('unitGp'),w:11,n:1},{h:rt('totalGp'),w:13,n:1},{h:rt('ratio'),w:11,n:1},...(d.te?[{h:rt('ohU'),w:12,n:1},{h:rt('netU'),w:11,n:1},{h:rt('netT'),w:12,n:1}]:[]),{h:rt('klass'),w:14}],
+     rows:d.rows.slice().sort((a,b)=>ord.indexOf(a.cls)-ord.indexOf(b.cls)||b.gpT-a.gpT).map(r=>[rLabel(r.p,r.j),N(r.n,0),P(r.mix),N(r.s.gp),N(r.gpT),P(r.s.ratio),...(d.te?[N(r.oh),N(r.netU),N(r.netT)]:[]),rt(r.cls)])},{text:flat(rt('engNote'))},SIGN()]}]}}
+  if(kind==='preps'){const pr=sorted(preps()).filter(p=>hit(p,S.q.preps));return{file:file('rPreps'),sheets:[{name:file('sSummary'),title:file('rPreps'),blocks:[
+    {cols:[{h:rt('prep'),w:34},{h:rt('yield'),w:14,n:1},{h:rt('unit'),w:12},{h:rt('batchCost'),w:18,n:1},{h:rt('costPerUnit'),w:18,n:1}],rows:pr.map(p=>{const c=cost(p,0),y=num(p.yieldQty);return[rn(p),Q(y),ru(p.yieldUnit),N(c),N(y>0?c/y:0,4)]})}]},...pr.map(cardSheet)]}}
+  const type=kind==='products'?S.rep:kind;
+  if(type==='cards')return{file:file('rCards'),doc:file('rCard'),sheets:ps.map(cardSheet)};
+  if(type==='kitchen')return{file:file('rKitchen'),doc:file('rKitchenT'),sheets:ps.map(kitchenSheet)};
+  if(type==='menu'){const blocks=[{text:flat(rt('menuNote'))}];Object.keys(CATS).forEach(c=>{const g=ps.filter(p=>p.cat===c);if(!g.length)return;blocks.push({h:rc(c)},{big:1,cols:[{h:rt('product'),w:50},{h:rt('size'),w:25},{h:rt('price'),w:25,n:1}],
+      rows:g.flatMap(p=>p.sizes.map((sz,j)=>[j?'':rn(p),rn(sz)||'',N(num(sz.price))]))})});return{file:file('rMenuT'),sheets:[{name:file('rMenuT'),title:file('rMenuT'),center:1,blocks}]}}
+  return{file:file('rSummary'),sheets:[{name:file('sSummary'),title:file('rSummary'),blocks:[{kv:[[rt('targetL'),P(S.cfg.target)],[rt('vatL'),P(S.cfg.vat)]]},
+    {cols:[{h:rt('product'),w:23},{h:rt('cat'),w:10},{h:rt('price'),w:10,n:1},{h:rt('cost'),w:10,n:1},{h:rt('ratio'),w:9,n:1},{h:rt('gp'),w:10,n:1},{h:rt('margin'),w:9,n:1},{h:rt('suggest'),w:10,n:1},{h:rt('status'),w:14}],
+     rows:ps.flatMap(p=>p.sizes.map((sz,j)=>{const s=stats(p,j);return[rLabel(p,j),rc(p.cat),N(num(sz.price)),N(s.c),P(s.ratio),N(s.gp),P(s.margin),N(s.suggest),rt(stKey(s.ratio))]}))},SIGN()]}]}}
+const cafeLines=lg=>{const c=S.cfg,a=[],D=L[lg||(RL==='en'?'en':'ar')];if(c.address&&c.hdAddr!==false)a.push(c.address);const b=[];if(c.phone&&c.hdPhone!==false)b.push(D.telL+': '+c.phone);if(c.cr&&c.hdCr!==false)b.push(D.crL+': '+c.cr);if(c.vatNo&&c.hdVat!==false)b.push(D.vatNoL+': '+c.vatNo);if(b.length)a.push(b.join('   ·   '));if(c.hdExtra)a.push(c.hdExtra);return a};
+const loadImg=src=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src});
+const libs={};function lib(url,ok){return libs[url]||(libs[url]=new Promise((res,rej)=>{if(ok())return res();const s=document.createElement('script');s.src=url;s.onload=()=>res();s.onerror=()=>{delete libs[url];rej(new Error('lib'))};document.head.appendChild(s)}))}
+const xlLib=()=>lib('/vendor/exceljs.min.js',()=>!!window.ExcelJS);
+
+const mix=(hex,k)=>{const n=parseInt(hex.slice(1),16);return'rgb('+[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v+(255-v)*k)).join(',')+')'};
+async function pdfPages(rep,meta){const land=S.orient==='l',W=land?2246:1588,H=land?1588:2246,M=96,TW=W-2*M,rtl=RL!=='en',both=RL==='both',INK='#15211E',MUT='#5A6A65',LINE='#C9D3CF',ZEB='#F5F7F6',
+    AC=/^#[0-9a-f]{6}$/i.test(S.cfg.accent||'')?S.cfg.accent:'#0F5B4C',SOFT=mix(AC,.86),DOCW=440,BOT=H-M-40;
+  const FF=DFONTS.includes(S.cfg.docFont)?S.cfg.docFont:DFONTS[0],font=(w,s)=>`${w} ${s}px "${FF}", "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif`;
+  try{await Promise.all([document.fonts.load(font(400,26),'اختبار Test 123'),document.fonts.load(font(600,26),'اختبار Test 123')])}catch(e){}
+  const logo=S.cfg.logo?await loadImg(S.cfg.logo):null,pages=[];let x,y;
+  const sx=rtl?W-M:M,sgn=rtl?-1:1;                       // start edge and reading direction
+  function txt(s,off,py,o={}){x.font=font(o.w||400,o.s||24);x.fillStyle=o.c||INK;x.textBaseline='middle';
+    x.direction=o.num?'ltr':rtl?'rtl':'ltr';x.textAlign=o.center?'center':(o.num||o.end)?(rtl?'left':'right'):(rtl?'right':'left');
+    s=String(s);if(o.max){let fs=o.s||24;while(o.fit&&fs>14&&x.measureText(s).width>o.max){fs--;x.font=font(o.w||400,fs)}while(s.length>1&&x.measureText(s).width>o.max)s=s.slice(0,-2)+'…'}x.fillText(s,o.center?W/2:sx+sgn*off,py)}
+  const bar=(py,c,h)=>{x.fillStyle=c;x.fillRect(M,py,TW,h)};
+  const cf=S.cfg,LAY=['start','end','center','dual'].includes(cf.hdLayout)?cf.hdLayout:'start',LH={s:84,m:120,l:164}[cf.hdLogo]||120,LW=logo?Math.min(LH*2.4,logo.width/logo.height*LH):0,showDate=cf.hdDate!==false;let hdEnd=0;
+  const raw=(s,px,py,o)=>{x.font=font(o.w||400,o.s||22);x.fillStyle=o.c||INK;x.textBaseline='middle';x.direction=o.dir||(rtl?'rtl':'ltr');x.textAlign=o.al;s=String(s);let fs=o.s||22;while(o.max&&fs>14&&x.measureText(s).width>o.max){fs--;x.font=font(o.w||400,fs)}while(o.max&&s.length>1&&x.measureText(s).width>o.max)s=s.slice(0,-2)+'…';x.fillText(s,px,py)};
+  function newPage(){const c=document.createElement('canvas');c.width=W;c.height=H;x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);pages.push(c);x.fillStyle=AC;x.fillRect(0,0,W,20);
+    const top=M-6,lines=cafeLines(),doc=rep.doc||rep.file;let hb;
+    if(LAY==='start'){const off=logo?LW+28:0;if(logo)x.drawImage(logo,rtl?W-M-LW:M,top,LW,LH);txt(rcafe(),off,top+26,{w:600,s:36,fit:1,max:TW-off-DOCW});lines.forEach((l,i)=>txt(l,off,top+72+i*34,{s:21,c:MUT,fit:1,max:TW-off-DOCW}));
+      txt(doc,TW,top+24,{w:600,s:25,c:AC,end:1,fit:1,max:DOCW});if(showDate)txt(today(),TW,top+64,{s:21,c:MUT,num:1});hb=Math.max(LH,52+lines.length*34)}
+    else{if(LAY==='end'){if(logo)x.drawImage(logo,rtl?M:W-M-LW,top,LW,LH);const mx=TW-(logo?LW+28:0);txt(rcafe(),0,top+26,{w:600,s:36,fit:1,max:mx});lines.forEach((l,i)=>txt(l,0,top+72+i*34,{s:21,c:MUT,fit:1,max:mx}));hb=Math.max(LH,52+lines.length*34)}
+      else if(LAY==='center'){let cy=top;if(logo){x.drawImage(logo,(W-LW)/2,cy,LW,LH);cy+=LH+14}raw(rcafe(),W/2,cy+22,{w:600,s:36,al:'center',max:TW});lines.forEach((l,i)=>raw(l,W/2,cy+66+i*34,{s:21,c:MUT,al:'center',max:TW}));hb=cy-top+46+lines.length*34}
+      else{const side=(TW-(logo?LW+40:40))/2,ar=cafeLines('ar'),en=cafeLines('en');if(logo)x.drawImage(logo,(W-LW)/2,top,LW,LH);
+        raw(cf.name||cf.nameEn||L.ar.app,W-M,top+26,{w:600,s:34,al:'right',dir:'rtl',max:side});ar.forEach((l,i)=>raw(l,W-M,top+70+i*34,{s:20,c:MUT,al:'right',dir:'rtl',max:side}));
+        raw(cf.nameEn||cf.name||L.en.app,M,top+26,{w:600,s:34,al:'left',dir:'ltr',max:side});en.forEach((l,i)=>raw(l,M,top+70+i*34,{s:20,c:MUT,al:'left',dir:'ltr',max:side}));hb=Math.max(LH,50+Math.max(ar.length,en.length)*34)}
+      bar(top+hb+16,AC,5);txt(doc,0,top+hb+56,{w:600,s:25,c:AC,fit:1,max:TW-220});if(showDate)txt(today(),TW,top+hb+56,{s:21,c:MUT,num:1});hb+=58;y=top+hb+70;hdEnd=y;return}
+    bar(top+hb+18,AC,5);y=top+hb+18+58;hdEnd=y}
+  const need=h=>{if(y+h>BOT)newPage()};
+  const wrap=(s,size,mw)=>{x.font=font(400,size);const out=[];String(s).split(/\n/).forEach(par=>{let line='';par.split(/\s+/).forEach(w=>{const tr=line?line+' '+w:w;if(x.measureText(tr).width>mw&&line){out.push(line);line=w}else line=tr});out.push(line)});return out};
+  for(const sh of rep.sheets){newPage();txt(sh.title,0,y,{w:600,s:sh.center?40:34,center:sh.center,fit:1,max:TW});y+=sh.center?76:64;
+    for(const b of sh.blocks){const big=b.big,RH=(both?66:50)+(big?14:0),HH=both?66:56,fs=big?27:22;
+      if(b.h){need(110+HH+RH);y+=14;x.fillStyle=AC;x.fillRect(rtl?W-M-8:M,y-16,8,32);txt(flat(b.h),22,y,{w:600,s:26});y+=30+HH/2}
+      else if(b.kv){const half=TW/2;b.kv.forEach((kv,i)=>{if(i%2===0)need(52);const o=(i%2)*half;txt(flat(kv[0]),o,y,{s:23,c:MUT,max:half*.55});
+          const isN=kv[1]&&typeof kv[1]==='object'&&!Array.isArray(kv[1]);txt(cellText(kv[1]),isN?o+half-30:o+half*.58,y,{w:600,s:24,num:isN,max:half*.4});if(i%2===1||i===b.kv.length-1){y+=20;x.fillStyle=LINE;x.fillRect(M,y+5,TW,1);y+=32}});y+=10}
+      else if(b.img){const im=await loadImg(b.img);if(im){const h=Math.min(300,im.height*2),w=Math.min(TW,im.width/im.height*h);need(h+24);x.drawImage(im,rtl?W-M-w:M,y-10,w,h);y+=h+34}}
+      else if(b.text){const size=big?28:24,lh=big?46:40;wrap(b.text,size,TW).forEach(l=>{need(lh);txt(l,0,y,{s:size});y+=lh});y+=10}
+      else if(b.sign){need(190);y+=70;const cw=TW/b.sign.length;b.sign.forEach((lb,i)=>{const o=i*cw;txt(flat(lb),o+10,y,{s:21,c:MUT,max:cw-30});x.fillStyle=INK;x.fillRect(rtl?W-M-o-cw+20:M+o+10,y+74,cw-30,2)});y+=110}
+      else if(b.cols){const sum=b.cols.reduce((s,c)=>s+c.w,0),ws=b.cols.map(c=>c.w/sum*TW),pad=14;
+        const row=(cells,o={})=>{let off=0;cells.forEach((c,i)=>{const cw=ws[i],isN=b.cols[i].n,px=isN?off+cw-pad:off+pad,mx=cw-2*pad;off+=cw;
+          const st=o.head?{s:19,w:600,c:'#33423E',end:isN,fit:1}:{s:fs,w:o.bold?600:400,num:isN&&!Array.isArray(c),end:isN};let v=o.head||Array.isArray(c)?c:cellText(c);
+          if(o.head&&!Array.isArray(v)){x.font=font(600,19);const sp=String(v).split(' ');if(x.measureText(v).width>mx&&sp.length>1){const k=Math.ceil(sp.length/2);v=[sp.slice(0,k).join(' '),sp.slice(k).join(' ')]}}
+          if(Array.isArray(v)){txt(v[0],px,y-13,{...st,max:mx});txt(v[1],px,y+13,{...st,s:o.head?st.s:st.s-3,c:o.head?st.c:MUT,max:mx})}else txt(v,px,y,{...st,max:mx})})};
+        const head=()=>{x.fillStyle=SOFT;x.fillRect(M,y-HH/2,TW,HH);bar(y+HH/2-2,AC,2);row(b.cols.map(c=>c.h),{head:1});y+=HH/2+RH/2+2};
+        need(HH+RH+20);head();b.rows.forEach((r,k)=>{if(y+RH/2>BOT){newPage();head()}if(k%2){x.fillStyle=ZEB;x.fillRect(M,y-RH/2,TW,RH)}row(r);x.fillStyle=LINE;x.fillRect(M,y+RH/2,TW,1);y+=RH});
+        if(b.foot){need(RH+6);x.fillStyle=SOFT;x.fillRect(M,y-RH/2,TW,RH);bar(y-RH/2,INK,2);row(b.foot,{bold:1});y+=RH}y+=16}}}
+  const pl=RL==='en'?L.en:L.ar;
+  pages.forEach((c,i)=>{x=c.getContext('2d');bar(H-M+4,LINE,2);txt(cf.ftText||[rcafe(),cf.phone].filter(Boolean).join('  ·  '),0,H-M+36,{s:19,c:MUT,fit:1,max:TW-260});if(cf.ftPage!==false)txt(`${pl.page} ${i+1} ${pl.of} ${pages.length}`,TW,H-M+36,{s:19,c:MUT,end:1})});
+  if(meta)pages.hdEnd=hdEnd;return pages}
+async function exportPdf(rep){await lib('/vendor/jspdf.umd.min.js',()=>!!window.jspdf);
+  const land=S.orient==='l',pages=await pdfPages(rep),pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4',orientation:land?'l':'p',compress:true});
+  pages.forEach((c,i)=>{if(i)pdf.addPage();pdf.addImage(c.toDataURL('image/jpeg',.9),'JPEG',0,0,land?297:210,land?210:297)});return pdf.output('blob')}
+const xf=(o={})=>({name:XFONTS.includes(S.cfg.xlFont)?S.cfg.xlFont:'Arial',size:o.s||11,bold:!!o.b,color:{argb:o.c||'FF15211E'}});
+async function exportXlsx(rep){await xlLib();const wb=new window.ExcelJS.Workbook(),rtl=RL!=='en',both=RL==='both',used={};let logoId=null,lw=0;
+  if(S.cfg.logo&&/^data:image\/png/.test(S.cfg.logo)){const im=await loadImg(S.cfg.logo);if(im){logoId=wb.addImage({base64:S.cfg.logo,extension:'png'});lw=Math.min(150,im.width/im.height*80)}}
+  for(const sh of rep.sheets){let n=String(sh.name||'Sheet').replace(/[\[\]:*?\/\\]/g,' ').slice(0,28)||'Sheet';if(used[n]){used[n]++;n+=' '+used[n]}else used[n]=1;
+    const ws=wb.addWorksheet(n,{views:[{rightToLeft:rtl,showGridLines:false}]}),tb=sh.blocks.filter(b=>b.cols).sort((a,b)=>b.cols.length-a.cols.length)[0],nc=Math.max(tb?tb.cols.length:4,4);
+    const widths=tb?tb.cols.map(c=>Math.max(11,Math.round(c.w*(both?1.5:1.2)))):[26,18,26,18];for(let i=0;i<nc;i++)ws.getColumn(i+1).width=widths[i]||16;
+    const tc=logoId!=null?2:1;if(logoId!=null)ws.addImage(logoId,{tl:{col:0.1,row:0.1},ext:{width:lw,height:80}});
+    ws.getCell(1,tc).value=rcafe();ws.getCell(1,tc).font=xf({s:16,b:1});cafeLines().forEach((l,i)=>{ws.getCell(2+i,tc).value=l;ws.getCell(2+i,tc).font=xf({s:10,c:'FF5A6A65'})});
+    [1,2,3,4].forEach(r=>ws.getRow(r).height=22);
+    ws.getCell(6,1).value=sh.title;ws.getCell(6,1).font=xf({s:14,b:1});ws.getCell(7,1).value=flat(rt('date'))+': '+today();ws.getCell(7,1).font=xf({s:10,c:'FF5A6A65'});
+    let r=9;const put=(row,col,c,o={})=>{const cell=ws.getCell(row,col),arr=Array.isArray(c);if(c&&typeof c==='object'&&!arr){cell.value=c.v;cell.numFmt=c.p?'0.0%':'#,##0'+(c.d?'.'+'0'.repeat(c.d):'')}else cell.value=arr?c.filter(Boolean).join('\n'):c??'';
+      cell.font=xf(o);cell.alignment={vertical:'middle',wrapText:arr||!!o.wrap};if(arr)ws.getRow(row).height=32;return cell};
+    const line={style:'thin',color:{argb:'FFC9D3CF'}};
+    for(const b of sh.blocks){
+      if(b.img)continue;
+      if(b.h){put(r,1,flat(b.h),{s:12,b:1});r+=1}
+      else if(b.kv){b.kv.forEach(kv=>{put(r,1,flat(kv[0]),{c:'FF5A6A65'});const c=put(r,2,Array.isArray(kv[1])?flat(kv[1]):kv[1],{b:1});c.alignment={horizontal:rtl?'right':'left',vertical:'middle'};r++});r++}
+      else if(b.sign){r++;b.sign.forEach((lb,i)=>put(r,1+i*Math.max(1,Math.floor(nc/b.sign.length)),flat(lb)+': ____________',{c:'FF5A6A65'}));r+=2}
+      else if(b.text){ws.mergeCells(r,1,r+3,nc);put(r,1,b.text,{wrap:1}).alignment={vertical:'top',wrapText:true};r+=5}
+      else if(b.cols){b.cols.forEach((c,i)=>{const cell=put(r,i+1,c.h,{b:1,s:10});cell.alignment={vertical:'middle',wrapText:true};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDDEBE6'}};cell.border={top:line,bottom:line}});ws.getRow(r).height=both?34:26;r++;
+        b.rows.forEach(row=>{row.forEach((c,i)=>{put(r,i+1,c).border={bottom:line}});r++});
+        if(b.foot){b.foot.forEach((c,i)=>{put(r,i+1,c,{b:1}).border={top:{style:'medium',color:{argb:'FF15211E'}}}});r++}r++}}}
+  return new Blob([await wb.xlsx.writeBuffer()])}
+async function offer(btn,name,make){if(!S.dl)return toast(t('eDl'));btn.disabled=true;toast(t('exporting'));
+  try{let data;try{data=await make()}catch(e){btn.disabled=false;return toast(t('eLib'))}
+    await S.dl.save({filename:name.replace(/ \/ /g,' - ').replace(/[\\\/:*?"<>|]/g,' '),data});toast(t('exported'))}
+  catch(e){toast(e&&e.code==='declined'?t('eDeclined'):t('eDl'))}btn.disabled=false}
+function doExport(btn,type,kind,id){const rep=buildReport(kind,id);if(!rep.sheets.length)return toast(t('eNone'));
+  return offer(btn,rep.file+' '+today()+(type==='pdf'?'.pdf':'.xlsx'),()=>type==='pdf'?exportPdf(rep):exportXlsx(rep))}
+
+/* ---------- Excel data file: download and import ---------- */
+const MH=['الاسم بالعربية | Name (AR)','الاسم بالإنجليزية | Name (EN)','وحدة الشراء | Purchase unit','سعر الشراء قبل الضريبة | Price excl. VAT','حجم العبوة | Pack size','وحدة الرسبي (جم/مل/حبة) | Unit (g/ml/pc)','الهالك % | Waste %'];
+const RHD=['النوع (منتج/مستحضر) | Type (product/prep)','الاسم بالعربية | Name (AR)','الاسم بالإنجليزية | Name (EN)','التصنيف | Category','الحجم بالعربية | Size (AR)','الحجم بالإنجليزية | Size (EN)','سعر البيع شامل الضريبة | Price incl. VAT','كمية الناتج (للمستحضر) | Yield qty (prep)','وحدة الناتج | Yield unit','المكوّن | Component','الكمية | Quantity','ملاحظة | Note'];
+async function dataFile(){await xlLib();const wb=new window.ExcelJS.Workbook(),rtl=lang==='ar',mk=(name,head)=>{const ws=wb.addWorksheet(name,{views:[{rightToLeft:rtl,state:'frozen',ySplit:1}]});ws.addRow(head);
+    ws.getRow(1).eachCell(c=>{c.font=xf({b:1,s:10});c.alignment={wrapText:true,vertical:'middle'};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDDEBE6'}}});ws.getRow(1).height=44;head.forEach((h,i)=>ws.getColumn(i+1).width=22);return ws};
+  const a=mk('Materials',MH);sorted(S.materials).forEach(m=>a.addRow([m.name||'',m.nameEn||'',m.buyUnit||'',num(m.price),num(m.packSize),m.unit,+(num(m.waste)*100).toFixed(4)]));
+  const b=mk('Recipes',RHD);[...sorted(preps()),...sorted(prods())].forEach(p=>p.sizes.forEach((sz,j)=>p.lines.forEach(l=>{const c=comp(l.m);if(!c||!num(l.qtys[j]))return;const isP=p.type==='prep';
+    b.addRow([isP?'مستحضر':'منتج',p.name||'',p.nameEn||'',isP?'':p.cat,sz.name||'',sz.nameEn||'',isP?'':num(sz.price),isP?num(p.yieldQty):'',isP?p.yieldUnit:'',c.name||c.nameEn,num(l.qtys[j]),l.note||''])})));
+  const c=wb.addWorksheet('Instructions',{views:[{rightToLeft:rtl}]});c.getColumn(1).width=110;[t('imp1'),t('imp2'),t('imp3')].forEach(s=>c.addRow([s]));
+  return new Blob([await wb.xlsx.writeBuffer()])}
+async function parseImport(file){await xlLib();const wb=new window.ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());
+  const cv=c=>{let v=c.value;if(v&&typeof v==='object'){if(v.richText)v=v.richText.map(r=>r.text).join('');else if('result' in v)v=v.result;else if(v.text)v=v.text;else v=''}return v==null?'':typeof v==='string'?v.trim():v};
+  const rows=ws=>{const out=[];if(ws)ws.eachRow((r,i)=>{if(i>1)out.push({i,c:[...Array(12).keys()].map(k=>cv(r.getCell(k+1)))})});return out};
+  const key=s=>String(s||'').trim().toLowerCase(),res={mats:[],prods:[],errors:[]},err=(i,name,k)=>res.errors.push(`${t('row')} ${i} — ${name}: ${t(k)}`);
+  const UN={g:'جم',ml:'مل',pc:'حبة',pcs:'حبة','جم':'جم','مل':'مل','حبة':'حبة'},CT={};Object.keys(CATS).forEach(c=>{CT[key(c)]=c;CT[key(CATS[c])]=c});
+  const mIdx={},pIdx={},reg=(ix,x,id)=>{if(x.name)ix[key(x.name)]=id;if(x.nameEn)ix[key(x.nameEn)]=id};
+  S.materials.forEach(m=>reg(mIdx,m,m.id));preps().forEach(p=>reg(pIdx,p,p.id));
+  rows(wb.worksheets[0]).forEach(({i,c})=>{const[ar,en,buy,price,pack,unit,waste]=c;if(!ar&&!en)return;if(!(num(pack)>0))return err(i,ar||en,'eBadPack');
+    const id=mIdx[key(ar)]||mIdx[key(en)],old=id&&mat(id),data={name:String(ar),nameEn:String(en),buyUnit:String(buy),price:num(price),packSize:num(pack),unit:UN[key(unit)]||'جم',waste:num(waste)/100,sku:(old&&old.sku)||'',example:false,history:withHistory(old,num(price),num(pack))};
+    if(old&&old.suppliers&&old.suppliers.length){data.suppliers=old.suppliers.map(x=>({...x}));data.sup=Math.min(num(old.sup),data.suppliers.length-1);Object.assign(data.suppliers[data.sup],{price:data.price,packSize:data.packSize,buyUnit:data.buyUnit})}
+    const nid=id||newId();reg(mIdx,data,nid);res.mats.push({id:nid,isNew:!id,data})});
+  const groups=new Map();
+  rows(wb.worksheets[1]).forEach(({i,c})=>{const[ty,ar,en,cat,sAr,sEn,price,yq,yu,cmp,qty,note]=c;if(!ar&&!en)return;const isP=/prep|مستحضر/i.test(String(ty)),gk=(isP?'p|':'x|')+key(ar||en);
+    let g=groups.get(gk);if(!g){g={i,type:isP?'prep':'product',name:String(ar),nameEn:String(en),cat:CT[key(cat)]||'أخرى',sizes:[],sIdx:{},lines:new Map(),yieldQty:num(yq),yieldUnit:UN[key(yu)]||'مل',bad:false};groups.set(gk,g)}
+    const sk=isP?'':key(sAr||sEn);let j=g.sIdx[sk];if(j==null){if(g.sizes.length>=MAXS){if(!g.bad)err(i,ar||en,'eSizes');g.bad=true;return}j=g.sizes.length;g.sIdx[sk]=j;g.sizes.push({name:String(sAr),nameEn:String(sEn),price:num(price)})}
+    if(!cmp)return;const lk=key(cmp);let l=g.lines.get(lk);if(!l){l={i,c:String(cmp),qtys:[],note:String(note)};g.lines.set(lk,l)}l.qtys[j]=num(qty)});
+  const all=[...groups.values()],ex=g=>S.products.find(p=>(p.type==='prep')===(g.type==='prep')&&(key(p.name)===key(g.name||g.nameEn)||(g.nameEn&&key(p.nameEn)===key(g.nameEn))));
+  all.forEach(g=>{const old=ex(g);g.id=old?old.id:newId();g.isNew=!old;if(g.type==='prep')reg(pIdx,g,g.id)});
+  all.forEach(g=>{if(g.type==='prep'&&!(g.yieldQty>0))return err(g.i,g.name||g.nameEn,'eYield');const lines=[];
+    g.lines.forEach(l=>{const cid=mIdx[key(l.c)]||pIdx[key(l.c)];if(!cid||cid===g.id)return err(l.i,(g.name||g.nameEn)+' ← '+l.c,'eNoComp');lines.push({m:cid,note:l.note,qtys:g.sizes.map((s,j)=>num(l.qtys[j]))})});
+    const data={type:g.type,name:g.name,nameEn:g.nameEn,cat:g.cat,sizes:g.type==='prep'?[{name:'',nameEn:'',price:0}]:g.sizes.map((z,j)=>{const o=((byId(S.products,g.id)||{}).sizes||[])[j]||{};return{...z,sku:o.sku||'',cal:o.cal||0}}),lines,method:(byId(S.products,g.id)||{}).method||'',prepMin:(byId(S.products,g.id)||{}).prepMin||0,allergens:(byId(S.products,g.id)||{}).allergens||[],img:(byId(S.products,g.id)||{}).img||'',example:false};
+    if(g.type==='prep'){data.yieldQty=g.yieldQty;data.yieldUnit=g.yieldUnit}res.prods.push({id:g.id,isNew:g.isNew,data})});
+  res.prods.sort((a,b)=>(a.data.type==='prep'?0:1)-(b.data.type==='prep'?0:1));return res}
+
+async function parseSales(file){let rows=[];
+  if(/\.csv$/i.test(file.name)){const txt=(await file.text()).replace(/^\ufeff/,'');let cur=[],f='',q=false;for(let i=0;i<txt.length;i++){const ch=txt[i];
+      if(q){if(ch==='"'){if(txt[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}else if(ch==='"')q=true;else if(ch===','||ch===';'||ch==='\t'){cur.push(f);f=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&txt[i+1]==='\n')i++;cur.push(f);rows.push(cur);cur=[];f=''}else f+=ch}
+    if(f||cur.length){cur.push(f);rows.push(cur)}}
+  else{await xlLib();const wb=new window.ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());const ws=wb.worksheets[0];if(ws)ws.eachRow(r=>{const a=[];r.eachCell({includeEmpty:true},(c,i)=>{let v=c.value;if(v&&typeof v==='object')v=v.richText?v.richText.map(x=>x.text).join(''):'result' in v?v.result:v.text||'';a[i-1]=v==null?'':v});rows.push(a)})}
+  const key=x=>String(x??'').trim().toLowerCase(),isQ=h=>/quantity|qty|sold|الكمية|كمية/.test(h),isS=h=>/sku|رمز/.test(h),isN=h=>/name|product|item|المنتج|منتج|الاسم|اسم|الصنف/.test(h);
+  let hi=-1,qc=-1,sc=-1,nc=-1;for(let i=0;i<Math.min(rows.length,15)&&hi<0;i++){const h=rows[i].map(key);qc=h.findIndex(isQ);sc=h.findIndex(isS);nc=h.findIndex((x,k)=>isN(x)&&k!==qc&&k!==sc);if(qc>=0&&(sc>=0||nc>=0))hi=i}
+  if(hi<0)return null;const ix={};prods().forEach(p=>p.sizes.forEach((z,j)=>{const k=p.id+'|'+j,add=x=>{if(x)ix[key(x)]=k};add(skuP(p,j));const multi=p.sizes.length>1;
+    [[p.name,z.name],[p.nameEn,z.nameEn],[p.name,z.nameEn],[p.nameEn,z.name]].forEach(([a,b])=>{if(!a)return;if(!multi)add(a);if(b){add(a+' - '+b);add(a+' · '+b);add(a+' '+b);add(a+' ('+b+')')}})}));
+  const q={};let miss=0;rows.slice(hi+1).forEach(r=>{const n=num(String(r[qc]).replace(/,/g,''));if(!(n>0))return;const k=(sc>=0&&ix[key(r[sc])])||(nc>=0&&ix[key(r[nc])]);if(k)q[k]=(q[k]||0)+n;else miss++});
+  return{q,miss}}
+
+/* ---------- Foodics CSV (column order of the console import templates) ---------- */
+const csv=rows=>'\ufeff'+rows.map(r=>r.map(v=>{v=String(v??'');return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\r\n');
+const FXU={'جم':'GRAM','مل':'ML','حبة':'PCS'},sid=x=>x.id.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(-6);
+const skuM=m=>m.sku||(m.type==='prep'?'S-':'M-')+sid(m),skuP=(p,j)=>p.sizes[j].sku||'P-'+sid(p)+(p.sizes.length>1?'-'+(j+1):'');
+const fxN=(a,e)=>S.cfg.fxLang==='ar'?[a||e,e||a]:[e||a,a||e];
+const pName=(p,j)=>{const z=p.sizes[j],m=p.sizes.length>1;return fxN((p.name||p.nameEn)+(m?' - '+(z.name||z.nameEn||j+1):''),(p.nameEn||p.name)+(m?' - '+(z.nameEn||z.name||j+1):''))};
+function fxProducts(){const rows=[['Name','SKU','category_reference','tax_group_reference','is_sold_by_weight','is_active','is_stock_product','price','cost','barcode','description','preparation_time','calories','Image','Name_Localized','description_localized']];
+  sorted(prods()).forEach(p=>p.sizes.forEach((z,j)=>{const[n,l]=pName(p,j);rows.push([n,skuP(p,j),S.cfg['fxCat'+Object.keys(CATS).indexOf(p.cat)]||'',S.cfg.fxTax||'','NO','YES','NO',num(z.price),+cost(p,j).toFixed(4),'','',p.prepMin||'',z.cal||'','',l,''])}));return csv(rows)}
+function fxItems(){const rows=[['Name','SKU','Storage_Unit','Ingredient_Unit','Storage_to_ingredient_factor','Cost','Minimum_level','Par_level','Maximum_level','Category_reference','Barcode','Name_Localized']];
+  sorted(S.materials).forEach(m=>{const[n,l]=fxN(m.name,m.nameEn);rows.push([n,skuM(m),m.buyUnit||FXU[m.unit],FXU[m.unit]||m.unit,num(m.packSize),num(m.price),0,0,0,S.cfg.fxInv||'','',l])});
+  sorted(preps()).forEach(p=>{const[n,l]=fxN(p.name,p.nameEn),y=num(p.yieldQty),u=FXU[p.yieldUnit]||p.yieldUnit;rows.push([n,skuM(p),u,u,1,+(y>0?cost(p,0)/y:0).toFixed(4),0,0,0,S.cfg.fxInv||'','',l])});return csv(rows)}
+function fxIng(){const rows=[['product_sku','product_name','ingredient_sku','ingredient_name','quantity','ingredient_unit']];
+  sorted(prods()).forEach(p=>p.sizes.forEach((z,j)=>p.lines.forEach(l=>{const c=comp(l.m);if(c&&num(l.qtys[j])>0)rows.push([skuP(p,j),pName(p,j)[0],skuM(c),fxN(c.name,c.nameEn)[0],num(l.qtys[j]),FXU[cUnit(l.m)]||''])})));return csv(rows)}
+
+function readSet(){const p={},v=id=>$(id).value.trim();['name','nameEn','address','phone','cr','vatNo','fxTax','fxInv','fxCat0','fxCat1','fxCat2','fxCat3','hdExtra','ftText'].forEach(k=>{if($('s-'+k))p[k]=v('s-'+k)});
+  ['accent','fxLang','hdLayout','hdLogo','docFont','xlFont'].forEach(k=>{if($('s-'+k))p[k]=$('s-'+k).value});['hdAddr','hdPhone','hdCr','hdVat','hdDate','ftPage'].forEach(k=>{if($('s-'+k))p[k]=$('s-'+k).checked});
+  if($('s-target')){p.target=num(v('s-target'))/100;p.vat=num(v('s-vat'))/100}return p}
+let hdT=0,hdSeq=0;function hdPreview(){clearTimeout(hdT);hdT=setTimeout(async()=>{const im=$('hd-prev');if(!im)return;const seq=++hdSeq,bak=S.cfg,bo=S.orient,bl=RL;S.cfg={...S.cfg,...readSet()};S.orient='p';RL=lang;let url='';
+  try{const pg=await pdfPages({doc:t('prevDoc'),file:'',sheets:[{title:t('rSummary'),blocks:[]}]},true),c=document.createElement('canvas'),h=Math.min(pg[0].height,pg.hdEnd+150);c.width=pg[0].width;c.height=h;c.getContext('2d').drawImage(pg[0],0,0);url=c.toDataURL('image/png')}catch(e){}
+  S.cfg=bak;S.orient=bo;RL=bl;const el=$('hd-prev');if(el&&seq===hdSeq&&url)el.src=url},120)}
+
+function doJump(id){const[k,v]=id.split(':');S.draft=null;S.edit=null;S.od=null;S.chd=null;S.dirty=false;if(k==='edit'){const p=byId(S.products,v);if(!p)return;view=p.type==='prep'?'preps':'products';sub='';S.draft=toDraft(p);skipKeep=true;render();return window.scrollTo({top:0})}
+    if(k==='mat'){const m=mat(v);if(!m)return;view='materials';S.edit=m;S.msup=(m.suppliers||[]).map(x=>({...x}));S.msel=num(m.sup);return setSub('form')}
+    if(k==='newprod'){view='products';sub='';S.draft={id:newId(),isNew:true,type:'product',name:'',nameEn:'',cat:'ساخن',method:'',prepMin:'',allergens:[],img:'',yieldQty:'',yieldUnit:'مل',sizes:[{name:'',nameEn:'',price:'',sku:'',lines:[{m:'',qty:'',note:''}]}]};skipKeep=true;render();return}
+    if(k==='newmat'){view='materials';S.edit=null;S.msup=[];S.msel=0;return setSub('form')}
+    if(k==='offer'){const x=byId(S.offers,v);if(!x)return;view='offers';sub='';S.od={...x,items:(x.items||[]).map(i=>({...i}))};skipKeep=true;render();return window.scrollTo({top:0})}
+    const[vw,sb]=v.split('.');view=vw;return setSub(sb||'')}
+function gsRun(){const q=$('gs').value.trim().toLowerCase(),out=$('gs-out');if(!q||(S.db&&!S.cafe)){out.hidden=true;out.innerHTML='';return}const res=[],add=(l,k,id)=>{if(res.length<12)res.push([l,k,id])},has=x=>String(x||'').toLowerCase().includes(q);
+  S.products.filter(p=>has(p.name)||has(p.nameEn)).forEach(p=>add(nm(p),t(p.type==='prep'?'kPrep':'kProduct'),'edit:'+p.id));S.materials.filter(m=>has(m.name)||has(m.nameEn)).forEach(m=>add(nm(m),t('kMaterial'),'mat:'+m.id));S.offers.filter(o=>has(o.name)||has(o.nameEn)).forEach(o=>add(nm(o),t('kOffer'),'offer:'+o.id));
+  VIEWS.forEach(v=>{if(has(L.ar[v])||has(L.en[v]))add(t(v),t('gsPage'),'go:'+v);Object.keys(PT[v]||{}).forEach(sb=>{const k=PT[v][sb];if(has(L.ar[k])||has(L.en[k]))add(t(v)+' › '+t(k),t('gsPage'),'go:'+v+'.'+sb)})});
+  out.innerHTML=res.length?res.map(r=>`<button type="button" data-id="${esc(r[2])}"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></button>`).join(''):`<p>${t('gsNone')}</p>`;out.hidden=false}
+
+/* ---------- events ---------- */
+NAVG.forEach(([g,vs])=>{if(g){const h=document.createElement('div');h.className='navh';h.dataset.g=g;$('nav').appendChild(h)}vs.forEach(v=>{const b=document.createElement('button');b.type='button';b.dataset.v=v;b.onclick=()=>guard(()=>go(v));$('nav').appendChild(b)})});
+$('nav-tg').onclick=()=>{LOOK.nav=LOOK.nav==='off'?'on':'off';applyLook(true);chrome()};applyLook();
+$('gs').addEventListener('input',gsRun);$('gs-out').addEventListener('click',e=>{const b=e.target.closest('[data-id]');if(!b)return;const id=b.dataset.id;guard(()=>{$('gs').value='';gsRun();doJump(id)})});
+{const o=document.createElement('button');o.type='button';o.id='out-btn';o.className='out';o.hidden=true;o.onclick=()=>guard(leave);$('nav').appendChild(o)}
+{const b=document.createElement('button');b.type='button';b.id='lang-btn';b.className='lang';b.onclick=()=>{lang=lang==='ar'?'en':'ar';try{localStorage.setItem('lang',lang)}catch(e){}render()};$('nav').appendChild(b)}
+const DIRTY='#editor,form[data-form=materials],form[data-form=settings],[data-dirty]';
+$('view').addEventListener('input',e=>{const el=e.target,d=S.draft,ds=el.dataset;if(el.type!=='file'&&el.closest(DIRTY))S.dirty=true;
+  if(ds.sim){S.sim[ds.sim]=el.type==='checkbox'?el.checked:el.value;const o=$('sim-out');if(o)o.innerHTML=simOut();return}
+  if(ds.so!=null){S.sim.ov[+ds.so][ds.k]=el.value;if(ds.k==='m')return render();const o=$('sim-out');if(o)o.innerHTML=simOut();return}
+  if(ds.od){S.od[ds.od]=el.value;return odTotals()}
+  if(ds.ol!=null){S.od.items[+ds.ol][ds.k]=el.value;return odTotals()}
+  if(ds.buy){S.buy[ds.buy]=el.value;const o=$('buy-out');if(o)o.innerHTML=buyOut();return}
+  if(ds.ch!=null){if(!S.chd)S.chd=curCh().map(c=>({...c}));S.chd[+ds.ch][ds.k]=el.value;const o=$('chan-out');if(o)o.innerHTML=chanOut();return}
+  if(el.closest('[data-hd]'))hdPreview();
+  if(ds.q!=null){S.q[ds.q]=el.value;return render()}
+  if(ds.sq){if(!S.sq)S.sq={...curQty()};S.sq[ds.sq]=el.value;const o=$('eng-out');if(o)o.innerHTML=engOut();return}
+  if(ds.sx){if(!S.sx)S.sx={...curExp()};S.sx[ds.sx]=el.value;const o=$('eng-out');if(o)o.innerHTML=engOut();return}
+  if(ds.sup!=null){const x=S.msup[+ds.sup];x[ds.k]=el.value;const c=$('sp'+ds.sup+'-u');if(c)c.textContent=fmt(num(x.packSize)>0?num(x.price)/num(x.packSize):0,4);return}
+  if(!d)return;
+  if(ds.ed){d[ds.ed]=el.value;edTotals()}else if(ds.sz!=null){d.sizes[+ds.sz][ds.sk]=el.value;edTotals()}
+  else if(ds.lk){d.sizes[+ds.sj].lines[+ds.li][ds.lk]=el.value;edTotals()}});
+$('view').addEventListener('change',async e=>{const el=e.target,ds=el.dataset;if(el.closest('[data-hd]'))hdPreview();if(el.type!=='file'&&el.closest(DIRTY))S.dirty=true;
+  if(ds.sim&&el.type==='checkbox'){S.sim[ds.sim]=el.checked;const o=$('sim-out');if(o)o.innerHTML=simOut();return}
+  if(ds.sa){S.sa=el.value;const o=$('eng-out');if(o)o.innerHTML=engOut();return}
+  if(ds.alg){const a=S.draft.allergens;el.checked?a.push(ds.alg):a.splice(a.indexOf(ds.alg),1);return}
+  if(ds.look){LOOK[ds.look]=el.value;applyLook(true);return}
+  if(ds.st){if(ds.st==='month'){if(!el.value)return;S.sq=null;S.sx=null;S.sa=null;skipKeep=true}S[ds.st]=el.value;if(ds.rr)render();return}
+  if(ds.supr!=null){S.msel=+ds.supr;return}
+  if(el.id==='bk-file'&&el.files[0]){try{const r=JSON.parse(await el.files[0].text());if(r.app!=='cafe-ledger'||!Array.isArray(r.materials)||!Array.isArray(r.products))throw 0;r.sales=r.sales||{};r.offers=Array.isArray(r.offers)?r.offers:[];S.rest=r}catch(er){S.rest=null;toast(t('eBackup'))}return render()}
+  if(el.id==='sales-file'&&el.files[0]){toast(t('exporting'));try{const res=await parseSales(el.files[0]);if(!res)toast(t('salesNone'));else{S.sq={...curQty(),...res.q};toast(t('salesRead')+' '+res.miss)}}catch(er){toast(t('eFile'))}return render()}
+  if(ds.sel){el.checked?S.sel.add(ds.sel):S.sel.delete(ds.sel);return}
+  if(el.id==='sel-all'){shownProds().forEach(p=>el.checked?S.sel.add(p.id):S.sel.delete(p.id));return render()}
+  
+  if(el.id==='imp-file'&&el.files[0]){toast(t('exporting'));try{S.imp=await parseImport(el.files[0])}catch(er){S.imp=null;toast(t('eFile'))}return render()}
+  if(el.id==='pimg-file'&&el.files[0]&&S.draft){const rd=new FileReader();rd.onload=async()=>{const im=await loadImg(rd.result);if(!im)return toast(t('eLogo'));const k=Math.min(1,480/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);S.draft.img=c.toDataURL('image/jpeg',.82);render()};rd.onerror=()=>toast(t('eLogo'));rd.readAsDataURL(el.files[0]);return}
+  if(el.id==='logo-file'&&el.files[0]){const rd=new FileReader();
+    rd.onload=async()=>{const im=await loadImg(rd.result);if(!im)return toast(t('eLogo'));const k=Math.min(1,320/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(await saveCfg({logo:c.toDataURL('image/png')})){toast(t('saved'));render()}};
+    rd.onerror=()=>toast(t('eLogo'));rd.readAsDataURL(el.files[0])}});
+$('view').addEventListener('submit',async e=>{e.preventDefault();const v=e.target.dataset.form,val=id=>$(id).value.trim();let ok=false;const reg=S.db&&S.db.collection('cafes');
+  if(v==='pin'){const c=byId(S.cafes,S.gate.sel);if(!c)return;if(await hashPin(c.id,$('pin-in').value)===c.pin){S.unlocked.add(c.id);enter(c.id)}else{toast(t('gBad'));$('pin-in').value=''}return}
+  if(v==='newcafe'){const name=val('g-name'),nameEn=val('g-nameEn'),pin=$('g-pin').value;if(!(name||nameEn))return toast(t('needName'));const id=newId();
+    try{await reg.doc(id).set({name,nameEn,pin:pin?await hashPin(id,pin):'',created:new Date().toISOString()});await S.db.doc('cafes/'+id+'/config/main').set({...DEF,name,nameEn})}catch(er){return fail(er)}S.unlocked.add(id);enter(id);return}
+  if(v==='pinset'){const c=byId(S.cafes,S.cafe)||{},pin=$('s-pin').value,{id,...rest}=c;try{await reg.doc(S.cafe).set({...rest,pin:pin?await hashPin(S.cafe,pin):''})}catch(er){return fail(er)}$('s-pin').value='';return toast(t('gPinSaved'))}
+  if(v==='materials'){const g=id=>$(id)?val(id):'',o={name:val('m-name'),nameEn:val('m-nameEn'),buyUnit:g('m-buyUnit'),price:num(g('m-price')),packSize:num(g('m-packSize')),unit:$('m-unit').value,waste:num(val('m-waste'))/100,sku:val('m-sku')};
+    const ap=S.msup[S.msel]||S.msup[0],sups=S.msup.filter(x=>(x.name||'').trim()||num(x.price)>0||x===ap).map(x=>({name:(x.name||'').trim(),buyUnit:(x.buyUnit||'').trim(),price:num(x.price),packSize:num(x.packSize),_a:x===ap}));
+    const ai=Math.max(0,sups.findIndex(x=>x._a));sups.forEach(x=>delete x._a);if(sups.length){o.price=sups[ai].price;o.packSize=sups[ai].packSize;o.buyUnit=sups[ai].buyUnit}
+    if(!(o.name||o.nameEn)||o.packSize<=0)return toast(t('needPack'));ok=await save('materials',S.edit?S.edit.id:newId(),{...o,suppliers:sups,sup:ai,example:!!(S.edit&&S.edit.example),history:withHistory(S.edit,o.price,o.packSize)});
+    if(ok){logAct(S.edit?'lEdit':'lAdd','kMaterial',o.name||o.nameEn);S.edit=null;S.msup=[];S.msel=0}}
+  else{const p=readSet();if(p.target!=null&&p.target<=0)return toast(t('needTarget'));ok=await saveCfg(p)}
+  if(ok&&v==='settings'&&reg&&S.cafe){const{id,...rest}=byId(S.cafes,S.cafe)||{};reg.doc(S.cafe).set({...rest,pin:rest.pin||'',name:S.cfg.name,nameEn:S.cfg.nameEn}).catch(()=>{})}
+  if(ok){if(v==='settings')logAct('lEdit','kSettings','');toast(t('saved'));S.dirty=false;if(v==='materials'||v==='settings')sub='';skipKeep=true;render()}});
+const toDraft=(p,copy)=>({id:copy?newId():p.id,isNew:!!copy,type:p.type||'product',name:p.name?(copy?p.name+' ('+L.ar.copyOf+')':p.name):'',nameEn:p.nameEn?(copy?p.nameEn+' ('+L.en.copyOf+')':p.nameEn):'',cat:p.cat||'ساخن',method:p.method||'',prepMin:p.prepMin||'',allergens:[...(p.allergens||[])],img:p.img||'',yieldQty:p.yieldQty??'',yieldUnit:p.yieldUnit||'مل',example:copy?false:p.example,sizes:p.sizes.map((s,j)=>({...s,lines:p.lines.filter(l=>num(l.qtys[j])>0).map(l=>({m:l.m,qty:l.qtys[j],note:l.note||''}))}))});
+$('view').addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id,c=b.dataset.coll,d=S.draft;
+  if(a==='jump')return doJump(id);
+  if(a==='trest'||a==='tpurge'){const x=S.trash.find(z=>z.tid===id);if(!x)return;if(a==='tpurge'&&!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent=t('confirmDel');setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=b.dataset.label}},4000);return}
+    if(a==='trest'){if(!await save(x.coll,x.oid,x.data))return;logAct('lAdd',x.coll==='offers'?'kOffer':x.coll==='materials'?'kMaterial':x.type==='prep'?'kPrep':'kProduct',x.name)}
+    if(S.db){try{await C('trash').doc(id).delete()}catch(e){}}else S.trash=S.trash.filter(z=>z.tid!==id);toast(t(a==='trest'?'restored':'deleted'));return render()}
+  if(a==='simadd'){S.sim.ov.push({m:'',price:''});return render()}
+  if(a==='simrm'){S.sim.ov.splice(+id,1);return render()}
+  if(a==='simapply'){const rows=simData().filter(r=>r.apply);if(!rows.length)return toast(t('simNone'));if(!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent=t('confirm')+' ('+rows.length+')';setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=b.dataset.label}},5000);return}
+    b.disabled=true;const by=new Map();rows.forEach(r=>{if(!by.has(r.p.id))by.set(r.p.id,{p:r.p,m:{}});by.get(r.p.id).m[r.j]=r.np});
+    for(const{p,m}of by.values()){const{id:pid,...data}=p;if(!await save('products',pid,{...data,sizes:p.sizes.map((z,j)=>j in m?{...z,price:+m[j].toFixed(2)}:z)}))return render()}
+    logAct('lEdit','kProduct',t('sim')+': '+rows.length);toast(t('simDone')+': '+rows.length);return render()}
+  if(a==='odnew'){S.od={id:newId(),isNew:true,name:'',nameEn:'',price:'',items:[{k:'',qty:1}]};skipKeep=true;return render()}
+  if(a==='odedit'){const x=byId(S.offers,id);S.od={...x,items:(x.items||[]).map(i=>({...i}))};skipKeep=true;render();return window.scrollTo({top:0})}
+  if(a==='odadd'){S.od.items.push({k:'',qty:1});return render()}
+  if(a==='odrm'){S.od.items.splice(+id,1);S.dirty=true;return render()}
+  if(a==='odsave'){const o=S.od,items=o.items.filter(i=>psOf(i.k)&&num(i.qty)>0).map(i=>({k:i.k,qty:num(i.qty)}));if(!(o.name.trim()||o.nameEn.trim()))return toast(t('needName'));if(!items.length||!(num(o.price)>0))return toast(t('needItems'));
+    if(await save('offers',o.id,{name:o.name.trim(),nameEn:o.nameEn.trim(),price:num(o.price),items})){logAct(o.isNew?'lAdd':'lEdit','kOffer',o.name||o.nameEn);S.od=null;S.dirty=false;toast(t('saved'));render()}return}
+  if(a==='chadd'){if(!S.chd)S.chd=curCh().map(c=>({...c}));S.chd.push({name:'',nameEn:'',comm:'',up:''});S.dirty=true;return render()}
+  if(a==='chrm'){if(!S.chd)S.chd=curCh().map(c=>({...c}));S.chd.splice(+id,1);S.dirty=true;return render()}
+  if(a==='chsave'){const ch=curCh().filter(c=>(c.name||c.nameEn||'').trim()).map(c=>({name:(c.name||'').trim(),nameEn:(c.nameEn||'').trim(),comm:num(c.comm),up:num(c.up)}));if(await saveCfg({channels:ch})){S.chd=null;S.dirty=false;logAct('lEdit','kSettings',t('chan'));toast(t('saved'));setSub('')}return}
+  if(a==='cmp'){b.disabled=true;S.cmp=await compare();return render()}
+  if(a==='copycafe'){const src=byId(S.cafes,$('cp-src').value),doM=$('cp-m').checked,doR=$('cp-r').checked;if(!src||!(doM||doR))return toast(t('needSrc'));
+    if(src.pin&&!S.unlocked.has(src.id)){if(await hashPin(src.id,$('cp-pin').value)!==src.pin)return toast(t('gBad'));S.unlocked.add(src.id)}
+    b.disabled=true;toast(t('exporting'));let r=null;try{r=await copyFrom(src.id,doM,doR)}catch(e){fail(e)}if(r){logAct('lImport','kData',nm(src)+': '+r[0]+' + '+r[1]);toast(t('copied')+': '+r[0]+' + '+r[1])}return render()}
+  if(a==='pick'){const c=byId(S.cafes,id);if(!c)return;if(c.pin){S.gate.sel=id;render();const p=$('pin-in');if(p)p.focus()}else enter(id);return}
+  if(a==='delcafe'){if(!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent=t('confirmDel');setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=b.dataset.label}},4000);return}b.disabled=true;return delCafe()}
+  if(a==='pdf'||a==='xls')return doExport(b,a==='pdf'?'pdf':'xlsx',b.dataset.rep,id);
+  if(a==='dldata')return offer(b,'cafe-data '+today()+'.xlsx',dataFile);
+  if(a==='fxp')return offer(b,'foodics-products '+today()+'.csv',async()=>fxProducts());if(a==='fxi')return offer(b,'foodics-inventory-items '+today()+'.csv',async()=>fxItems());if(a==='fxg')return offer(b,'foodics-ingredients-reference '+today()+'.csv',async()=>fxIng());
+  if(a==='del'||a==='wipe'){if(a==='del'&&usedIn(id))return toast(t('inUse'));
+    if(!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent=t('confirmDel');setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=b.dataset.label}},4000);return}
+    if(a==='del'){const x=byId(S[c],id);if(x){const{id:_i,...data}=x,tr={coll:c,oid:id,t:new Date().toISOString(),name:x.name||x.nameEn||'',type:x.type||'',data};if(S.db){try{await C('trash').doc(newId()).set(tr)}catch(e){}}else S.trash.unshift({tid:newId(),...tr})}if(await del(c,id)){S.sel.delete(id);logAct('lDel',c==='offers'?'kOffer':c==='materials'?'kMaterial':x&&x.type==='prep'?'kPrep':'kProduct',x?x.name||x.nameEn:'');toast(t('deleted'));render()}}
+    else{b.disabled=true;for(const col of ['products','materials'])for(const x of S[col].filter(x=>x.example))await del(col,x.id);toast(t('wiped'));render()}}
+  else if(a==='edit'||a==='dup'){S.draft=toDraft(byId(S.products,id),a==='dup');skipKeep=true;render();window.scrollTo({top:0})}
+  else if(a==='editmat'){S.edit=mat(id);S.msup=(S.edit.suppliers||[]).map(x=>({...x}));S.msel=num(S.edit.sup);setSub('form')}
+  else if(a==='newmat'){S.edit=null;S.msup=[];S.msel=0;setSub('form')}
+  else if(a==='sub')setSub(id);
+  else if(a==='back')back();
+  else if(a==='cancel')back();
+  else if(a==='addsup'){if(!S.msup.length&&$('m-price')&&(num($('m-price').value)>0))S.msup.push({name:'',buyUnit:$('m-buyUnit').value,price:$('m-price').value,packSize:$('m-packSize').value});S.msup.push({name:'',buyUnit:'',price:'',packSize:''});render()}
+  else if(a==='rmsup'){S.msup.splice(+id,1);if(S.msel>=S.msup.length)S.msel=0;if(!S.msup.length&&S.edit)skipKeep=false;render()}
+  else if(a==='savesales'){const q={};for(const k in curQty())if(num(curQty()[k])>0)q[k]=num(curQty()[k]);const ex={};for(const k in EXP)if(num(curExp()[k])>0)ex[k]=num(curExp()[k]);if(await saveSales(S.month,q,ex,curAlloc())){S.sq=null;S.sx=null;S.sa=null;logAct('lEdit','kSales',S.month);S.dirty=false;toast(t('saved'));setSub('')}}
+  else if(a==='dlbackup')return offer(b,'cafe-backup '+today()+'.json',async()=>JSON.stringify({app:'cafe-ledger',v:1,date:new Date().toISOString(),cfg:S.cfg,materials:S.materials,products:S.products,offers:S.offers,sales:S.sales}));
+  else if(a==='restno'){S.rest=null;render()}
+  else if(a==='restgo'){b.disabled=true;const r=S.rest;for(const col of [...COLLS,'offers']){const ids=new Set(r[col].map(x=>x.id));for(const x of S[col].slice())if(!ids.has(x.id))await del(col,x.id);for(const x of r[col]){const{id,...data}=x;if(!await save(col,id,data))return render()}}
+    for(const mo of Object.keys(S.sales))if(!r.sales[mo]){if(S.db){try{await C('sales').doc(mo).delete()}catch(e){}}else delete S.sales[mo]}for(const mo in r.sales)await saveSales(mo,r.sales[mo].qty||{},r.sales[mo].exp,r.sales[mo].alloc);
+    await saveCfg(r.cfg||{});S.rest=null;logAct('lRestore','kData',(r.date||'').slice(0,10));toast(t('restDone'));render()}
+  else if(a==='rmlogo'){if(await saveCfg({logo:''})){toast(t('saved'));render()}}
+  else if(a==='newprod'||a==='newprep'){S.draft={id:newId(),isNew:true,type:a==='newprep'?'prep':'product',name:'',nameEn:'',cat:'ساخن',method:'',prepMin:'',allergens:[],img:'',yieldQty:'',yieldUnit:'مل',sizes:[{name:'',nameEn:'',price:'',sku:'',lines:[{m:'',qty:'',note:''}]}]};render()}
+  else if(a==='addsize'){d.sizes.push({name:'',nameEn:'',price:'',sku:'',lines:d.sizes[d.sizes.length-1].lines.map(l=>({...l}))});render()}
+  else if(a==='rmsize'){d.sizes.splice(+id,1);render()}
+  else if(a==='addline'){d.sizes[+id].lines.push({m:'',qty:'',note:''});render()}
+  else if(a==='rmline'){const[j,i]=id.split(':');d.sizes[+j].lines.splice(+i,1);render()}
+  else if(a==='closeprod'){S.draft=null;S.dirty=false;render();window.scrollTo({top:0})}
+  else if(a==='rmpimg'){d.img='';render()}
+  else if(a==='saveprod'){if(!(d.name.trim()||d.nameEn.trim()))return toast(t('needName'));const isP=d.type==='prep';if(isP&&!(num(d.yieldQty)>0))return toast(t('needYield'));
+    const mp=new Map();d.sizes.forEach((z,j)=>z.lines.forEach(l=>{if(!l.m||!(num(l.qty)>0))return;const k=l.m+'|'+(l.note||'').trim();let o=mp.get(k);if(!o){o={m:l.m,note:(l.note||'').trim(),qtys:d.sizes.map(()=>0)};mp.set(k,o)}o.qtys[j]+=num(l.qty)}));const lines=[...mp.values()];
+    const data={type:d.type,name:d.name.trim(),nameEn:d.nameEn.trim(),cat:d.cat,method:d.method||'',sizes:d.sizes.map(s=>({name:(s.name||'').trim(),nameEn:(s.nameEn||'').trim(),price:num(s.price),sku:(s.sku||'').trim(),cal:num(s.cal)})),lines,prepMin:num(d.prepMin),allergens:d.allergens||[],img:d.img||'',example:!!d.example};
+    if(isP){data.yieldQty=num(d.yieldQty);data.yieldUnit=d.yieldUnit}
+    if(await save('products',d.id,data)){logAct(d.isNew?'lAdd':'lEdit',isP?'kPrep':'kProduct',data.name||data.nameEn);S.draft=null;S.dirty=false;toast(t('saved'));render();window.scrollTo({top:0})}}
+  else if(a==='impno'){S.imp=null;render()}
+  else if(a==='impgo'){b.disabled=true;const r=S.imp;for(const m of r.mats)if(!await save('materials',m.id,m.data))return render();for(const p of r.prods)if(!await save('products',p.id,p.data))return render();logAct('lImport','kData',r.mats.length+' + '+r.prods.length);S.imp=null;toast(t('impDone'));render()}});
+
+/* ---------- boot ---------- */
+S.month=today().slice(0,7);
+render();
+(async()=>{const use=n=>{try{return window.claude&&window.claude.use?window.claude.use(n):null}catch(e){return null}};
+  Promise.resolve(use('downloads')).then(d=>{S.dl=d||null}).catch(()=>{});
+  let db=null;try{db=await use('db')}catch(e){}
+  if(!db){S.offline=true;S.ready=true;render();return}
+  S.db=db;let made=false;
+  db.collection('cafes').limit(300).onSnapshot(async sn=>{S.cafes=sn.docs.map(d=>({id:d.id,...d.data()}));
+    if(!S.cafes.length&&!made){made=true;let c={};try{const g=await db.doc('config/main').get();if(g.exists)c=g.data()}catch(e){}
+      try{await db.collection('cafes').doc('default').set({name:c.name||L.ar.gMain,nameEn:c.nameEn||L.en.gMain,pin:'',created:new Date().toISOString()})}catch(e){}return}
+    const first=!S.regReady;S.regReady=true;
+    if(first&&!S.cafe){let sc='';try{sc=sessionStorage.getItem('cafe')||''}catch(e){}
+      if(sc&&byId(S.cafes,sc))return enter(sc);if(S.cafes.length===1&&!S.cafes[0].pin&&!S.left)return enter(S.cafes[0].id)}
+    if(S.cafe&&!byId(S.cafes,S.cafe)&&S.ready)return leave();
+    schedule()},()=>{S.offline=true;S.db=null;S.ready=true;schedule()});
+  try{const user=await use('user');if(user&&user.can&&(await user.can('data.write'))===false)document.body.classList.add('ro')}catch(e){}
+})();
+</script>
+
+</body></html>

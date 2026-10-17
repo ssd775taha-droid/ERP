@@ -1,0 +1,685 @@
+<!doctype html><html><head><script>(function(){
+var MOD="fraud",PRE="m/fraud/";
+var P=null;try{if(window.parent&&window.parent!==window&&window.parent.document)P=window.parent}catch(e){P=null}
+window.__tpH=window.__tpH||"";
+if(!P)return;
+function syncTheme(){try{var t=P.document.documentElement.getAttribute("data-theme"),r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme")}catch(e){}}
+syncTheme();
+try{if(P.__tpAuth){
+  if(MOD==="gov"&&!/^#p-/.test(String(location.hash||window.__tpH||"")))sessionStorage.setItem("mizan.in","1");
+  if(MOD==="audit"&&P.__tpUid)sessionStorage.setItem("tp.sess",JSON.stringify({uid:P.__tpUid,t:Date.now()}));
+}}catch(e){}
+["pointerdown","keydown"].forEach(function(ev){document.addEventListener(ev,function(){try{P.__tpAct&&P.__tpAct()}catch(e){}},{passive:true,capture:true})});
+try{new P.MutationObserver(syncTheme).observe(P.document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}
+var dead=false,unsubs=[];
+function sub(start){var u=start();unsubs.push(u);return u}
+window.__tpDispose=function(){dead=true;unsubs.forEach(function(u){try{u&&u()}catch(e){}});unsubs=[]};
+window.addEventListener("pagehide",window.__tpDispose);
+var fnMap=new WeakMap();
+function wrapCb(f){var w=fnMap.get(f);if(!w){w=function(){var r=f.apply(this,arguments);return r&&typeof r.then==="function"?r.then(toP):toP(r)};fnMap.set(f,w)}return w}
+function toP(x){
+  if(typeof x==="function")return wrapCb(x);
+  if(x===null||typeof x!=="object")return x;
+  try{
+    if(typeof File!=="undefined"&&x instanceof File)return new P.File([x],x.name,{type:x.type,lastModified:x.lastModified});
+    if(typeof Blob!=="undefined"&&x instanceof Blob)return new P.Blob([x],{type:x.type});
+    if(x instanceof ArrayBuffer)return new P.Uint8Array(new Uint8Array(x)).buffer;
+    if(ArrayBuffer.isView(x)){var C=P[x.constructor&&x.constructor.name];if(C&&x.constructor.name!=="DataView")return new C(x);return new P.Uint8Array(new Uint8Array(x.buffer,x.byteOffset,x.byteLength))}
+    if(typeof AbortSignal!=="undefined"&&x instanceof AbortSignal){var c=new P.AbortController();if(x.aborted)c.abort(x.reason);else x.addEventListener("abort",function(){c.abort(x.reason)},{once:true});return c.signal}
+    if(x instanceof Date)return new P.Date(+x);
+    if(Array.isArray(x)){var a=new P.Array();for(var i=0;i<x.length;i++)a.push(toP(x[i]));return a}
+    var pr=Object.getPrototypeOf(x);
+    if(pr===Object.prototype||pr===null){var o=new P.Object();Object.keys(x).forEach(function(k){o[k]=toP(x[k])});return o}
+  }catch(e){}
+  return x;
+}
+function args(a){return Array.prototype.map.call(a,toP)}
+function wrapNs(ns){
+  if(ns===null||(typeof ns!=="object"&&typeof ns!=="function"))return ns;
+  var isF=typeof ns==="function",memo={};
+  return new Proxy(isF?function(){}:{},{
+    get:function(_,k){var v=ns[k];if(typeof v!=="function")return v;if(!memo[k])memo[k]=function(){return v.apply(ns,args(arguments))};return memo[k]},
+    has:function(_,k){return k in ns},
+    apply:function(_,t,a){return ns.apply(undefined,args(a))}
+  });
+}
+function cp(d){if(d===undefined||d===null)return d;try{return structuredClone(d)}catch(e){return JSON.parse(JSON.stringify(d))}}
+function wSnap(s){return {id:s.id,exists:s.exists,metadata:s.metadata,data:function(){return cp(s.data())}}}
+function wQS(q){return {docs:Array.prototype.map.call(q.docs,wSnap),size:q.size,empty:q.empty,metadata:q.metadata,docChanges:function(){return Array.prototype.map.call(q.docChanges(),function(c){return {type:c.type,doc:wSnap(c.doc),oldIndex:c.oldIndex,newIndex:c.newIndex}})}}}
+function strip(p){p=String(p||"");return p.indexOf(PRE)===0?p.slice(PRE.length):p}
+function wDoc(r){return {id:r.id,path:strip(r.path),
+  get:function(){return Promise.resolve(r.get()).then(wSnap)},
+  set:function(d){return Promise.resolve(r.set(toP(d)))},
+  update:function(d){return Promise.resolve(r.update(toP(d)))},
+  delete:function(){return Promise.resolve(r.delete())},
+  acquire:function(o){return Promise.resolve(r.acquire(toP(o)))},
+  onSnapshot:function(n,e){return sub(function(){return r.onSnapshot(function(s){if(!dead)n(wSnap(s))},e?function(er){if(!dead)e(er)}:undefined)})},
+  collection:function(p){return wCol(r.collection(p))}}}
+function wQ(q,o){o=o||{};
+  o.where=function(f,op,v){return wQ(q.where(f,op,toP(v)))};
+  o.orderBy=function(f,d){return wQ(d===undefined?q.orderBy(f):q.orderBy(f,d))};
+  o.limit=function(n){return wQ(q.limit(n))};
+  o.get=function(){return Promise.resolve(q.get()).then(wQS)};
+  o.onSnapshot=function(n,e){return sub(function(){return q.onSnapshot(function(s){if(!dead)n(wQS(s))},e?function(er){if(!dead)e(er)}:undefined)})};
+  return o}
+function wCol(c){return wQ(c,{path:strip(c.path),
+  doc:function(id){return wDoc(id===undefined?c.doc():c.doc(String(id)))},
+  add:function(d){return Promise.resolve(c.add(toP(d))).then(wDoc)}})}
+function pre(p){p=String(p);if(p.indexOf("data/users/")===0||p==="data/users"){if(MOD!=="feas")return p;var a=p.split("/");return a.length<3?p:a.slice(0,3).concat(["feas","studies"],a.slice(3)).join("/")}return PRE+p}
+function wrapDb(db){return {doc:function(p){return wDoc(db.doc(pre(p)))},collection:function(p){return wCol(db.collection(pre(p)))}}}
+function parentClaude(){return new Promise(function(res){var n=0;(function t(){var c=null;try{c=P.claude&&P.claude.use?P.claude:null}catch(e){}if(c)return res(c);if(++n>30)return res(null);setTimeout(t,150)})()})}
+var memo={};
+window.claude={use:function(n){
+  if(!memo[n])memo[n]=parentClaude().then(function(c){if(!c)return null;return Promise.resolve(c.use(n)).then(function(ns){if(!ns)return null;return n==="db"?wrapDb(ns):wrapNs(ns)})}).catch(function(){return null});
+  return memo[n]}};
+try{P.__tpReady&&P.__tpReady(MOD,window)}catch(e){}
+})();
+</script><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>تمام برو للمحاسبة القضائية ومكافحة الاحتيال</title>
+<link rel="stylesheet" href="/vendor/fonts.css">
+<style>
+:root{
+  --bg:#F1F4F2;--surface:#FFFFFF;--ink:#13231E;--muted:#56675F;--line:#D5DEDA;--soft:#E9EFEC;
+  --brand:#0D6B56;--brand-ink:#FFFFFF;--brand-soft:#DFEEE8;--brass:#8F6714;
+  --bad:#AE2E25;--bad-soft:#F8E2DF;--warn:#8C5A0A;--warn-soft:#FAEED6;--good:#1F7A4D;--good-soft:#DFF1E6;
+  --head:"Readex Pro","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0C1412;--surface:#141F1B;--ink:#E4ECE8;--muted:#94A69F;--line:#273630;--soft:#1B2A25;
+  --brand:#49BE9F;--brand-ink:#06231B;--brand-soft:#16372E;--brass:#DDAE52;
+  --bad:#F0867D;--bad-soft:#3A1D1A;--warn:#E0AD4E;--warn-soft:#382C12;--good:#5CC790;--good-soft:#15331F;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C1412;--surface:#141F1B;--ink:#E4ECE8;--muted:#94A69F;--line:#273630;--soft:#1B2A25;
+  --brand:#49BE9F;--brand-ink:#06231B;--brand-soft:#16372E;--brass:#DDAE52;
+  --bad:#F0867D;--bad-soft:#3A1D1A;--warn:#E0AD4E;--warn-soft:#382C12;--good:#5CC790;--good-soft:#15331F;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15.5px;line-height:1.7}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{font-family:var(--head);margin:0;line-height:1.45}
+p{margin:0}
+.app{max-width:1100px;margin-inline:auto;padding:16px 16px 60px;display:flex;flex-direction:column;gap:18px}
+.head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}
+.head h1{font-size:22px}
+.head small{color:var(--muted);display:block;font-size:13.5px}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);padding-bottom:0}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px;color:var(--muted);font-weight:500;white-space:nowrap}
+.tab.on{color:var(--ink);border-bottom-color:var(--brass);font-weight:600}
+.tab:hover{color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card h2{font-size:17px}
+.sub{color:var(--muted);font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.tile b{display:block;font-family:var(--head);font-size:26px;line-height:1.3;font-variant-numeric:tabular-nums}
+.tile span{font-size:13.5px;color:var(--muted)}
+.tile.bad b{color:var(--bad)}
+.btn{background:var(--brand);color:var(--brand-ink);border:0;border-radius:9px;padding:6px 16px;font-family:var(--head);font-weight:600;min-height:38px}
+.btn.line{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.dng{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+.btn.sm{min-height:32px;padding:2px 12px;font-size:13.5px}
+.btn:disabled{opacity:.5;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.f{display:flex;flex-direction:column;gap:3px;font-size:13.5px;color:var(--muted);min-width:0}
+.f input,.f select,.f textarea,.in{font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;min-height:40px;width:100%;min-width:0}
+.f textarea{min-height:76px;resize:vertical}
+.f.w2{grid-column:1/-1}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.chip{display:inline-block;border-radius:999px;padding:0 10px;font-size:12.5px;font-weight:600;line-height:1.8;background:var(--soft);color:var(--muted);white-space:nowrap}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}.chip.warn{background:var(--warn-soft);color:var(--warn)}.chip.good{background:var(--good-soft);color:var(--good)}.chip.brand{background:var(--brand-soft);color:var(--brand)}
+.empty{border:1.5px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-family:var(--head);margin-bottom:4px}
+.msg{border-radius:8px;padding:8px 12px;font-size:14px}.msg.bad{background:var(--bad-soft);color:var(--bad)}.msg.ok{background:var(--good-soft);color:var(--good)}.msg.warn{background:var(--warn-soft);color:var(--warn)}
+.item{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;text-align:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
+.item:hover{border-color:var(--brand)}
+.item .t{flex:1 1 240px;min-width:0}.item .t b{display:block;font-family:var(--head);font-weight:600;overflow-wrap:anywhere}.item .t small{color:var(--muted);font-size:13px}
+.list{display:flex;flex-direction:column;gap:8px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:start;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:13px;white-space:nowrap}
+.bars{display:flex;flex-direction:column;gap:8px}
+.br{display:grid;grid-template-columns:34px 1fr 120px;gap:8px;align-items:center;font-size:13.5px}
+.br .tr{position:relative;height:16px;background:var(--soft);border-radius:4px}
+.br .tr i{position:absolute;inset-block:0;inset-inline-start:0;background:var(--brand);border-radius:4px}
+.br .tr em{position:absolute;inset-block:-2px;width:2px;background:var(--bad)}
+.grp{font-family:var(--head);font-weight:600;font-size:15px;margin-top:6px;color:var(--brass)}
+.flag{display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;border-top:1px solid var(--line);padding:6px 0}
+.flag:first-of-type{border-top:0}
+.flag select{min-height:36px}
+.score{position:sticky;bottom:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.score b{font-family:var(--head);font-size:20px}
+.ctlrow{display:grid;grid-template-columns:minmax(0,1fr) 150px minmax(0,150px);gap:8px;align-items:center;border-top:1px solid var(--line);padding:8px 0}
+.ctlrow:first-of-type{border-top:0}
+.ctlrow small{color:var(--muted);display:block}
+.tl{border-inline-start:2px solid var(--line);padding-inline-start:12px;display:flex;flex-direction:column;gap:8px}
+.tl div{position:relative}
+.tl div::before{content:"";position:absolute;inset-inline-start:-18px;top:9px;width:10px;height:10px;border-radius:50%;background:var(--brass)}
+@media (max-width:640px){.flag,.ctlrow{grid-template-columns:1fr}.br{grid-template-columns:28px 1fr 96px}.app{padding-inline:12px}}
+
+.ai{border-color:var(--brass)}
+.vm{position:fixed;inset:0;z-index:50;background:rgba(5,15,12,.6);display:flex;align-items:center;justify-content:center;padding:12px}
+.vb{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:min(960px,100%);max-height:94vh;display:flex;flex-direction:column;gap:10px;padding:14px}
+.vb .vh{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.vb .vh b{flex:1 1 200px;font-family:var(--head);overflow-wrap:anywhere}
+.vc{overflow:auto;min-height:200px;display:flex;justify-content:center;align-items:flex-start;background:var(--soft);border-radius:10px;padding:8px}
+.vc img,.vc video{max-width:100%;max-height:70vh}
+.vc iframe{width:100%;height:70vh;border:0;background:#fff}
+.vc pre{margin:0;white-space:pre-wrap;word-break:break-word;direction:ltr;text-align:left;font-size:13px;width:100%}
+.chat{display:flex;flex-direction:column;gap:10px;max-height:520px;overflow-y:auto;padding:2px}
+.bub{border-radius:12px;padding:10px 14px;max-width:100%;overflow-wrap:anywhere}
+.bub.u{background:var(--brand-soft);color:var(--ink);align-self:flex-start}
+.bub.a{background:var(--soft);align-self:stretch}
+.bub h4{margin:8px 0 2px;font-family:var(--head);font-size:15px}
+.bub ul{margin:4px 0;padding-inline-start:20px}
+.bub p{margin:4px 0}
+.bub .row{margin-top:8px}
+.qp{display:flex;flex-wrap:wrap;gap:6px}
+.think{color:var(--muted);font-size:13.5px}
+@media print{.tabs,.btn,.row{display:none}}
+</style>
+
+<div dir="rtl" lang="ar" style="display:contents">
+<div class="app">
+  <div class="head"><div><h1>المحاسبة القضائية ومكافحة الاحتيال</h1><small>قضايا التحقيق وسلسلة حيازة الأدلة، تقييم مخاطر الاحتيال، فحوص البيانات الجنائية، وبرنامج الضوابط</small></div><div class="row" id="top-actions"></div></div>
+  <nav class="tabs" id="tabs" aria-label="أقسام المحاسبة القضائية"></nav>
+  <div id="msg"></div>
+  <main id="view"><div class="empty">جارٍ التحميل…</div></main>
+</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(i){return document.getElementById(i)};
+var TABS=[["dash","اللوحة"],["cases","القضايا"],["assess","تقييم مخاطر الاحتيال"],["tools","الفحوص الجنائية"],["ctl","برنامج مكافحة الاحتيال"]];
+var TYPES=["اختلاس نقد أو أصول","فواتير أو موردون وهميون","تلاعب في القوائم المالية","فساد ورشوة وتعارض مصالح","احتيال رواتب","احتيال إلكتروني أو اختراق","سرقة مخزون","أخرى"];
+var STAT=["مفتوحة","قيد التحقيق","محالة إلى جهة رسمية","مغلقة: مثبتة","مغلقة: غير مثبتة"];
+var SEV=["منخفضة","متوسطة","عالية","حرجة"];
+var SRC=["بلاغ عبر الخط الساخن","مراجعة داخلية","مراجع خارجي","رقابة الإدارة","تحليل بيانات","جهة خارجية","أخرى"];
+var EVT=["مستند ورقي","ملف رقمي","كشف حساب بنكي","رسالة أو بريد","مقابلة أو إفادة","صورة أو تسجيل","أخرى"];
+var FLAGS=[
+["سلوكية",[["f1","موظف يرفض الإجازة أو يتهرب من تسليم مهامه"],["f2","نمط حياة يفوق الدخل المعروف"],["f3","ضغوط مالية أو شخصية معلنة على موظف في موقع حساس"],["f4","علاقة وثيقة غير معتادة بمورد أو عميل"],["f5","سلوك دفاعي أو متحكم تجاه الاستفسارات والمراجعة"]]],
+["محاسبية",[["a1","قيود يومية يدوية قرب الإقفال أو بمبالغ مستديرة"],["a2","فواتير مكررة أو بمبالغ تقع تحت حد الاعتماد"],["a3","فروقات بنكية لم تُسوَّ أو تسويات متأخرة"],["a4","مستندات مفقودة أو صور بدل الأصول"],["a5","تعديل أو حذف قيود في فترات سابقة"]]],
+["مشتريات وموردون",[["p1","مورد يتطابق عنوانه أو حسابه مع موظف"],["p2","مورد واحد مهيمن بلا منافسة"],["p3","تجزئة أوامر الشراء لتفادي الاعتماد"],["p4","موردون بلا سجل تجاري أو عنوان فعلي"],["p5","تغييرات متكررة في بيانات الموردين الرئيسية"]]],
+["نقد ومخزون ورواتب",[["c1","فروقات جرد متكررة في الصندوق أو المخزون"],["c2","تعامل نقدي كبير بلا توثيق"],["c3","موظفون في الرواتب لا يعرفهم أحد أو بلا حضور"],["c4","ساعات إضافية أو بدلات غير مبررة"]]],
+["حوكمة وبيئة الرقابة",[["g1","هيمنة شخص واحد على القرار والصلاحيات"],["g2","غياب خط للإبلاغ أو تجاهل البلاغات"],["g3","ضغط شديد لتحقيق أهداف مالية أو حوافز مرتبطة بالأرقام"],["g4","دوران عالٍ في الإدارة المالية أو تغيير متكرر للمراجع"],["g5","ضعف الإشراف وغياب مراجعة داخلية"]]]];
+var PROC={"سلوكية":"مقابلات استقصائية، وإجازة إلزامية ودوران وظيفي، ومراجعة الأنشطة الخارجية.","محاسبية":"اختبار قيود اليومية اليدوية، وفحص بنفورد والتكرار من تبويب «الفحوص الجنائية»، وتسويات بنكية مستقلة.","مشتريات وموردون":"مطابقة بيانات الموردين مع بيانات الموظفين، وفحص السجلات التجارية، ومراجعة المناقصات وأوامر الشراء المجزأة.","نقد ومخزون ورواتب":"جرد مفاجئ، ومطابقة كشف الرواتب مع الحضور والهوية، ومراجعة المبالغ النقدية.","حوكمة وبيئة الرقابة":"إنشاء خط إبلاغ، وفصل المهام وإعادة توزيع الصلاحيات، وتفعيل المراجعة الداخلية."};
+var TRI=[["pr","الضغط والحافز","ما مدى الضغط المالي أو الحوافز المرتبطة بالأرقام على من يملكون الوصول؟"],["op","الفرصة","ما مدى ضعف الضوابط وفرص الاستغلال دون كشف؟"],["ra","التبرير","ما مدى مؤشرات ثقافة التبرير وغياب القدوة وضعف النزاهة؟"]];
+var CTL=[["الوقاية",[["k1","سياسة مكافحة الاحتيال والفساد معتمدة وموزعة"],["k2","مدونة سلوك وإفصاح سنوي عن المصالح"],["k3","فصل المهام بين الطلب والاعتماد والتسجيل والصرف"],["k4","مصفوفة صلاحيات مكتوبة ومُطبَّقة"],["k5","فحص خلفية العاملين والموردين الجدد"],["k6","إجازة إلزامية ودوران في المواقع الحساسة"],["k7","توعية وتدريب سنوي على الاحتيال"],["k8","ضوابط الحسابات المصرفية: توقيعان وحدود صرف"],["k9","سياسة الهدايا والضيافة"]]],
+["الكشف",[["d1","خط ساخن للإبلاغ بسرية وحماية المبلّغ"],["d2","مراجعة داخلية قائمة على مخاطر الاحتيال"],["d3","تحليلات بيانات دورية: تكرار، بنفورد، قيم قرب الحد"],["d4","تسوية بنكية شهرية يعدّها شخص مستقل"],["d5","جرد مفاجئ للصندوق والمخزون"],["d6","مراجعة قيود اليومية اليدوية والاستثنائية"],["d7","مراجعة تغييرات بيانات الموردين والرواتب"]]],
+["الاستجابة",[["r1","خطة استجابة للاحتيال: من يحقق ومن يُبلَّغ"],["r2","بروتوكول حفظ الأدلة الرقمية وسلسلة الحيازة"],["r3","سياسة إجراءات تأديبية موحدة"],["r4","قنوات إحالة للجهات الرسمية (نزاهة، النيابة)"],["r5","تأمين ضد الخيانة والاحتيال"],["r6","مراجعة ما بعد الحادثة وتحديث الضوابط"]]]];
+var ROLE_P=["مبلّغ","شاهد","مشتبه به","ضحية","جهة مختصة","أخرى"];
+var CST=["غير مقيّم","مطبق","جزئي","غير مطبق","لا ينطبق"];
+var S={tab:"dash",cases:{},assess:{},ctl:{},loaded:false,db:null,dl:null,q:"",fs:"",cur:null,msg:"",ok:"",as:null,tool:{text:"",thr:"",res:null,rows:[]},hashing:false,assets:null,view:null,dirty:false,fl:{sev:"",type:"",sort:"new"},sample:null,ai:{h:{},busy:false,ctl:null,err:''}};
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function today(){var d=new Date(),p=function(n){return String(n).padStart(2,"0")};return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())}
+function fmtD(s){if(!s)return"";try{return new Date(s+"T00:00:00").toLocaleDateString("ar-SA-u-ca-gregory-nu-latn",{day:"numeric",month:"long",year:"numeric"})}catch(e){return s}}
+function num(v){var n=parseFloat(String(v==null?"":v).replace(/[٠-٩]/g,function(d){return "٠١٢٣٤٥٦٧٨٩".indexOf(d)}).replace(/,/g,""));return isFinite(n)?n:0}
+function money(n){return (Math.round(n)||0).toLocaleString("en-US")+" ر.س"}
+function val(id){var e=$(id);return e?String(e.value||"").trim():""}
+function opts(a,v){return a.map(function(x){return '<option'+(x===v?" selected":"")+'>'+esc(x)+'</option>'}).join("")}
+function sel(id,label,a,v){return '<label class="f">'+label+'<select id="'+id+'">'+opts(a,v)+'</select></label>'}
+function inp(id,label,v,type,extra,cls){return '<label class="f'+(cls?" "+cls:"")+'">'+label+'<input id="'+id+'" type="'+(type||"text")+'" value="'+esc(v)+'" '+(extra||"")+'></label>'}
+function note(){return (S.msg?'<div class="msg bad" role="alert">'+esc(S.msg)+'</div>':"")+(S.ok?'<div class="msg ok">'+esc(S.ok)+'</div>':"")}
+function flash(ok,m){S.msg=ok?"":m;S.ok=ok?m:"";$("msg").innerHTML=note();if(ok)setTimeout(function(){if(S.ok===m){S.ok="";$("msg").innerHTML=note()}},3500)}
+function sevCls(s){return s==="حرجة"?"bad":s==="عالية"?"warn":s==="متوسطة"?"brand":""}
+function isOpen(c){return STAT.indexOf(c.status)<3}
+function nextNo(){var m=0;Object.keys(S.cases).forEach(function(k){var x=String(S.cases[k].no||"").match(/(\d+)$/);if(x)m=Math.max(m,+x[1])});return "FR-"+String(m+1).padStart(3,"0")}
+function daysSince(d){if(!d)return 0;var t=Date.parse(d+"T00:00:00");return isFinite(t)?Math.max(0,Math.floor((Date.now()-t)/86400000)):0}
+function taskLate(t){return !t.done&&t.due&&t.due<today()}
+function lossSum(c){return (c.losses||[]).reduce(function(s,x){return s+num(x.amount)},0)}
+function clientNames(){try{var p=window.parent;if(p&&p.__tpClientNames)return p.__tpClientNames()||[]}catch(e){}return []}
+function dlist(){return '<datalist id="cn">'+clientNames().map(function(n){return '<option value="'+esc(n)+'">'}).join("")+'</datalist>'}
+
+/* ---------- التخزين ---------- */
+function put(coll,o){o.updated=new Date().toISOString();if(!S.db){flash(false,"قاعدة البيانات غير متاحة في هذا العرض.");return Promise.resolve()}
+  return S.db.collection(coll).doc(o.id).set(o).catch(function(e){flash(false,e&&e.code==="invalid_argument"?"لم يُحفظ: لا تملك صلاحية الكتابة.":"تعذّر الحفظ. تحقق من الاتصال ثم أعد المحاولة.")})}
+function del(coll,id){if(!S.db)return;return S.db.collection(coll).doc(id).delete().catch(function(){flash(false,"تعذّر الحذف.")})}
+function putCtl(){if(!S.db)return;S.db.doc("ctl/main").set(JSON.parse(JSON.stringify(S.ctl))).catch(function(){flash(false,"تعذّر حفظ حالة الضوابط.")})}
+function busyTyping(){if(S.view||(S.ai&&S.ai.busy))return true;var a=document.activeElement;return a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&$("view").contains(a)}
+
+/* ---------- الواجهة ---------- */
+function render(){
+  $("tabs").innerHTML=TABS.map(function(t){return '<button class="tab'+(S.tab===t[0]?" on":"")+'" data-act="tab" data-t="'+t[0]+'">'+t[1]+'</button>'}).join("");
+  $("msg").innerHTML=note();
+  var v=!S.loaded?'<div class="empty">جارٍ التحميل…</div>':S.tab==="dash"?vDash():S.tab==="cases"?vCases():S.tab==="assess"?vAssess():S.tab==="tools"?vTools():vCtl();
+  $("view").innerHTML=dlist()+v;
+  if(S.tab==="assess"&&S.as)liveScore();
+}
+function cases(){return Object.keys(S.cases).map(function(k){return S.cases[k]}).sort(function(a,b){return String(b.created||"").localeCompare(String(a.created||""))})}
+function ctlStats(){var tot=0,ok=0,part=0,na=0;CTL.forEach(function(g){g[1].forEach(function(c){var s=(S.ctl[c[0]]||{}).st||CST[0];if(s===CST[4]){na++;return}tot++;if(s===CST[1])ok++;else if(s===CST[2])part++})});return {tot:tot,ok:ok,part:part,pct:tot?Math.round((ok+part/2)/tot*100):null}}
+
+function vDash(){
+  var cs=cases(),op=cs.filter(isOpen),loss=0,rec=0;cs.forEach(function(c){loss+=num(c.amount);rec+=num(c.recovered)});
+  var hi=op.filter(function(c){return c.sev==="عالية"||c.sev==="حرجة"}).length,k=ctlStats(),as=Object.keys(S.assess).map(function(x){return S.assess[x]});
+  var last=as.sort(function(a,b){return String(b.date||"").localeCompare(String(a.date||""))})[0];
+  var h='<div class="tiles"><div class="tile"><b>'+op.length+'</b><span>قضية مفتوحة من '+cs.length+'</span></div><div class="tile bad"><b>'+hi+'</b><span>مفتوحة بخطورة عالية أو حرجة</span></div><div class="tile"><b class="num">'+money(loss)+'</b><span>إجمالي الخسائر المقدّرة (المستردّ '+money(rec)+')</span></div><div class="tile"><b>'+(k.pct==null?"—":k.pct+"%")+'</b><span>تغطية ضوابط مكافحة الاحتيال</span></div><div class="tile"><b>'+(last?esc(riskOf(last).lvl):"—")+'</b><span>'+(last?"آخر تقييم: "+esc(last.entity||"")+" ("+fmtD(last.date)+")":"لا تقييمات بعد")+'</span></div></div>';
+  h+='<div class="card"><h2>أحدث القضايا</h2>'+(cs.length?'<div class="list">'+cs.slice(0,6).map(caseRow).join("")+'</div>':'<div class="empty"><b>لا قضايا بعد</b>سجّل أول قضية أو بلاغ من تبويب «القضايا».</div>')+'<div class="row"><button class="btn sm" data-act="newcase">قضية جديدة</button><button class="btn sm line" data-act="tab" data-t="tools">افتح الفحوص الجنائية</button><button class="btn sm line" data-act="tab" data-t="assess">قيّم مخاطر الاحتيال</button></div></div>';
+  var byT={};cs.forEach(function(c){byT[c.type]=(byT[c.type]||0)+1});
+  if(cs.length)h+='<div class="card"><h2>القضايا حسب النوع</h2><div class="bars">'+Object.keys(byT).sort(function(a,b){return byT[b]-byT[a]}).map(function(t){return '<div class="br" style="grid-template-columns:150px 1fr 40px"><span>'+esc(t)+'</span><div class="tr"><i style="width:'+Math.round(byT[t]/cs.length*100)+'%"></i></div><b class="num">'+byT[t]+'</b></div>'}).join("")+'</div></div>';
+  if(cs.length){
+    var byS={};cs.forEach(function(c){byS[c.status]=(byS[c.status]||0)+1});
+    h+='<div class="card"><h2>القضايا حسب الحالة</h2><div class="bars">'+STAT.filter(function(x){return byS[x]}).map(function(t){return '<div class="br" style="grid-template-columns:150px 1fr 40px"><span>'+esc(t)+'</span><div class="tr"><i style="width:'+Math.round(byS[t]/cs.length*100)+'%"></i></div><b class="num">'+byS[t]+'</b></div>'}).join("")+'</div></div>';
+    var old=op.slice().sort(function(a,b){return String(a.created||"").localeCompare(String(b.created||""))}).slice(0,5);
+    if(old.length)h+='<div class="card"><h2>أقدم القضايا المفتوحة</h2><div class="list">'+old.map(caseRow).join("")+'</div></div>';
+    var late=[];cs.forEach(function(c){if(isOpen(c))(c.tasks||[]).forEach(function(t){if(taskLate(t))late.push({c:c,t:t})})});
+    late.sort(function(a,b){return String(a.t.due).localeCompare(String(b.t.due))});
+    if(late.length)h+='<div class="card"><h2>مهام تحقيق متأخرة ('+late.length+')</h2><div class="list">'+late.slice(0,8).map(function(x){return '<button class="item" data-act="open" data-id="'+esc(x.c.id)+'"><span class="t"><b>'+esc(x.t.text)+'</b><small>'+esc(x.c.no)+" · "+esc(x.c.title)+(x.t.owner?" · "+esc(x.t.owner):"")+'</small></span><span class="chip bad">'+esc(fmtD(x.t.due))+'</span></button>'}).join("")+'</div></div>';
+  }
+  return h;
+}
+function caseRow(c){return '<button class="item" data-act="open" data-id="'+esc(c.id)+'"><span class="t"><b>'+esc(c.no||"")+" · "+esc(c.title||"بلا عنوان")+'</b><small>'+esc(c.entity||"")+(c.found?" · اكتُشفت "+esc(fmtD(c.found)):"")+' · '+esc(c.type||"")+'</small></span><span class="chip '+sevCls(c.sev)+'">'+esc(c.sev||"")+'</span><span class="chip '+(isOpen(c)?"warn":"good")+'">'+esc(c.status||"")+'</span>'+(isOpen(c)?'<span class="chip">'+daysSince(c.created&&c.created.slice(0,10))+' يوماً</span>':"")+((c.tasks||[]).some(taskLate)?'<span class="chip bad">مهام متأخرة</span>':"")+(num(c.amount)?'<span class="num">'+money(num(c.amount))+'</span>':"")+'</button>'}
+
+function vCases(){
+  if(S.cur){var c=S.cur==="new"?{id:"",status:STAT[0],sev:SEV[1],type:TYPES[0],found:today(),evidence:[],timeline:[],tasks:[],losses:[],parties:[]}:S.cases[S.cur];if(c)return vCase(c);S.cur=null}
+  var q=S.q.toLowerCase(),F=S.fl,cs=cases().filter(function(c){return (!S.fs||(S.fs==="open"?isOpen(c):!isOpen(c)))&&(!F.sev||c.sev===F.sev)&&(!F.type||c.type===F.type)&&(!q||[c.no,c.title,c.entity,c.type,c.summary].join(" ").toLowerCase().indexOf(q)>=0)});
+  cs.sort(function(a,b){return F.sort==="old"?String(a.created||"").localeCompare(String(b.created||"")):F.sort==="loss"?num(b.amount)-num(a.amount):F.sort==="sev"?SEV.indexOf(b.sev)-SEV.indexOf(a.sev):String(b.created||"").localeCompare(String(a.created||""))});
+  return '<div class="card"><div class="row"><button class="btn" data-act="newcase">قضية جديدة</button><input class="in" id="q" type="search" placeholder="ابحث بالرقم أو العنوان أو الجهة" value="'+esc(S.q)+'" style="flex:1 1 220px;width:auto"><button class="btn sm line" data-act="csv">تصدير CSV</button></div>'+
+   '<div class="row"><select class="in" id="fs" style="width:auto" aria-label="الحالة"><option value="">كل الحالات</option><option value="open"'+(S.fs==="open"?" selected":"")+'>المفتوحة</option><option value="closed"'+(S.fs==="closed"?" selected":"")+'>المغلقة</option></select>'+
+   '<select class="in" id="fsev" style="width:auto" aria-label="الخطورة"><option value="">كل درجات الخطورة</option>'+SEV.map(function(x){return '<option'+(F.sev===x?" selected":"")+'>'+x+'</option>'}).join("")+'</select>'+
+   '<select class="in" id="ftype" style="width:auto" aria-label="النوع"><option value="">كل الأنواع</option>'+TYPES.map(function(x){return '<option'+(F.type===x?" selected":"")+'>'+x+'</option>'}).join("")+'</select>'+
+   '<select class="in" id="fsort" style="width:auto" aria-label="الترتيب">'+[["new","الأحدث"],["old","الأقدم"],["loss","الأعلى خسارة"],["sev","الأخطر"]].map(function(x){return '<option value="'+x[0]+'"'+(F.sort===x[0]?" selected":"")+'>'+x[1]+'</option>'}).join("")+'</select></div>'+
+   (cs.length?'<div class="list">'+cs.map(caseRow).join("")+'</div>':'<div class="empty"><b>لا قضايا</b>'+(Object.keys(S.cases).length?"لا نتائج تطابق البحث والمرشحات.":"سجّل القضية فور ورود البلاغ، وابدأ سجل الأدلة من اللحظة الأولى.")+'</div>')+'</div>';
+}
+function vCase(c){
+  var isNew=!c.id,ev=c.evidence||[],tl=(c.timeline||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
+  var net=num(c.amount)-num(c.recovered)+num(c.invCost);
+  var h='<div class="card"><div class="row"><button class="btn sm line" data-act="back">← كل القضايا</button><h2 style="flex:1">'+(isNew?"قضية جديدة":esc(c.no)+" · "+esc(c.title))+'</h2>'+(isNew?"":'<button class="btn sm line" data-act="rep" data-w="case" data-m="print">طباعة</button><button class="btn sm" data-act="rep" data-w="case" data-m="pdf">PDF</button><button class="btn sm line" data-act="rep" data-w="case" data-m="html">HTML</button><button class="btn sm dng" data-act="delcase">حذف</button>')+'</div>'+
+   '<div class="grid">'+inp("c-title","عنوان القضية",c.title||"","text","","w2")+inp("c-entity","الجهة أو العميل",c.entity||"","text",'list="cn" autocomplete="off"')+sel("c-type","نوع الاحتيال",TYPES,c.type)+sel("c-status","الحالة",STAT,c.status)+sel("c-sev","الخطورة",SEV,c.sev)+sel("c-src","مصدر الكشف",SRC,c.source||SRC[0])+inp("c-found","تاريخ الكشف",c.found||"","date")+inp("c-owner","المحقق المسؤول",c.owner||"")+inp("c-amount","الخسارة المقدّرة (ر.س)",c.amount||"","number",'min="0" step="any"')+inp("c-recovered","المبلغ المستردّ (ر.س)",c.recovered||"","number",'min="0" step="any"')+inp("c-invcost","تكلفة التحقيق (ر.س)",c.invCost||"","number",'min="0" step="any"')+
+   '<label class="f w2">ملخص الواقعة<textarea id="c-summary">'+esc(c.summary||"")+'</textarea></label><label class="f w2">النتائج والاستنتاجات<textarea id="c-findings">'+esc(c.findings||"")+'</textarea></label><label class="f w2">الإجراءات والتوصيات (تأديبية، قانونية، تصحيحية)<textarea id="c-actions">'+esc(c.actions||"")+'</textarea></label></div>'+
+   (isNew?"":'<p class="sub">صافي الأثر المالي (الخسارة − المستردّ + تكلفة التحقيق): <b class="num">'+money(net)+'</b></p>')+
+   '<div class="row"><button class="btn" data-act="savecase">حفظ القضية</button></div></div>';
+  if(isNew)return h+'<p class="sub">احفظ القضية أولاً ثم أضف الأدلة والخط الزمني.</p>';
+  h+=vExtras(c);
+  h+=aiCard(c);
+  h+='<div class="card"><h2>سجل الأدلة وسلسلة الحيازة</h2><p class="sub">سجّل كل دليل عند جمعه: ما هو، ومن أين، ومن جمعه ومتى. بصمة SHA-256 تُحسب محلياً في متصفحك وتثبت أن الملف لم يتغير. وإن اخترتَ حفظ نسخة للعرض يُخزَّن الملف في مرفقات المنصة (صور، PDF، فيديو، صوت، نص وCSV وJSON حتى 20 ميغابايت)، ويُقارَن بالبصمة عند كل عرض.</p>'+
+   '<div class="grid">'+inp("e-desc","وصف الدليل","","text","","w2")+sel("e-type","النوع",EVT,EVT[0])+inp("e-src","المصدر أو مكان الحفظ","")+inp("e-by","جمعه","")+inp("e-date","تاريخ الجمع",today(),"date")+'<label class="f">ملف مرفق (اختياري): تُحسب بصمته'+(S.assets?" ويُحفظ للعرض":"")+'<input id="e-file" type="file"></label>'+(S.assets?'<label class="ck f" style="flex-direction:row;align-items:center;gap:6px;color:var(--ink)"><input type="checkbox" id="e-store" checked style="width:auto;min-height:0"> احفظ نسخة من الملف لعرضها لاحقاً</label>':"")+'</div><div class="row"><button class="btn sm" data-act="addev"'+(S.hashing?" disabled":"")+'>'+(S.hashing?"جارٍ حساب البصمة…":"أضف الدليل")+'</button></div>'+
+   (ev.length?'<div class="tw"><table><thead><tr><th>م</th><th>الدليل</th><th>النوع</th><th>المصدر</th><th>جمعه</th><th>التاريخ</th><th>البصمة</th><th></th></tr></thead><tbody>'+ev.map(function(e,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(e.desc)+(e.file?'<br><small class="sub">'+esc(e.file)+(e.size?" · "+e.size+" بايت":"")+'</small>':"")+(e.att||e.preview?'<br><button class="btn sm line" data-act="view" data-i="'+i+'">عرض المرفق</button>':"")+custodyHTML(e)+'</td><td>'+esc(e.type)+'</td><td>'+esc(e.src)+'</td><td>'+esc(e.by)+'</td><td>'+esc(fmtD(e.date))+'</td><td class="num" style="font-size:12px;word-break:break-all;max-width:200px">'+esc(e.hash||"—")+'</td><td><button class="btn sm dng" data-act="delev" data-i="'+i+'" aria-label="احذف الدليل">×</button></td></tr>'}).join("")+'</tbody></table></div>':'<div class="empty"><b>لا أدلة مسجلة</b>ابدأ بتسجيل أول دليل.</div>')+'</div>';
+  h+=custodyCard(c);
+  h+='<div class="card"><h2>الخط الزمني للتحقيق</h2><div class="grid">'+inp("t-date","التاريخ",today(),"date")+inp("t-text","ما جرى","","text","","w2")+'</div><div class="row"><button class="btn sm" data-act="addtl">أضف إلى الخط الزمني</button></div>'+(tl.length?'<div class="tl">'+tl.map(function(t){var i=(c.timeline||[]).indexOf(t);return '<div><b class="num">'+esc(fmtD(t.date))+'</b> — '+esc(t.text)+' <button class="btn sm dng" data-act="deltl" data-i="'+i+'" aria-label="احذف">×</button></div>'}).join("")+'</div>':'<div class="empty"><b>لا أحداث</b>سجّل تاريخ الكشف والمقابلات والإحالات.</div>')+'</div>';
+  return h;
+}
+function readCase(c){
+  c.title=val("c-title");c.entity=val("c-entity");c.type=val("c-type");c.status=val("c-status");c.sev=val("c-sev");c.source=val("c-src");c.found=val("c-found");c.owner=val("c-owner");
+  c.amount=val("c-amount");c.recovered=val("c-recovered");c.invCost=val("c-invcost");c.summary=val("c-summary");c.findings=val("c-findings");c.actions=val("c-actions");return c}
+function saveCase(){
+  var c=S.cur==="new"?{id:uid(),created:new Date().toISOString(),evidence:[],timeline:[],tasks:[],losses:[],parties:[]}:S.cases[S.cur];if(!c)return;
+  readCase(c);
+  if(!c.title){flash(false,"اكتب عنوان القضية.");return}
+  if(!c.no)c.no=nextNo();
+  if(num(c.recovered)>num(c.amount)&&num(c.amount)>0){flash(false,"المبلغ المستردّ أكبر من الخسارة المقدّرة. راجع الأرقام.");return}
+  S.cases[c.id]=c;if(S.cur==="new"){c.timeline.push({id:uid(),date:c.found||today(),text:"سُجّلت القضية: "+c.title})}
+  S.cur=c.id;S.dirty=false;put("cases",c).then(function(){flash(true,"حُفظت القضية "+c.no+".")});render();
+}
+
+function vExtras(c){
+  var ls=c.losses||[],ts=c.tasks||[],ps=c.parties||[],lt=lossSum(c);
+  var h='<div class="card"><h2>بنود الخسارة</h2><p class="sub">فصّل الخسارة بنداً بنداً (نقد، مخزون، فواتير وهمية…). الإجمالي يصلح أساساً لرقم «الخسارة المقدّرة».</p><div class="grid">'+inp("l-desc","البند","","text","","w2")+inp("l-amt","المبلغ (ر.س)","","number",'min="0" step="any"')+inp("l-per","الفترة (اختياري)","","text",'placeholder="مثال: يناير – مارس 2026"')+'</div><div class="row"><button class="btn sm" data-act="addloss">أضف البند</button></div>'+
+   (ls.length?'<div class="tw"><table><thead><tr><th>م</th><th>البند</th><th>الفترة</th><th>المبلغ</th><th></th></tr></thead><tbody>'+ls.map(function(x,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(x.desc)+'</td><td>'+esc(x.period||"—")+'</td><td class="num">'+money(num(x.amount))+'</td><td><button class="btn sm dng" data-act="delloss" data-i="'+i+'" aria-label="احذف">×</button></td></tr>'}).join("")+'<tr><th colspan="3">الإجمالي</th><th class="num">'+money(lt)+'</th><th></th></tr></tbody></table></div><div class="row">'+(Math.round(lt)!==Math.round(num(c.amount))?'<button class="btn sm line" data-act="applyloss">اعتمد الإجمالي خسارةً مقدّرة ('+money(lt)+')</button><span class="sub">الخسارة المقدّرة الحالية: '+money(num(c.amount))+'</span>':'<span class="chip good">الإجمالي يطابق الخسارة المقدّرة</span>')+'</div>':'')+'</div>';
+  h+='<div class="card"><h2>مهام التحقيق</h2><div class="grid">'+inp("k-text","المهمة","","text","","w2")+inp("k-owner","المسؤول","")+inp("k-due","الموعد","","date")+'</div><div class="row"><button class="btn sm" data-act="addtask">أضف المهمة</button>'+(ts.length?'<span class="sub">'+ts.filter(function(t){return t.done}).length+' من '+ts.length+' منجزة'+(ts.some(taskLate)?" · "+ts.filter(taskLate).length+" متأخرة":"")+'</span>':"")+'</div>'+
+   (ts.length?'<div class="list">'+ts.map(function(t,i){return '<div class="item" style="cursor:default"><label class="t" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-act="tdone" data-i="'+i+'"'+(t.done?" checked":"")+' style="width:18px;height:18px"><span'+(t.done?' style="text-decoration:line-through;color:var(--muted)"':"")+'>'+esc(t.text)+'</span></label>'+(t.owner?'<span class="chip">'+esc(t.owner)+'</span>':"")+(t.due?'<span class="chip '+(taskLate(t)?"bad":"")+'">'+esc(fmtD(t.due))+'</span>':"")+(hubFn("__tpAddTask")?(t.hub?'<span class="chip ok" title="موجودة في منصة المهام">في المهام ✓</span>':'<button class="btn sm line" data-act="t2hub" data-i="'+i+'">➜ مهمة</button>'):"")+'<button class="btn sm dng" data-act="deltask" data-i="'+i+'" aria-label="احذف">×</button></div>'}).join("")+'</div>':'<div class="empty"><b>لا مهام</b>حوّل خطة التحقيق إلى مهام بمسؤول وموعد.</div>')+'</div>';
+  h+='<div class="card"><h2>الأطراف المعنية</h2><p class="sub">المبلّغ والشهود والمشتبه بهم والجهات المختصة. بيانات حساسة: لا تُرسل أسماء الأطراف إلى «المحقق الذكي».</p><div class="grid">'+inp("p-name","الاسم أو الوصف","")+sel("p-role","الصفة",ROLE_P,ROLE_P[1])+inp("p-note","ملاحظة","","text","","w2")+'</div><div class="row"><button class="btn sm" data-act="addparty">أضف الطرف</button></div>'+
+   (ps.length?'<div class="tw"><table><thead><tr><th>الاسم</th><th>الصفة</th><th>ملاحظة</th><th></th></tr></thead><tbody>'+ps.map(function(p,i){return '<tr><td>'+esc(p.name)+'</td><td>'+esc(p.role)+'</td><td>'+esc(p.note||"—")+'</td><td><button class="btn sm dng" data-act="delparty" data-i="'+i+'" aria-label="احذف">×</button></td></tr>'}).join("")+'</tbody></table></div>':'')+'</div>';
+  return h;
+}
+function custodyHTML(e){var cu=e.custody||[];return cu.length?'<div class="sub" style="margin-top:4px">'+cu.map(function(x){return '↔ '+esc(fmtD(x.date))+': من '+esc(x.from||"—")+' إلى '+esc(x.to||"—")+(x.purpose?' ('+esc(x.purpose)+')':"")}).join("<br>")+'</div>':""}
+function custodyCard(c){
+  var ev=c.evidence||[];if(!ev.length)return "";
+  return '<div class="card"><h2>نقل الحيازة</h2><p class="sub">سجّل كل انتقال للدليل بين الأشخاص أو الجهات. تظهر الانتقالات في سجل الأدلة وفي تقرير القضية.</p><div class="grid"><label class="f">الدليل<select id="cu-ev">'+ev.map(function(e,i){return '<option value="'+i+'">'+(i+1)+" · "+esc(String(e.desc).slice(0,50))+'</option>'}).join("")+'</select></label>'+inp("cu-from","من","")+inp("cu-to","إلى","")+inp("cu-date","التاريخ",today(),"date")+inp("cu-why","الغرض","","text","","w2")+'</div><div class="row"><button class="btn sm" data-act="addcust">سجّل النقل</button></div></div>';
+}
+function sha256(buf){return crypto.subtle.digest("SHA-256",buf).then(function(h){return Array.prototype.map.call(new Uint8Array(h),function(b){return b.toString(16).padStart(2,"0")}).join("")})}
+var MIME={pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",svg:"image/svg+xml",mp4:"video/mp4",webm:"video/webm",mov:"video/quicktime",mp3:"audio/mpeg",wav:"audio/wav",txt:"text/plain",csv:"text/csv",json:"application/json",md:"text/markdown",log:"text/plain",xml:"text/xml",html:"text/html"};
+function mimeOf(f){var t=f.type;if(t)return t;var m=String(f.name||"").toLowerCase().match(/\.([a-z0-9]+)$/);return (m&&MIME[m[1]])||"application/octet-stream"}
+function isText(t){return /^text\//.test(t)||/^application\/(json|xml)$/.test(t)}
+function addEv(){
+  var c=S.cases[S.cur];if(!c)return;var desc=val("e-desc");if(!desc){flash(false,"اكتب وصف الدليل.");return}
+  var f=$("e-file")&&$("e-file").files&&$("e-file").files[0],store=!!($("e-store")&&$("e-store").checked&&S.assets);
+  var e={id:uid(),desc:desc,type:val("e-type"),src:val("e-src"),by:val("e-by"),date:val("e-date")||today()},warn="";
+  var fin=function(){c.evidence=c.evidence||[];c.evidence.push(e);c.timeline=c.timeline||[];c.timeline.push({id:uid(),date:e.date,text:"جُمع دليل: "+desc});S.hashing=false;put("cases",c).then(function(){if(warn)flash(false,"أُضيف الدليل. "+warn);else flash(true,"أُضيف الدليل.")});render()};
+  if(!f)return fin();
+  if(f.size>20*1024*1024&&store){store=false;warn="الملف أكبر من 20 ميغابايت فلم تُحفظ نسخة منه للعرض؛ حُسبت بصمته فقط."}
+  if(f.size>50*1024*1024){flash(false,"الملف أكبر من 50 ميغابايت.");return}
+  S.hashing=true;render();var r=new FileReader();
+  r.onerror=function(){S.hashing=false;flash(false,"تعذّرت قراءة الملف.");render()};
+  r.onload=function(){
+    var buf=r.result,mt=mimeOf(f);
+    sha256(buf).then(function(h){
+      e.hash=h;e.file=f.name;e.size=f.size;e.mime=mt;
+      if(isText(mt)){try{e.preview=new TextDecoder("utf-8").decode(new Uint8Array(buf.slice(0,6000)))}catch(x){}}
+      if(!store)return fin();
+      return Promise.resolve(S.assets.upload(new Blob([buf],{type:mt}))).then(function(a){
+        if(a&&a.id){e.att={id:a.id,url:a.url||("/_blob/"+a.id),mime:mt,size:a.sizeBytes||f.size}}
+        fin();
+      },function(er){
+        var code=er&&er.code;warn=code==="unsupported_type"||code==="invalid_type"?"نوع الملف غير مدعوم للحفظ والعرض (المدعوم: صور، PDF، فيديو، صوت، نص وCSV وJSON)؛ حُسبت بصمته فقط.":code==="not_granted"||code==="not_writer"?"لا تملك صلاحية حفظ المرفقات؛ حُسبت البصمة فقط.":"تعذّر حفظ نسخة الملف؛ حُسبت بصمته فقط.";
+        fin();
+      });
+    },function(){S.hashing=false;flash(false,"تعذّر حساب البصمة.");render()});
+  };
+  r.readAsArrayBuffer(f);
+}
+/* ---------- عارض المرفقات ---------- */
+function closeView(){if(S.view&&S.view.obj){try{URL.revokeObjectURL(S.view.obj)}catch(e){}}S.view=null;var m=$("vm");if(m&&m.parentNode)m.parentNode.removeChild(m)}
+function vModal(e){
+  return '<div class="vm" id="vm" role="dialog" aria-label="عرض المرفق"><div class="vb"><div class="vh"><b>'+esc(e.file||e.desc)+'</b><span class="chip" id="v-st">جارٍ التحميل…</span><a class="btn sm line" id="v-dl" href="#" download="'+esc(e.file||"attachment")+'" hidden>تنزيل</a><button class="btn sm" data-act="vclose">إغلاق</button></div><p class="sub">'+esc(e.desc)+(e.size?" · "+e.size+" بايت":"")+(e.mime?" · "+esc(e.mime):"")+'</p><div class="vc" id="vc"><span class="think">جارٍ التحميل…</span></div></div></div>'}
+function showContent(e,url,text){
+  var vc=$("vc");if(!vc)return;var m=e.mime||(e.att&&e.att.mime)||"";
+  if(/^image\//.test(m)&&url)vc.innerHTML='<img alt="'+esc(e.file||"")+'" src="'+esc(url)+'">';
+  else if(m==="application/pdf"&&url)renderPdf(e,url);
+  else if(/^video\//.test(m)&&url)vc.innerHTML='<video controls src="'+esc(url)+'"></video>';
+  else if(/^audio\//.test(m)&&url)vc.innerHTML='<audio controls src="'+esc(url)+'"></audio>';
+  else if(text!=null)vc.innerHTML='<pre>'+esc(text)+'</pre>';
+  else vc.innerHTML='<p class="sub">لا معاينة لهذا النوع. نزّل الملف لفتحه.</p>';
+  var dlb=$("v-dl");if(dlb&&url){dlb.href=url;dlb.hidden=false}
+}
+var PDFJS="/vendor/",pdfLoad=null;
+function loadPdfJs(){
+  if(window.pdfjsLib&&window.pdfjsLib.GlobalWorkerOptions.workerSrc)return Promise.resolve(window.pdfjsLib);
+  if(pdfLoad)return pdfLoad;
+  pdfLoad=new Promise(function(res,rej){var sc=document.createElement("script");sc.src=PDFJS+"pdf.min.js";sc.onload=function(){window.pdfjsLib?res(window.pdfjsLib):rej(new Error("lib"))};sc.onerror=function(){rej(new Error("lib"))};document.head.appendChild(sc)}).then(function(L){
+    return fetch(PDFJS+"pdf.worker.min.js").then(function(r){if(!r.ok)throw new Error("worker");return r.text()}).then(function(t){L.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([t],{type:"application/javascript"}));return L})}).catch(function(er){pdfLoad=null;throw er});
+  return pdfLoad;
+}
+/* المتصفح يحجب عارض PDF المدمج داخل الإطارات المعزولة، فتُرسم الصفحات على لوحات بمكتبة pdf.js */
+function renderPdf(e,url){
+  var vc=$("vc");if(!vc)return;var v=S.view,fail=function(){var x=$("vc");if(x)x.innerHTML='<div class="sub" style="padding:20px;text-align:center">تعذّر عرض ملف PDF داخل المنصة (تحتاج الميزة اتصالاً بالإنترنت). استعمل زر «تنزيل» لفتحه في قارئ PDF.</div>'};
+  if(!v||!v.buf)return fail();
+  vc.innerHTML='<span class="think">جارٍ تجهيز صفحات PDF…</span>';var i0=v.i;
+  loadPdfJs().then(function(L){return L.getDocument({data:new Uint8Array(v.buf.slice(0))}).promise}).then(function(doc){
+    if(!S.view||S.view.i!==i0)return;var n=Math.min(doc.numPages,30),box=$("vc");box.innerHTML="";box.style.flexDirection="column";box.style.alignItems="center";box.style.gap="10px";
+    var note=document.createElement("div");note.className="sub";note.textContent=doc.numPages+" صفحة"+(doc.numPages>n?" (يُعرض أول "+n+")":"");box.appendChild(note);
+    var chain=Promise.resolve();
+    for(var p=1;p<=n;p++)(function(p){chain=chain.then(function(){if(!S.view||S.view.i!==i0)return;return doc.getPage(p).then(function(pg){
+      var w0=Math.min(860,(box.clientWidth||860)-24),vp0=pg.getViewport({scale:1}),sc=w0/vp0.width,vp=pg.getViewport({scale:sc*(window.devicePixelRatio>1?1.5:1.2)}),cv=document.createElement("canvas");
+      cv.width=Math.floor(vp.width);cv.height=Math.floor(vp.height);cv.style.cssText="width:"+Math.floor(w0)+"px;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)";box.appendChild(cv);
+      return pg.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise})})})(p);
+    return chain.then(function(){box.scrollTop=0})}).catch(fail);
+}
+function absUrl(u){try{var p=window.parent&&window.parent!==window?window.parent.location.href:location.href;return new URL(u,p).href}catch(e){return u}}
+function openView(i){
+  var c=S.cases[S.cur],e=c&&(c.evidence||[])[i];if(!e)return;
+  S.view={i:i,obj:null};var d=document.createElement("div");d.innerHTML=vModal(e);document.body.appendChild(d.firstChild);
+  var st=function(t,cls){var x=$("v-st");if(x){x.textContent=t;x.className="chip "+(cls||"")}};
+  var txt=e.preview!=null?e.preview+(e.size>6000?"\n… (معاينة أول 6000 حرف)":""):null;
+  if(!e.att){st("بلا نسخة محفوظة","warn");showContent(e,null,txt);return}
+  var au=absUrl(e.att.url);fetch(au).then(function(r){if(!r.ok)throw new Error("http");return r.blob()}).then(function(b){return b.arrayBuffer().then(function(buf){return sha256(buf).then(function(h){
+    if(!S.view||S.view.i!==i)return;
+    var ok=!e.hash||h===e.hash,m=e.mime||e.att.mime||b.type,blob=new Blob([buf],{type:m});S.view.obj=URL.createObjectURL(blob);S.view.buf=buf;
+    st(ok?"سلامة الملف: مطابق للبصمة":"تحذير: لا يطابق البصمة المسجلة",ok?"good":"bad");
+    var full=null;if(isText(m)){try{full=new TextDecoder("utf-8").decode(new Uint8Array(buf.slice(0,200000)))+(buf.byteLength>200000?"\n… (معاينة أول 200 ألف بايت)":"")}catch(x){}}
+    showContent(e,S.view.obj,full!=null?full:txt)})})}).catch(function(){
+    if(!S.view||S.view.i!==i)return;st("تعذّر التحقق من البصمة","warn");showContent(e,au,txt)});
+}
+function lhh(){var F=hubFn("__tpLH");return F?F():""}
+function hubFn(n){try{var p=window.parent;return p&&p!==window&&typeof p[n]==="function"?p[n]:null}catch(e){return null}}
+function doReport(mode,html,name,title){
+  if(mode==="html")return dl(name+".html",html);
+  var U=hubFn(mode==="pdf"?"__tpPdf":"__tpPrint");
+  if(!U){flash(false,"الطباعة وتصدير PDF متاحان عند فتح القسم من داخل المنصة. استعمل «HTML» ثم اطبع من المتصفح.");return}
+  if(mode==="print"){U(html);flash(true,"فُتحت نافذة الطباعة. إن لم تظهر فاستعمل «PDF» ثم اطبع الملف من قارئ PDF.");return}
+  if(!S.dl){flash(false,"التنزيل غير متاح في هذا العرض.");return}
+  flash(true,"جارٍ تجهيز ملف PDF…");
+  U(html,{root:"body",title:title,onPage:function(i,n){flash(true,"جارٍ تجهيز الصفحة "+i+" من "+n+"…")}}).then(function(bl){return S.dl.save({filename:name+".pdf",data:bl})}).then(function(){flash(true,"حُفظ ملف PDF. افتحه واطبعه من قارئ PDF.")},function(er){if(er&&er.code==="declined"){flash(false,"أُلغي التنزيل.");return}flash(false,"تعذّر إنشاء ملف PDF في هذا العرض. استعمل «HTML» ثم اطبع من المتصفح.")});
+}
+function toolReport(r,T){
+  var tb=function(h,rows){return '<table><tr>'+h.map(function(x){return '<th>'+x+'</th>'}).join("")+'</tr>'+rows.map(function(x){return '<tr>'+x.map(function(y){return '<td>'+y+'</td>'}).join("")+'</tr>'}).join("")+'</table>'};
+  var rt=function(rs){return rs.length?tb(["السطر","المرجع","المبلغ","التاريخ"],rs.slice(0,40).map(function(x){return [x.n,esc(x.id||"—"),x.amt.toLocaleString("en-US"),esc(x.date||"—")]}))+(rs.length>40?'<p>يظهر أول 40 من '+rs.length+'.</p>':""):'<p>لا حالات.</p>'};
+  var B=r.ben,th=T&&num(T.thr)>0;
+  return '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير الفحص الجنائي</title><style>body{font-family:Arial,Tahoma,sans-serif;max-width:800px;margin:24px auto;padding:0 16px;line-height:1.8;color:#111}h1{font-size:22px}h2{font-size:17px;margin-top:20px;border-bottom:1px solid #999}table{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px}th,td{border:1px solid #bbb;padding:5px 8px;text-align:right;vertical-align:top}th{background:#eee}</style></head><body>'+lhh()+'<h1>تقرير الفحص الجنائي للبيانات</h1><p>بتاريخ '+esc(fmtD(today()))+'. الفحوص مؤشرات لتوجيه التدقيق وليست إثباتاً بحد ذاتها. لم تُحفظ القيود في المنصة.</p>'+
+   '<h2>1. الملخص</h2>'+tb(["البند","القيمة"],[["عدد القيود المحلَّلة",r.n],["مبالغ متكررة",r.dupAmt.length],["دفع مكرر محتمل (المرجع والمبلغ نفسهما)",r.dupRef.length],["مبالغ بألوف كاملة",r.round.length],["قرب حد الاعتماد"+(th?" ("+num(T.thr).toLocaleString("en-US")+")":""),th?r.thr.length:"لم يُحدَّد الحد"],["قيود في الجمعة أو السبت",r.weekend.length],["ثغرات التسلسل",r.hasIds?r.gaps.length:"لا مرجع رقمي كافٍ"],["قيم شاذة (أكبر من المتوسط + 3 انحرافات)",r.out.length]])+
+   '<h2>2. اختبار بنفورد (الرقم الأول)</h2><p>عدد المبالغ '+B.N+'. MAD = '+B.mad.toFixed(4)+' ('+B.conf+')، مربع كاي = '+B.chi.toFixed(1)+' (الحد الحرج 15.5).'+(B.N<1000?' حدود MAD وُضعت لعينات كبيرة، فتُقرأ بحذر مع هذا الحجم.':'')+'</p>'+tb(["الرقم","المشاهد","المتوقع"],[1,2,3,4,5,6,7,8,9].map(function(d){return [d,(B.obs[d]*100).toFixed(1)+"%",(EXP[d]*100).toFixed(1)+"%"]}))+
+   '<h2>3. مبالغ متكررة</h2>'+(r.dupAmt.length?tb(["المبلغ","التكرار","الأسطر"],r.dupAmt.map(function(x){return [x.amt.toLocaleString("en-US"),x.rows.length,x.rows.map(function(y){return y.n}).join("، ")]})):'<p>لا مبالغ متكررة.</p>')+
+   '<h2>4. دفع مكرر محتمل</h2>'+(r.dupRef.length?tb(["المرجع","المبلغ","الأسطر"],r.dupRef.map(function(g){return [esc(g[0].id),g[0].amt.toLocaleString("en-US"),g.map(function(y){return y.n}).join("، ")]})):'<p>لا حالات.</p>')+
+   '<h2>5. قرب حد الاعتماد</h2>'+rt(r.thr)+'<h2>6. مبالغ بألوف كاملة</h2>'+rt(r.round)+'<h2>7. قيود في عطلة الأسبوع</h2>'+rt(r.weekend)+
+   '<h2>8. ثغرات التسلسل</h2>'+(r.gaps.length?'<p>'+r.gaps.slice(0,40).map(function(g){return g[0]+" ← "+g[1]}).join("، ")+'</p>':'<p>لا ثغرات.</p>')+'<h2>9. قيم شاذة</h2>'+rt(r.out)+'</body></html>'}
+function caseReport(c){
+  var net=num(c.amount)-num(c.recovered)+num(c.invCost),ev=c.evidence||[],tl=(c.timeline||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
+  var P=function(t){return t?'<p>'+esc(t).replace(/\n/g,"<br>")+'</p>':'<p>—</p>'};
+  return '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير قضية '+esc(c.no)+'</title><style>body{font-family:Arial,Tahoma,sans-serif;max-width:800px;margin:24px auto;padding:0 16px;line-height:1.8;color:#111}h1{font-size:22px}h2{font-size:17px;margin-top:22px;border-bottom:1px solid #999}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #bbb;padding:5px 8px;text-align:right;vertical-align:top}th{background:#eee}.k td:first-child{width:30%;background:#f4f4f4}.sig{display:flex;gap:40px;margin-top:40px}.sig div{flex:1;border-top:1px solid #333;padding-top:6px}code{word-break:break-all;font-size:11px}</style></head><body>'+lhh()+'<h1>تقرير تحقيق: '+esc(c.title)+'</h1><p>سري، لأغراض التحقيق فقط. أُعد بتاريخ '+esc(fmtD(today()))+'.</p>'+
+   '<table class="k"><tr><td>رقم القضية</td><td>'+esc(c.no)+'</td></tr><tr><td>الجهة</td><td>'+esc(c.entity)+'</td></tr><tr><td>نوع الاحتيال</td><td>'+esc(c.type)+'</td></tr><tr><td>الحالة / الخطورة</td><td>'+esc(c.status)+' / '+esc(c.sev)+'</td></tr><tr><td>مصدر الكشف وتاريخه</td><td>'+esc(c.source||"")+' — '+esc(fmtD(c.found))+'</td></tr><tr><td>المحقق المسؤول</td><td>'+esc(c.owner)+'</td></tr><tr><td>الخسارة المقدّرة</td><td>'+money(num(c.amount))+'</td></tr><tr><td>المستردّ</td><td>'+money(num(c.recovered))+'</td></tr><tr><td>تكلفة التحقيق</td><td>'+money(num(c.invCost))+'</td></tr><tr><td>صافي الأثر المالي</td><td>'+money(net)+'</td></tr></table>'+
+   '<h2>1. ملخص الواقعة</h2>'+P(c.summary)+'<h2>2. الخط الزمني</h2>'+(tl.length?'<table><tr><th>التاريخ</th><th>الحدث</th></tr>'+tl.map(function(t){return '<tr><td>'+esc(fmtD(t.date))+'</td><td>'+esc(t.text)+'</td></tr>'}).join("")+'</table>':'<p>—</p>')+
+   (c.losses&&c.losses.length?'<h2>بنود الخسارة</h2><table><tr><th>م</th><th>البند</th><th>الفترة</th><th>المبلغ</th></tr>'+c.losses.map(function(x,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(x.desc)+'</td><td>'+esc(x.period||"—")+'</td><td>'+money(num(x.amount))+'</td></tr>'}).join("")+'<tr><th colspan="3">الإجمالي</th><th>'+money(lossSum(c))+'</th></tr></table>':"")+(c.parties&&c.parties.length?'<h2>الأطراف المعنية</h2><table><tr><th>الاسم</th><th>الصفة</th><th>ملاحظة</th></tr>'+c.parties.map(function(p){return '<tr><td>'+esc(p.name)+'</td><td>'+esc(p.role)+'</td><td>'+esc(p.note||"—")+'</td></tr>'}).join("")+'</table>':"")+'<h2>3. الأدلة وسلسلة الحيازة</h2>'+(ev.length?'<table><tr><th>م</th><th>الدليل</th><th>النوع</th><th>المصدر</th><th>جمعه</th><th>التاريخ</th><th>بصمة SHA-256</th></tr>'+ev.map(function(e,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(e.desc)+(e.file?' ('+esc(e.file)+')':'')+'</td><td>'+esc(e.type)+'</td><td>'+esc(e.src)+'</td><td>'+esc(e.by)+'</td><td>'+esc(fmtD(e.date))+'</td><td><code>'+esc(e.hash||"—")+'</code></td></tr>'}).join("")+'</table>'+(ev.some(function(e){return (e.custody||[]).length})?'<h3 style="font-size:15px">انتقالات الحيازة</h3><table><tr><th>الدليل</th><th>التاريخ</th><th>من</th><th>إلى</th><th>الغرض</th></tr>'+ev.reduce(function(a,e,i){return a.concat((e.custody||[]).map(function(x){return '<tr><td>'+(i+1)+'</td><td>'+esc(fmtD(x.date))+'</td><td>'+esc(x.from||"—")+'</td><td>'+esc(x.to||"—")+'</td><td>'+esc(x.purpose||"—")+'</td></tr>'}))},[]).join("")+'</table>':""):'<p>لا أدلة مسجلة.</p>')+(c.tasks&&c.tasks.length?'<h2>مهام التحقيق</h2><table><tr><th>المهمة</th><th>المسؤول</th><th>الموعد</th><th>الحالة</th></tr>'+c.tasks.map(function(t){return '<tr><td>'+esc(t.text)+'</td><td>'+esc(t.owner||"—")+'</td><td>'+esc(fmtD(t.due)||"—")+'</td><td>'+(t.done?"منجزة":taskLate(t)?"متأخرة":"قائمة")+'</td></tr>'}).join("")+'</table>':"")+
+   '<h2>4. النتائج والاستنتاجات</h2>'+P(c.findings)+'<h2>5. الإجراءات والتوصيات</h2>'+P(c.actions)+'<div class="sig"><div>أعده: '+esc(c.owner)+'</div><div>اعتمده:</div></div></body></html>';
+}
+
+/* ---------- تقييم مخاطر الاحتيال ---------- */
+function riskOf(a){
+  var f=a.flags||{},n=0,s=0;FLAGS.forEach(function(g){g[1].forEach(function(x){n++;s+=num(f[x[0]])})});
+  var fp=n?s/(3*n)*100:0,t=a.tri||{},ta=(num(t.pr||1)+num(t.op||1)+num(t.ra||1))/3,tp=(ta-1)/4*100,r=Math.round(fp*.6+tp*.4);
+  var lvl=r<25?"منخفض":r<50?"متوسط":r<75?"عالٍ":"حرج";
+  var cat=FLAGS.map(function(g){var m=0,t=0;g[1].forEach(function(x){m+=num(f[x[0]]);t+=3});return {n:g[0],p:Math.round(m/t*100)}});
+  return {r:r,lvl:lvl,fp:Math.round(fp),tp:Math.round(tp),cat:cat}}
+function lvlCls(l){return l==="حرج"?"bad":l==="عالٍ"?"warn":l==="متوسط"?"brand":"good"}
+function vAssess(){
+  if(S.as)return vAsForm(S.as);
+  var as=Object.keys(S.assess).map(function(k){return S.assess[k]}).sort(function(a,b){return String(b.date||"").localeCompare(String(a.date||""))});
+  return '<div class="card"><p class="sub">يجمع التقييم بين مثلث الاحتيال (الضغط، الفرصة، التبرير) وقائمة مؤشرات الإنذار. الدرجة النهائية 60% للمؤشرات و40% للمثلث. هذا استدلال لتوجيه عمل المراجعة والتحقيق، وليس دليلاً على وقوع احتيال.</p><div class="row"><button class="btn" data-act="newas">تقييم جديد</button></div>'+(as.length?'<div class="list">'+as.map(function(a){var r=riskOf(a);return '<button class="item" data-act="openas" data-id="'+esc(a.id)+'"><span class="t"><b>'+esc(a.entity||"بلا اسم")+'</b><small>'+esc(fmtD(a.date))+'</small></span><span class="chip '+lvlCls(r.lvl)+'">'+r.lvl+' · '+r.r+'%</span></button>'}).join("")+'</div>':'<div class="empty"><b>لا تقييمات</b>ابدأ بتقييم جهة أو عميل.</div>')+'</div>';
+}
+function vAsForm(a){
+  var h='<div class="card"><div class="row"><button class="btn sm line" data-act="backas">← كل التقييمات</button><h2 style="flex:1">'+(a.id?"تقييم: "+esc(a.entity):"تقييم جديد")+'</h2>'+(a.id?'<button class="btn sm line" data-act="rep" data-w="as" data-m="print">طباعة</button><button class="btn sm" data-act="rep" data-w="as" data-m="pdf">PDF</button><button class="btn sm line" data-act="rep" data-w="as" data-m="html">HTML</button><button class="btn sm dng" data-act="delas">حذف</button>':"")+'</div><div class="grid">'+inp("a-entity","الجهة أو العميل",a.entity||"","text",'list="cn" autocomplete="off"')+inp("a-date","تاريخ التقييم",a.date||today(),"date")+'</div></div>';
+  h+='<div class="card"><h2>مثلث الاحتيال</h2><p class="sub">1 = منخفض جداً، 5 = مرتفع جداً.</p><div class="grid">'+TRI.map(function(t){return '<label class="f">'+t[1]+' — '+t[2]+'<select id="tri-'+t[0]+'" data-live="1">'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'"'+(num((a.tri||{})[t[0]]||1)===n?" selected":"")+'>'+n+'</option>'}).join("")+'</select></label>'}).join("")+'</div></div>';
+  h+='<div class="card"><h2>مؤشرات الإنذار</h2><p class="sub">0 = غير موجود، 1 = ضعيف، 2 = متوسط، 3 = قوي.</p>'+FLAGS.map(function(g){return '<div class="grp">'+g[0]+'</div>'+g[1].map(function(x){return '<div class="flag"><span>'+esc(x[1])+'</span><select id="fl-'+x[0]+'" data-live="1">'+[0,1,2,3].map(function(n){return '<option value="'+n+'"'+(num((a.flags||{})[x[0]])===n?" selected":"")+'>'+["غير موجود","ضعيف","متوسط","قوي"][n]+'</option>'}).join("")+'</select></div>'}).join("")}).join("")+'<label class="f">ملاحظات<textarea id="a-notes">'+esc(a.notes||"")+'</textarea></label></div>';
+  h+='<div class="score" id="score"></div><div id="proc"></div><div class="row"><button class="btn" data-act="saveas">حفظ التقييم</button></div>';
+  return h;
+}
+function readAs(a){
+  a.entity=val("a-entity");a.date=val("a-date")||today();a.notes=val("a-notes");a.tri={};TRI.forEach(function(t){a.tri[t[0]]=num(val("tri-"+t[0]))||1});a.flags={};FLAGS.forEach(function(g){g[1].forEach(function(x){var v=num(val("fl-"+x[0]));if(v)a.flags[x[0]]=v})});return a}
+function liveScore(){
+  if(!$("score"))return;var a=readAs({}),r=riskOf(a);
+  $("score").innerHTML='<span>الدرجة الإجمالية</span><b class="num">'+r.r+'%</b><span class="chip '+lvlCls(r.lvl)+'">'+r.lvl+'</span><span class="sub">المؤشرات '+r.fp+'% · المثلث '+r.tp+'%</span>';
+  var top=r.cat.filter(function(c){return c.p>=34}).sort(function(x,y){return y.p-x.p});
+  $("proc").innerHTML=top.length?'<div class="card"><h2>إجراءات مقترحة للمحاور الأعلى خطراً</h2>'+top.map(function(c){return '<p><b>'+esc(c.n)+' ('+c.p+'%):</b> '+esc(PROC[c.n]||"")+'</p>'}).join("")+'</div>':"";
+}
+function asReport(a){var r=riskOf(a);
+  return '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقييم مخاطر الاحتيال</title><style>body{font-family:Arial,Tahoma,sans-serif;max-width:800px;margin:24px auto;padding:0 16px;line-height:1.8}h2{border-bottom:1px solid #999;font-size:17px;margin-top:22px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #bbb;padding:5px 8px;text-align:right}th{background:#eee}</style></head><body>'+lhh()+'<h1>تقييم مخاطر الاحتيال: '+esc(a.entity)+'</h1><p>بتاريخ '+esc(fmtD(a.date))+'. الدرجة الإجمالية '+r.r+'% ('+r.lvl+')؛ المؤشرات '+r.fp+'% والمثلث '+r.tp+'%. هذا استدلال لتوجيه العمل وليس دليلاً على وقوع احتيال.</p><h2>مثلث الاحتيال</h2><table><tr><th>العنصر</th><th>الدرجة من 5</th></tr>'+TRI.map(function(t){return '<tr><td>'+t[1]+'</td><td>'+num((a.tri||{})[t[0]]||1)+'</td></tr>'}).join("")+'</table><h2>المؤشرات حسب المحور</h2><table><tr><th>المحور</th><th>النسبة</th><th>الإجراء المقترح</th></tr>'+r.cat.map(function(c){return '<tr><td>'+esc(c.n)+'</td><td>'+c.p+'%</td><td>'+esc(c.p>=34?PROC[c.n]:"متابعة اعتيادية")+'</td></tr>'}).join("")+'</table><h2>المؤشرات الموجودة</h2><table><tr><th>المؤشر</th><th>القوة</th></tr>'+FLAGS.reduce(function(x,g){return x.concat(g[1])},[]).filter(function(x){return num((a.flags||{})[x[0]])>0}).map(function(x){return '<tr><td>'+esc(x[1])+'</td><td>'+["","ضعيف","متوسط","قوي"][num(a.flags[x[0]])]+'</td></tr>'}).join("")+'</table>'+(a.notes?'<h2>ملاحظات</h2><p>'+esc(a.notes).replace(/\n/g,"<br>")+'</p>':"")+'</body></html>'}
+
+/* ---------- الفحوص الجنائية ---------- */
+var EXP=[0,.30103,.17609,.12494,.09691,.07918,.06695,.05799,.05115,.04576];
+function parseRows(text){
+  var rows=[];String(text||"").split(/\r?\n/).forEach(function(line,i){
+    line=line.replace(/[٠-٩]/g,function(d){return "٠١٢٣٤٥٦٧٨٩".indexOf(d)}).trim();if(!line)return;
+    var parts=line.split(/[,;\t،]/).map(function(p){return p.trim()}),amt=null,idx=-1,date="",id="";
+    for(var j=0;j<parts.length;j++){if(/^\d{4}-\d{2}-\d{2}$/.test(parts[j]))date=parts[j]}
+    for(var k=parts.length-1;k>=0;k--){var p=parts[k].replace(/\s/g,"");if(/^\d{4}-\d{2}-\d{2}$/.test(p))continue;if(/^-?\d+(\.\d+)?$/.test(p)){amt=parseFloat(p);idx=k;break}}
+    if(amt===null)return;
+    if(parts.length>1){id=parts.filter(function(p,x){return x!==idx&&!/^\d{4}-\d{2}-\d{2}$/.test(p)}).join(" ")}
+    rows.push({n:i+1,id:id,amt:amt,date:date,raw:line})});
+  return rows}
+function analyze(rows,thr){
+  var r={n:rows.length},a=rows.map(function(x){return Math.abs(x.amt)}).filter(function(v){return v>0});
+  var cnt=[0,0,0,0,0,0,0,0,0,0];a.forEach(function(v){var s=String(v).replace(/^0+\.?0*/,"").replace(/\./,"").replace(/^0+/,"");var d=parseInt(s.charAt(0),10);if(d>=1&&d<=9)cnt[d]++});
+  var N=a.length;r.ben={N:N,cnt:cnt,obs:[],mad:0,chi:0};
+  for(var d=1;d<=9;d++){var o=N?cnt[d]/N:0;r.ben.obs[d]=o;r.ben.mad+=Math.abs(o-EXP[d])/9;r.ben.chi+=N?Math.pow(cnt[d]-N*EXP[d],2)/(N*EXP[d]):0}
+  r.ben.conf=r.ben.mad<.006?"مطابقة وثيقة":r.ben.mad<.012?"مطابقة مقبولة":r.ben.mad<.015?"مطابقة حدّية":"عدم مطابقة";
+  var by={};rows.forEach(function(x){var k=x.amt.toFixed(2);(by[k]=by[k]||[]).push(x)});
+  r.dupAmt=Object.keys(by).filter(function(k){return by[k].length>1&&Math.abs(parseFloat(k))>0}).map(function(k){return {amt:parseFloat(k),rows:by[k]}}).sort(function(x,y){return y.rows.length*Math.abs(y.amt)-x.rows.length*Math.abs(x.amt)}).slice(0,15);
+  var byId={};rows.forEach(function(x){if(x.id){var k=x.id.toLowerCase()+"|"+x.amt.toFixed(2);(byId[k]=byId[k]||[]).push(x)}});
+  r.dupRef=Object.keys(byId).filter(function(k){return byId[k].length>1}).map(function(k){return byId[k]}).slice(0,15);
+  r.round=rows.filter(function(x){return Math.abs(x.amt)>=1000&&Math.abs(x.amt)%1000===0});
+  r.thr=thr>0?rows.filter(function(x){return Math.abs(x.amt)<thr&&Math.abs(x.amt)>=thr*.9}):[];
+  r.weekend=rows.filter(function(x){if(!x.date)return false;var d=new Date(x.date+"T00:00:00").getDay();return d===5||d===6});
+  var ids=rows.map(function(x){return /^\d+$/.test(x.id)?parseInt(x.id,10):null}).filter(function(v){return v!==null}).sort(function(p,q){return p-q});r.gaps=[];
+  for(var i=1;i<ids.length;i++){if(ids[i]-ids[i-1]>1&&ids[i]-ids[i-1]<=50)r.gaps.push([ids[i-1],ids[i]])}
+  r.hasIds=ids.length>=3;
+  var m=a.reduce(function(s,v){return s+v},0)/(N||1),sd=Math.sqrt(a.reduce(function(s,v){return s+(v-m)*(v-m)},0)/(N||1));
+  r.out=sd>0?rows.filter(function(x){return Math.abs(x.amt)>m+3*sd}).slice(0,15):[];r.mean=m;r.sd=sd;return r}
+function rowsTbl(rs){return '<div class="tw"><table><thead><tr><th>السطر</th><th>المرجع</th><th>المبلغ</th><th>التاريخ</th></tr></thead><tbody>'+rs.slice(0,15).map(function(x){return '<tr><td class="num">'+x.n+'</td><td>'+esc(x.id||"—")+'</td><td class="num">'+x.amt.toLocaleString("en-US")+'</td><td class="num">'+esc(x.date||"—")+'</td></tr>'}).join("")+'</tbody></table></div>'+(rs.length>15?'<p class="sub">يظهر أول 15 من '+rs.length+'.</p>':"")}
+function vTools(){
+  var T=S.tool,r=T.res;
+  var h='<div class="card"><h2>فحوص البيانات الجنائية</h2><p class="sub">الصق سطراً لكل قيد: مبلغ فقط، أو «مرجع, مبلغ, تاريخ» بصيغة 2026-03-15 (يُؤخذ آخر رقم في السطر مبلغاً). المعالجة تتم داخل متصفحك ولا تُحفظ البيانات. الفحوص مؤشرات للتدقيق، وليست إثباتاً بحد ذاتها.</p><label class="f">القيود<textarea id="t-text" style="min-height:160px" dir="ltr" placeholder="INV-1001, 4500.00, 2026-03-14&#10;INV-1002, 9990, 2026-03-15">'+esc(T.text)+'</textarea></label><div class="grid">'+inp("t-thr","حد الاعتماد (لفحص المبالغ الأقل منه مباشرة)",T.thr,"number",'min="0" step="any"')+'</div><div class="row"><button class="btn" data-act="analyze">حلّل</button><button class="btn sm line" data-act="clear">امسح</button></div></div>';
+  if(!r)return h;
+  if(r.n<1)return h+'<div class="msg warn">لم أجد أي مبالغ في النص. تأكد أن في كل سطر رقماً.</div>';
+  h+='<div class="tiles"><div class="tile"><b class="num">'+r.n+'</b><span>قيداً محلَّلاً</span></div><div class="tile"><b>'+r.dupAmt.length+'</b><span>مبالغ متكررة</span></div><div class="tile"><b>'+r.round.length+'</b><span>مبالغ بألوف كاملة</span></div><div class="tile"><b>'+(r.thr.length)+'</b><span>قرب حد الاعتماد</span></div><div class="tile"><b>'+r.weekend.length+'</b><span>قيود في الجمعة أو السبت</span></div></div>';
+  h+='<div class="row"><span class="sub">تقرير الفحص:</span><button class="btn sm line" data-act="rep" data-w="tool" data-m="print">طباعة</button><button class="btn sm" data-act="rep" data-w="tool" data-m="pdf">PDF</button><button class="btn sm line" data-act="rep" data-w="tool" data-m="html">HTML</button></div>';
+  var B=r.ben;h+='<div class="card"><h2>اختبار بنفورد (الرقم الأول)</h2>'+(B.N<100?'<div class="msg warn">العينة '+B.N+' مبلغاً فقط. يُنصح بمئة مبلغ على الأقل، والنتيجة هنا تقريبية.</div>':B.N<1000?'<div class="msg warn">حدود MAD وُضعت لعينات كبيرة. مع '+B.N+' مبلغاً اقرأها بحذر واعتمد معها مربع كاي.</div>':"")+'<p>متوسط الانحراف المطلق MAD = <b class="num">'+B.mad.toFixed(4)+'</b> ← <span class="chip '+(B.mad<.012?"good":B.mad<.015?"warn":"bad")+'">'+B.conf+'</span> · مربع كاي = <b class="num">'+B.chi.toFixed(1)+'</b> (الحد الحرج عند 5%: 15.5)'+(B.chi>15.51?' ← يتجاوز الحد':"")+'</p><div class="bars">'+[1,2,3,4,5,6,7,8,9].map(function(d){var o=B.obs[d]*100,e=EXP[d]*100;return '<div class="br"><b class="num">'+d+'</b><div class="tr"><i style="width:'+Math.min(100,o*2.2)+'%"></i><em style="inset-inline-start:'+Math.min(100,e*2.2)+'%" title="المتوقع"></em></div><span class="num">'+o.toFixed(1)+'% (المتوقع '+e.toFixed(1)+'%)</span></div>'}).join("")+'</div><p class="sub">الخط الأحمر هو التوزيع المتوقع. انحراف رقم بعينه (مثل 5 أو 9) يوجّه إلى فحص القيود التي تبدأ به.</p></div>';
+  h+='<div class="card"><h2>مبالغ متكررة</h2>'+(r.dupAmt.length?'<div class="tw"><table><thead><tr><th>المبلغ</th><th>مرات التكرار</th><th>الأسطر</th></tr></thead><tbody>'+r.dupAmt.map(function(d){return '<tr><td class="num">'+d.amt.toLocaleString("en-US")+'</td><td class="num">'+d.rows.length+'</td><td class="num">'+d.rows.map(function(x){return x.n}).join("، ")+'</td></tr>'}).join("")+'</tbody></table></div>':'<p class="sub">لا مبالغ متكررة.</p>')+(r.dupRef.length?'<h3 style="margin-top:8px;font-size:15px">المرجع والمبلغ نفسهما (دفع مكرر محتمل)</h3>'+r.dupRef.map(function(g){return '<p class="sub">'+esc(g[0].id)+' — '+g[0].amt.toLocaleString("en-US")+' — الأسطر '+g.map(function(x){return x.n}).join("، ")+'</p>'}).join(""):"")+'</div>';
+  h+='<div class="card"><h2>مبالغ تحت حد الاعتماد (90% إلى 100% منه)</h2>'+(T.thr&&num(T.thr)>0?(r.thr.length?rowsTbl(r.thr):'<p class="sub">لا مبالغ قرب الحد.</p>'):'<p class="sub">أدخل حد الاعتماد لتفعيل هذا الفحص.</p>')+'</div>';
+  h+='<div class="card"><h2>مبالغ بألوف كاملة</h2>'+(r.round.length?'<p class="sub">'+r.round.length+' من '+r.n+' ('+Math.round(r.round.length/r.n*100)+'%). النسبة العالية مؤشر على تقدير أو اختلاق.</p>'+rowsTbl(r.round):'<p class="sub">لا مبالغ بألوف كاملة.</p>')+'</div>';
+  h+='<div class="card"><h2>قيود في عطلة الأسبوع (الجمعة والسبت)</h2>'+(r.weekend.length?rowsTbl(r.weekend):'<p class="sub">'+(rowsHaveDates(T.rows)?"لا قيود في العطلة.":"لم تُدخل تواريخ بصيغة 2026-03-15.")+'</p>')+'</div>';
+  h+='<div class="card"><h2>ثغرات التسلسل</h2>'+(r.hasIds?(r.gaps.length?'<p class="sub">أرقام مفقودة بين:</p><p class="num">'+r.gaps.slice(0,20).map(function(g){return g[0]+" ← "+g[1]}).join("، ")+'</p>':'<p class="sub">لا ثغرات في الأرقام المتسلسلة.</p>'):'<p class="sub">يلزم عمود مرجع رقمي (ثلاثة أرقام فأكثر) لفحص التسلسل.</p>')+'</div>';
+  h+='<div class="card"><h2>قيم شاذة</h2>'+(r.out.length?'<p class="sub">أكبر من المتوسط ('+Math.round(r.mean).toLocaleString("en-US")+') + 3 انحرافات معيارية:</p>'+rowsTbl(r.out):'<p class="sub">لا قيم شاذة بهذا المعيار.</p>')+'</div>';
+  var cs=cases();
+  h+='<div class="card"><h2>سجّل ملخص الفحص في قضية</h2>'+(cs.length?'<div class="row"><select class="in" id="t-case" style="width:auto;flex:1 1 240px">'+cs.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.no)+" · "+esc(c.title)+'</option>'}).join("")+'</select><button class="btn sm" data-act="attach">أضفه إلى أدلة القضية</button></div><p class="sub">يُضاف وصف موجز لنتائج الفحص كدليل. لا تُحفظ القيود نفسها.</p>':'<p class="sub">سجّل قضية أولاً لتتمكن من إرفاق النتائج.</p>')+'</div>';
+  return h;
+}
+function rowsHaveDates(rows){return (rows||[]).some(function(x){return x.date})}
+function summary(r){return "فحص جنائي لـ "+r.n+" قيداً: بنفورد MAD="+r.ben.mad.toFixed(4)+" ("+r.ben.conf+")، مبالغ متكررة: "+r.dupAmt.length+"، دفع مكرر محتمل: "+r.dupRef.length+"، ألوف كاملة: "+r.round.length+"، قرب حد الاعتماد: "+r.thr.length+"، عطلة أسبوع: "+r.weekend.length+"، ثغرات تسلسل: "+r.gaps.length+"، قيم شاذة: "+r.out.length+"."}
+
+/* ---------- برنامج مكافحة الاحتيال ---------- */
+function vCtl(){
+  var k=ctlStats();
+  var h='<div class="tiles"><div class="tile"><b>'+(k.pct==null?"—":k.pct+"%")+'</b><span>تغطية الضوابط (الجزئي بنصف نقطة)</span></div><div class="tile"><b>'+k.ok+'</b><span>مطبق من '+k.tot+' ضابطاً منطبقاً</span></div><div class="tile bad"><b>'+(k.tot-k.ok-k.part)+'</b><span>غير مطبق أو غير مقيّم</span></div></div>';
+  h+='<div class="card"><p class="sub">برنامج مكافحة الاحتيال الفعّال يجمع الوقاية والكشف والاستجابة. قيّم حالة كل ضابط في الجهة، وسمِّ مالكه، واكتب ما ينقصه.</p>'+CTL.map(function(g){var m=g[1].filter(function(c){return ["غير مطبق","جزئي"].indexOf((S.ctl[c[0]]||{}).st)>=0}).length;return '<div class="grp">'+g[0]+(m?' <span class="chip warn">'+m+' بحاجة إلى عمل</span>':'')+'</div>'+g[1].map(function(c){var s=S.ctl[c[0]]||{};return '<div class="ctlrow"><span>'+esc(c[1])+'<small>'+esc(s.note||"")+'</small></span><select data-ctl="'+c[0]+'" data-f="st" aria-label="الحالة">'+opts(CST,s.st||CST[0])+'</select><input class="in" data-ctl="'+c[0]+'" data-f="owner" value="'+esc(s.owner||"")+'" placeholder="المالك" aria-label="المالك"></div><div style="padding:0 0 6px"><input class="in" data-ctl="'+c[0]+'" data-f="note" value="'+esc(s.note||"")+'" placeholder="ما ينقص أو الدليل" aria-label="ملاحظة" style="min-height:34px"></div>'}).join("")}).join("")+'</div>';
+  return h;
+}
+
+
+/* ---------- المحقق الذكي ---------- */
+var AIQ=[["sum","لخّص القضية","لخّص القضية في فقرة ثم نقاط: الوقائع، المبالغ، الأدلة المتوفرة، الحالة الحالية، وأهم 3 أسئلة مفتوحة."],
+["plan","خطة التحقيق","اقترح خطة تحقيق مرتبة بالأولوية لهذه القضية: خطوات حفظ الأدلة أولاً، ثم الإجراءات التحليلية والمقابلات والمستندات المطلوبة، مع المسؤول المقترح والمدة التقريبية لكل خطوة."],
+["int","أسئلة المقابلة","صُغ أسئلة مقابلة مرتبة: مقابلة الشهود أولاً ثم المشتبه به، تبدأ بأسئلة مفتوحة وتنتهي بالمحددة. نبّه إلى الضوابط الأخلاقية والنظامية للمقابلة."],
+["gap","فجوات الأدلة","راجع سجل الأدلة وسلسلة الحيازة والخط الزمني: ما الأدلة الناقصة؟ وما نقاط الضعف في سلسلة الحيازة؟ وما الذي يلزم حفظه فوراً؟"],
+["hyp","فرضيات الأسلوب","ما فرضيات أسلوب الاحتيال الأقرب لهذه الوقائع؟ لكل فرضية: ما يؤيدها، وما ينفيها، وأي اختبار أو مستند يحسمها. استخدم أداة التقييم والفحص إن وُجدت لهذه الجهة."],
+["fnd","صياغة النتائج","صُغ مسودة «النتائج والاستنتاجات» لتقرير القضية من البيانات المتوفرة فقط، بلغة محايدة تفصل الوقائع المثبتة عن الفرضيات، دون اتهام صريح لشخص."],
+["ctl","ضوابط تصحيحية","اقترح ضوابط تصحيحية تعالج الثغرة التي سمحت بهذه الواقعة، واستعن بأداة فجوات الضوابط لتتجنب اقتراح ما هو مطبق، ورتبها بالأثر والكلفة."]];
+var AIRULES="أنت «المحقق الذكي» في منصة تمام برو للمحاسبة القضائية ومكافحة الاحتيال، تساعد محققاً مهنياً في السعودية. اكتب بالعربية الفصحى المبسطة وبإيجاز منظم (عناوين قصيرة ونقاط). التزم بما يلي: (1) اعتمد على بيانات القضية والأدوات فقط، ولا تخترع وقائع أو مبالغ أو أنظمة أو مواد قانونية؛ وإن لم تعرف فقل ذلك. (2) ميّز دائماً بين الوقائع المثبتة والفرضيات، ولا تتهم شخصاً بعينه ولا تحسم الإدانة؛ فالحكم للجهات المختصة. (3) ما تقدمه استرشاد مهني لا استشارة قانونية. (4) قدّم حفظ الأدلة وسلسلة الحيازة على أي إجراء آخر. (5) لا تطلب من المستخدم بيانات شخصية غير لازمة. (6) إن كانت المعلومات غير كافية فاسأل سؤالين محددين على الأكثر.";
+function aiCtx(c){
+  var cut=function(t,n){t=String(t||"");return t.length>n?t.slice(0,n)+"…":t};
+  return JSON.stringify({القضية:{الرقم:c.no,العنوان:c.title,الجهة:c.entity,النوع:c.type,الحالة:c.status,الخطورة:c.sev,مصدر_الكشف:c.source,تاريخ_الكشف:c.found,المحقق:c.owner,الخسارة_المقدّرة:num(c.amount),المستردّ:num(c.recovered),تكلفة_التحقيق:num(c.invCost),الملخص:cut(c.summary,1500),النتائج:cut(c.findings,1500),الإجراءات:cut(c.actions,1000)},
+   الأدلة:(c.evidence||[]).slice(0,40).map(function(e){return {الوصف:cut(e.desc,300),النوع:e.type,المصدر:e.src,جمعه:e.by,التاريخ:e.date,ببصمة:!!e.hash}}),
+   المهام:(c.tasks||[]).slice(0,30).map(function(t){return {المهمة:cut(t.text,150),منجزة:!!t.done,الموعد:t.due||""}}),بنود_الخسارة:(c.losses||[]).slice(0,30).map(function(x){return {البند:cut(x.desc,120),المبلغ:num(x.amount),الفترة:x.period||""}}),انتقالات_الحيازة:(c.evidence||[]).reduce(function(n,e){return n+(e.custody||[]).length},0),عدد_الأطراف:(c.parties||[]).length,
+   الخط_الزمني:(c.timeline||[]).slice(0,60).map(function(t){return {التاريخ:t.date,الحدث:cut(t.text,200)}})});
+}
+function aiTools(c){
+  var ent=String(c.entity||"").trim().toLowerCase();
+  return [
+   {name:"get_assessment",description:"يعيد أحدث تقييم لمخاطر الاحتيال محفوظ لجهة القضية: الدرجة والمستوى ودرجة كل محور ومؤشرات الإنذار الموجودة.",inputSchema:{type:"object",properties:{}},execute:function(){
+     var as=Object.keys(S.assess).map(function(k){return S.assess[k]}).filter(function(a){return ent&&String(a.entity||"").trim().toLowerCase()===ent}).sort(function(a,b){return String(b.date).localeCompare(String(a.date))});
+     if(!as.length)return {نتيجة:"لا تقييم محفوظ لهذه الجهة"};var a=as[0],r=riskOf(a),f=a.flags||{};
+     return {التاريخ:a.date,الدرجة:r.r,المستوى:r.lvl,المثلث:a.tri,المحاور:r.cat,المؤشرات_الموجودة:FLAGS.reduce(function(x,g){return x.concat(g[1])},[]).filter(function(x){return num(f[x[0]])>0}).map(function(x){return x[1]+" ("+["","ضعيف","متوسط","قوي"][num(f[x[0]])]+")"})}}},
+   {name:"get_control_gaps",description:"يعيد ضوابط مكافحة الاحتيال غير المطبقة أو الجزئية أو غير المقيّمة في برنامج الجهة، مجمعة حسب الوقاية والكشف والاستجابة.",inputSchema:{type:"object",properties:{}},execute:function(){
+     var o={};CTL.forEach(function(g){o[g[0]]=g[1].filter(function(x){var st=(S.ctl[x[0]]||{}).st||CST[0];return st!==CST[1]&&st!==CST[4]}).map(function(x){return x[1]+" ["+((S.ctl[x[0]]||{}).st||CST[0])+"]"})});return o}},
+   {name:"get_last_analysis",description:"يعيد ملخص آخر فحص جنائي للبيانات أجراه المستخدم في هذه الجلسة (بنفورد، تكرار، قرب حد الاعتماد...)، أو ينبّه أن لا فحص.",inputSchema:{type:"object",properties:{}},execute:function(){return S.tool.res?{ملخص:summary(S.tool.res)}:{نتيجة:"لم يُجرَ فحص في هذه الجلسة"}}},
+   {name:"get_related_cases",description:"يعيد قضايا أخرى مسجلة لنفس الجهة (للبحث عن نمط متكرر).",inputSchema:{type:"object",properties:{}},execute:function(){
+     return cases().filter(function(x){return x.id!==c.id&&ent&&String(x.entity||"").trim().toLowerCase()===ent}).slice(0,10).map(function(x){return {الرقم:x.no,العنوان:x.title,النوع:x.type,الحالة:x.status,الخسارة:num(x.amount)}})}}];
+}
+function mdLite(t){
+  var out=[],list=false;String(t||"").split(/\r?\n/).forEach(function(l){l=l.replace(/\s+$/,"");
+    var m;if(m=l.match(/^\s*#{1,4}\s*(.+)$/)){if(list){out.push("</ul>");list=false}out.push("<h4>"+inl(m[1])+"</h4>")}
+    else if(m=l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.+)$/)){if(!list){out.push("<ul>");list=true}out.push("<li>"+inl(m[1])+"</li>")}
+    else if(!l.trim()){if(list){out.push("</ul>");list=false}}
+    else{if(list){out.push("</ul>");list=false}out.push("<p>"+inl(l)+"</p>")}});
+  if(list)out.push("</ul>");return out.join("")}
+function inl(t){return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")}
+function aiBubbles(c){
+  var h=S.ai.h[c.id]||[];
+  return h.map(function(m,i){return m.role==="user"?'<div class="bub u">'+esc(m.content)+'</div>':'<div class="bub a" id="ab-'+i+'">'+(m.content?mdLite(m.content):'<span class="think">يحلل القضية…</span>')+(m.content&&!(S.ai.busy&&i===h.length-1)?'<div class="row"><button class="btn sm line" data-act="aicopy" data-i="'+i+'">انسخ</button><button class="btn sm line" data-act="aiapply" data-i="'+i+'" data-f="findings">أضفه إلى النتائج</button><button class="btn sm line" data-act="aiapply" data-i="'+i+'" data-f="actions">أضفه إلى الإجراءات</button><button class="btn sm line" data-act="aiapply" data-i="'+i+'" data-f="summary">أضفه إلى الملخص</button></div>':"")+'</div>'}).join("")}
+function aiCard(c){
+  if(!S.sample)return '<div class="card ai"><h2>المحقق الذكي</h2><p class="sub">غير متاح في هذا العرض. يتطلب أن تكون المنصة مفتوحة من claude.ai بحساب مسموح له بخاصية الاستعانة بـ Claude.</p></div>';
+  var h=S.ai.h[c.id]||[];
+  return '<div class="card ai" id="aicard"><h2>المحقق الذكي</h2><p class="sub">وكيل يقرأ بيانات هذه القضية وتقييمات الجهة وفجوات ضوابطها وفحوصك الأخيرة، ثم يقترح خطط التحقيق وأسئلة المقابلة وصياغة النتائج. ما يكتبه مسودة تراجعها أنت، ولا يُضاف شيء إلى القضية إلا بضغطك. عند الاستعمال تُرسل بيانات القضية إلى Claude لمعالجتها، فلا تستعمله إن كانت سياسة الجهة تمنع ذلك.</p>'+
+   '<div class="qp">'+AIQ.map(function(q){return '<button class="btn sm line" data-act="aiq" data-q="'+q[0]+'"'+(S.ai.busy?" disabled":"")+'>'+q[1]+'</button>'}).join("")+'</div>'+
+   (S.ai.err?'<div class="msg bad">'+esc(S.ai.err)+'</div>':"")+
+   (h.length?'<div class="chat" id="chat">'+aiBubbles(c)+'</div>':"")+
+   '<div class="row"><textarea class="in" id="ai-in" rows="2" placeholder="اسأل المحقق الذكي عن هذه القضية…" style="flex:1 1 260px;width:auto;min-height:44px" '+(S.ai.busy?"disabled":"")+'></textarea>'+(S.ai.busy?'<button class="btn sm dng" data-act="aistop">إيقاف</button>':'<button class="btn" data-act="aisend">إرسال</button>')+(h.length&&!S.ai.busy?'<button class="btn sm line" data-act="aiclear">محادثة جديدة</button>':"")+'</div></div>';
+}
+function aiRun(c,msg){
+  if(S.ai.busy||!S.sample)return;var hist=S.ai.h[c.id]=S.ai.h[c.id]||[];
+  var past=hist.filter(function(m){return m.content}).slice(-10);while(past.length&&past[0].role!=="user")past.shift();
+  var input=[{role:"user",content:AIRULES+"\n\nبيانات القضية (JSON):\n"+aiCtx(c)},{role:"assistant",content:"فهمت. جاهز لمساعدتك في هذه القضية."}].concat(past.map(function(m){return {role:m.role,content:m.content}}),[{role:"user",content:msg}]);
+  hist.push({role:"user",content:msg});hist.push({role:"assistant",content:""});
+  S.ai.busy=true;S.ai.err="";S.ai.ctl=new AbortController();render();var ch=$("chat");if(ch)ch.scrollTop=ch.scrollHeight;
+  var idx=hist.length-1,live=function(t){hist[idx].content=t;var el=$("ab-"+idx);if(el){el.innerHTML=mdLite(t);var c2=$("chat");if(c2)c2.scrollTop=c2.scrollHeight}};
+  Promise.resolve(S.sample(input,{signal:S.ai.ctl.signal,cache:false,tools:aiTools(c),onText:function(o){if(o&&typeof o.text==="string")live(o.text)}})).then(function(r){
+    var t=(r&&r.text)||hist[idx].content;hist[idx].content=t||"لم يصل رد.";
+  }).catch(function(e){
+    if(e&&(e.name==="AbortError"||e.code==="aborted")){if(!hist[idx].content)hist.splice(idx,1);return}
+    var code=e&&e.code;S.ai.err=code==="not_granted"?"لم تُمنح صلاحية الاستعانة بـ Claude لهذه الصفحة.":code==="rate_limited"?"تجاوزتَ الحد المسموح مؤقتاً. حاول بعد قليل.":"تعذّر الحصول على رد. حاول مرة أخرى.";
+    if(e&&e.text&&!hist[idx].content)hist[idx].content=e.text;else if(!hist[idx].content)hist.splice(idx,1);
+  }).then(function(){S.ai.busy=false;S.ai.ctl=null;render()});
+}
+
+/* ---------- الأحداث ---------- */
+function dl(name,html){if(!S.dl){flash(false,"التنزيل غير متاح في هذا العرض.");return}S.dl.save({filename:name,data:html}).then(function(){flash(true,"حُفظ الملف.")},function(e){if(!(e&&e.code==="declined"))flash(false,"تعذّر التنزيل.")})}
+document.addEventListener("click",function(e){
+  var b=e.target.closest("[data-act]");if(!b||b.disabled)return;var a=b.dataset.act,c=S.cases[S.cur];S.msg="";S.ok="";
+  if(S.dirty&&S.cur&&/^(tab|back|open|newcase)$/.test(a)){if(!S.discard){S.discard=true;flash(false,"لديك تعديلات غير محفوظة في القضية. احفظها أولاً، أو اضغط مرة أخرى للتجاهل.");return}S.dirty=false}S.discard=false;
+  if(a==="tab"){closeView();S.tab=b.dataset.t;S.cur=null;S.as=null;return render()}
+  if(a==="newcase"){S.tab="cases";S.cur="new";return render()}
+  if(a==="open"){S.tab="cases";S.cur=b.dataset.id;return render()}
+  if(a==="back"){S.cur=null;return render()}
+  if(a==="savecase")return saveCase();
+  if(a==="delcase"){if(!c)return;if(b.dataset.ok!=="1"){b.dataset.ok="1";b.textContent="تأكيد الحذف النهائي";return}del("cases",c.id);delete S.cases[c.id];S.cur=null;return render()}
+  if(a==="addev")return addEv();
+  if(a==="view"){return openView(+b.dataset.i)}
+  if(a==="vclose"){return closeView()}
+  if(a==="delev"&&c){if(b.dataset.ok!=="1"){b.dataset.ok="1";b.textContent="تأكيد";b.title="الحذف يُسجَّل في الخط الزمني";return}var de=c.evidence.splice(+b.dataset.i,1)[0];c.timeline=c.timeline||[];c.timeline.push({id:uid(),date:today(),text:"حُذف دليل من السجل: "+(de&&de.desc||"")});put("cases",c);return render()}
+  if(a==="addloss"&&c){var ld=val("l-desc");if(!ld||!(num(val("l-amt"))>0)){flash(false,"اكتب البند ومبلغاً أكبر من صفر.");return}c.losses=c.losses||[];c.losses.push({id:uid(),desc:ld,amount:num(val("l-amt")),period:val("l-per")});put("cases",c);return render()}
+  if(a==="delloss"&&c){c.losses.splice(+b.dataset.i,1);put("cases",c);return render()}
+  if(a==="applyloss"&&c){c.amount=String(Math.round(lossSum(c)*100)/100);c.timeline=c.timeline||[];c.timeline.push({id:uid(),date:today(),text:"اعتُمد إجمالي بنود الخسارة: "+money(lossSum(c))});put("cases",c);flash(true,"اعتُمد الإجمالي خسارةً مقدّرة.");return render()}
+  if(a==="t2hub"&&c){var tx=(c.tasks||[])[+b.dataset.i],AT=hubFn("__tpAddTask");if(!tx||!AT||tx.hub)return;b.disabled=true;b.textContent="…";
+    AT({title:tx.text,desc:"مهمة تحقيق — قضية "+(c.no||"")+" · "+(c.title||""),due:tx.due,link:{m:"fraud",id:c.id,label:(c.no?c.no+" · ":"")+(c.title||"قضية")}}).then(function(id){tx.hub=id;put("cases",c);render()},function(){b.disabled=false;b.textContent="➜ مهمة";flash(false,"تعذّر إنشاء المهمة. تأكد من صلاحية الوصول إلى منصة المهام.")});return}
+  if(a==="addtask"&&c){var tk=val("k-text");if(!tk){flash(false,"اكتب المهمة.");return}c.tasks=c.tasks||[];c.tasks.push({id:uid(),text:tk,owner:val("k-owner"),due:val("k-due"),done:false});put("cases",c);return render()}
+  if(a==="deltask"&&c){c.tasks.splice(+b.dataset.i,1);put("cases",c);return render()}
+  if(a==="addparty"&&c){var pn=val("p-name");if(!pn){flash(false,"اكتب اسم الطرف أو وصفه.");return}c.parties=c.parties||[];c.parties.push({id:uid(),name:pn,role:val("p-role"),note:val("p-note")});put("cases",c);return render()}
+  if(a==="delparty"&&c){c.parties.splice(+b.dataset.i,1);put("cases",c);return render()}
+  if(a==="addcust"&&c){var ei=+val("cu-ev"),en=(c.evidence||[])[ei];if(!en)return;if(!val("cu-from")&&!val("cu-to")){flash(false,"اكتب جهة النقل (من أو إلى).");return}en.custody=en.custody||[];en.custody.push({id:uid(),date:val("cu-date")||today(),from:val("cu-from"),to:val("cu-to"),purpose:val("cu-why")});c.timeline=c.timeline||[];c.timeline.push({id:uid(),date:val("cu-date")||today(),text:"نُقلت حيازة الدليل "+(ei+1)+" من "+(val("cu-from")||"—")+" إلى "+(val("cu-to")||"—")});put("cases",c);flash(true,"سُجّل نقل الحيازة.");return render()}
+  if(a==="addtl"&&c){var tx=val("t-text");if(!tx){flash(false,"اكتب ما جرى.");return}c.timeline=c.timeline||[];c.timeline.push({id:uid(),date:val("t-date")||today(),text:tx});put("cases",c);return render()}
+  if(a==="deltl"&&c){c.timeline.splice(+b.dataset.i,1);put("cases",c);return render()}
+  if(a==="rep"){var w=b.dataset.w,m=b.dataset.m,hh="",nm="",tt="";
+    if(w==="case"&&c){hh=caseReport(readCase(Object.assign({},c,{evidence:c.evidence,timeline:c.timeline})));nm="تقرير قضية "+c.no;tt="قضية "+c.no}
+    else if(w==="as"&&S.as){hh=asReport(readAs(Object.assign({},S.as)));nm="تقييم مخاطر الاحتيال - "+(S.as.entity||"");tt="تقييم مخاطر الاحتيال"}
+    else if(w==="tool"&&S.tool.res){hh=toolReport(S.tool.res,S.tool);nm="تقرير الفحص الجنائي - "+today();tt="الفحص الجنائي"}
+    if(!hh)return;return doReport(m,hh,nm,tt)}
+  if(a==="csv"){var q=function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'};var rows=[["الرقم","العنوان","الجهة","النوع","الحالة","الخطورة","تاريخ الكشف","الخسارة المقدّرة","المستردّ","تكلفة التحقيق","المحقق"]].concat(cases().map(function(c){return [c.no,c.title,c.entity,c.type,c.status,c.sev,c.found,c.amount,c.recovered,c.invCost,c.owner]}));return dl("قضايا الاحتيال.csv","﻿"+rows.map(function(r){return r.map(q).join(",")}).join("\r\n"))}
+  if(a==="aiq"){var q=AIQ.filter(function(x){return x[0]===b.dataset.q})[0];if(c&&q)aiRun(c,q[2]);return}
+  if(a==="aisend"){var ta=$("ai-in"),m=ta?ta.value.trim():"";if(!c||!m)return;aiRun(c,m);return}
+  if(a==="aistop"){if(S.ai.ctl)S.ai.ctl.abort();return}
+  if(a==="aiclear"&&c){delete S.ai.h[c.id];S.ai.err="";return render()}
+  if(a==="aicopy"&&c){var tx=(S.ai.h[c.id]||[])[+b.dataset.i];if(tx&&navigator.clipboard)navigator.clipboard.writeText(tx.content).then(function(){flash(true,"نُسخ النص.")},function(){flash(false,"تعذّر النسخ.")});return}
+  if(a==="aiapply"&&c){var m2=(S.ai.h[c.id]||[])[+b.dataset.i],f=b.dataset.f;if(!m2||!m2.content)return;
+    var plain=m2.content.replace(/^#{1,4}\s*/gm,"").replace(/\*\*/g,"").trim();c[f]=(c[f]?c[f]+"\n\n":"")+"[مسودة المحقق الذكي — تحتاج مراجعة]\n"+plain;
+    c.timeline=c.timeline||[];c.timeline.push({id:uid(),date:today(),text:"أُضيفت مسودة من المحقق الذكي إلى "+({findings:"النتائج",actions:"الإجراءات",summary:"الملخص"})[f]});
+    put("cases",c).then(function(){flash(true,"أُضيفت المسودة إلى القضية. راجعها وعدّلها قبل الاعتماد.")});return render()}
+  if(a==="newas"){S.as={id:"",tri:{pr:1,op:1,ra:1},flags:{}};return render()}
+  if(a==="openas"){S.as=JSON.parse(JSON.stringify(S.assess[b.dataset.id]));return render()}
+  if(a==="backas"){S.as=null;return render()}
+  if(a==="saveas"){var o=readAs(S.as);if(!o.entity){flash(false,"اكتب اسم الجهة.");return}if(!o.id){o.id=uid();o.created=new Date().toISOString()}S.assess[o.id]=o;S.as=o;put("assess",o).then(function(){flash(true,"حُفظ التقييم.")});return render()}
+  if(a==="delas"){var id=S.as&&S.as.id;if(!id)return;if(b.dataset.ok!=="1"){b.dataset.ok="1";b.textContent="تأكيد الحذف";return}del("assess",id);delete S.assess[id];S.as=null;return render()}
+  if(a==="analyze"){S.tool.text=val("t-text");S.tool.thr=val("t-thr");S.tool.rows=parseRows(S.tool.text);S.tool.res=analyze(S.tool.rows,num(S.tool.thr));return render()}
+  if(a==="clear"){S.tool={text:"",thr:"",res:null,rows:[]};return render()}
+  if(a==="attach"){var cc=S.cases[val("t-case")];if(!cc||!S.tool.res)return;cc.evidence=cc.evidence||[];cc.evidence.push({id:uid(),desc:summary(S.tool.res),type:"ملف رقمي",src:"فحص جنائي في المنصة",by:"",date:today()});cc.timeline=cc.timeline||[];cc.timeline.push({id:uid(),date:today(),text:"أُجري فحص جنائي للبيانات وسُجّل ملخصه في الأدلة"});put("cases",cc).then(function(){flash(true,"أُضيف ملخص الفحص إلى أدلة القضية "+cc.no+".")});return}
+});
+document.addEventListener("change",function(e){
+  var t=e.target;
+  if(t.dataset&&t.dataset.act==="tdone"){var cc=S.cases[S.cur];if(cc&&cc.tasks&&cc.tasks[+t.dataset.i]){cc.tasks[+t.dataset.i].done=t.checked;put("cases",cc);render()}return}
+  if(t.id==="fsev"){S.fl.sev=t.value;return render()}if(t.id==="ftype"){S.fl.type=t.value;return render()}if(t.id==="fsort"){S.fl.sort=t.value;return render()}
+  if(t.dataset&&t.dataset.live)return liveScore();
+  if(t.dataset&&t.dataset.ctl){var k=t.dataset.ctl;S.ctl[k]=Object.assign({},S.ctl[k]);S.ctl[k][t.dataset.f]=t.value;putCtl();if(t.dataset.f==="st")render();return}
+  if(t.id==="fs"){S.fs=t.value;render()}
+});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&S.view)closeView()});
+document.addEventListener("input",function(e){var i=e.target&&e.target.id;if(S.cur&&i&&/^c-/.test(i))S.dirty=true});
+document.addEventListener("input",function(e){if(e.target.id==="q"){S.q=e.target.value;var p=e.target.selectionStart;render();var q=$("q");if(q){q.focus();try{q.setSelectionRange(p,p)}catch(x){}}}});
+
+/* ---------- البدء ---------- */
+function init(){
+  render();
+  Promise.all([claude.use("db"),claude.use("downloads"),claude.use("sample").catch(function(){return null}),claude.use("assets").catch(function(){return null})]).then(function(r){
+    S.db=r[0];S.dl=r[1];S.sample=r[2];S.assets=r[3];
+    if(!S.db){S.loaded=true;flash(false,"قاعدة البيانات غير متاحة. افتح المنصة وأنت مسجّل الدخول.");render();return}
+    var got={cases:0,assess:0,ctl:0},fin=function(k){if(!got[k]){got[k]=1}if(got.cases&&got.assess&&got.ctl&&!S.loaded){S.loaded=true;render()}};
+    var snap=function(coll,key,tgt){S.db.collection(coll).onSnapshot(function(q){var m={};q.docs.forEach(function(d){m[d.id]=d.data()});S[tgt]=m;fin(key);if(S.loaded&&!busyTyping()&&!S.hashing)render()},function(){fin(key);S.msg="تعذّرت قراءة البيانات.";render()})};
+    snap("cases","cases","cases");snap("assess","assess","assess");
+    S.db.doc("ctl/main").onSnapshot(function(d){S.ctl=(d.exists&&d.data())||{};fin("ctl");if(S.loaded&&!busyTyping())render()},function(){fin("ctl")});
+  }).catch(function(){S.loaded=true;flash(false,"تعذّر الاتصال بقاعدة البيانات.");render()});
+}
+init();
+})();
+</script>
+</body></html>

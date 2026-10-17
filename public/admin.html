@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>تمام برو | حسابات المنصة</title>
+<link rel="stylesheet" href="/vendor/fonts.css">
+<style>
+:root{--bg:#F1F4F2;--surface:#fff;--ink:#13231E;--muted:#56675F;--line:#D5DEDA;--brand:#0D6B56;--bad:#AE2E25}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1815;--surface:#16231F;--ink:#EDF4F1;--muted:#A3BCB3;--line:#24554A;--brand:#2FB391;--bad:#F2988F}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px "IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif}
+header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--line)}
+h1{margin:0;font:600 18px "Readex Pro","IBM Plex Sans Arabic",sans-serif}
+main{max-width:860px;margin:20px auto;padding:0 16px}
+section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;overflow-x:auto}
+h2{margin:0 0 12px;font-size:16px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;text-align:right;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:500}
+input,select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+button,a.btn{padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;text-decoration:none}
+button.p{background:var(--brand);border-color:var(--brand);color:#fff}
+form{display:flex;flex-wrap:wrap;gap:8px}
+#msg{color:var(--bad);min-height:1.4em}
+</style>
+</head>
+<body>
+<header><h1>حسابات المنصة</h1><div><a class="btn" href="/">المنصة</a> <button id="out">خروج</button></div></header>
+<main>
+  <section><h2>المستخدمون</h2>
+    <table><thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>الحالة</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  </section>
+  <section><h2>إضافة مستخدم</h2>
+    <form id="add">
+      <input id="n" placeholder="الاسم الكامل" required>
+      <input id="u" placeholder="اسم المستخدم" dir="ltr" required>
+      <input id="p" type="password" placeholder="كلمة المرور (8 أحرف+)" dir="ltr" minlength="8" required>
+      <select id="r"><option value="member">عضو</option><option value="owner">مالك</option></select>
+      <button class="p">إضافة</button>
+    </form>
+  </section>
+  <div id="msg" role="alert"></div>
+</main>
+<script>
+var $=function(i){return document.getElementById(i)};
+function call(m,u,b){return fetch(u,{method:m,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(r.status===401){location.href='/login.html'}if(!r.ok)throw new Error(j.error||'خطأ');return j})})}
+function msg(t){$('msg').textContent=t||''}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function load(){call('GET','/api/admin/users').then(function(j){
+  $('rows').innerHTML=j.users.map(function(u){return '<tr><td>'+esc(u.name)+'</td><td dir="ltr">'+esc(u.username)+'</td><td>'+(u.role==='owner'?'مالك':'عضو')+'</td><td>'+(u.active?'فعّال':'موقوف')+'</td><td>'+
+   '<button data-a="t" data-id="'+u.id+'" data-v="'+(u.active?0:1)+'">'+(u.active?'إيقاف':'تفعيل')+'</button> <button data-a="p" data-id="'+u.id+'">كلمة مرور جديدة</button></td></tr>'}).join('')
+}).catch(function(e){msg(e.message)})}
+$('rows').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;msg('');
+  var body;if(b.dataset.a==='t')body={active:b.dataset.v==='1'};else{var p=prompt('كلمة المرور الجديدة (8 أحرف على الأقل)');if(!p)return;body={password:p}}
+  call('PATCH','/api/admin/users/'+b.dataset.id,body).then(load).catch(function(x){msg(x.message)})});
+$('add').addEventListener('submit',function(e){e.preventDefault();msg('');
+  call('POST','/api/admin/users',{name:$('n').value,username:$('u').value,password:$('p').value,role:$('r').value}).then(function(){$('add').reset();load()}).catch(function(x){msg(x.message)})});
+$('out').onclick=function(){call('POST','/api/auth/logout').then(function(){location.href='/login.html'})};
+load();
+</script>
+</body>
+</html>
