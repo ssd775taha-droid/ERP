@@ -8,7 +8,7 @@ const net = require('node:net');
 const path = require('node:path');
 
 const port = process.env.PORT || '3000';
-const env = { ...process.env, PORT: port, COOKIE_SECURE: '1', TRUST_PROXY: '1' };
+const env = { ...process.env, PORT: port, COOKIE_SECURE: '1', TRUST_PROXY: '1', HOST: '127.0.0.1' };
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'data');
 
