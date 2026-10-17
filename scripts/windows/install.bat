@@ -11,6 +11,9 @@ rem Auto-start at Windows logon: a tiny VBS file in the Startup folder runs run.
 > "%ST%" echo Set sh = CreateObject("WScript.Shell")
 >> "%ST%" echo sh.Run """%RB%""", 0, False
 if not exist "%ST%" goto nostartup
+rem Second method: Windows scheduled task at logon (more reliable than the Startup folder alone)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0register-task.ps1" -Vbs "%ST%"
+if errorlevel 1 echo WARNING: scheduled task could not be created (the Startup file is still in place).
 rem Desktop shortcut
 > "%USERPROFILE%\Desktop\TamamPro.url" echo [InternetShortcut]
 >> "%USERPROFILE%\Desktop\TamamPro.url" echo URL=http://localhost:3000
