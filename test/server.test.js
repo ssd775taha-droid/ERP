@@ -22,7 +22,7 @@ async function boot() {
   };
   const db = (b) => call('POST', '/api/db', b);
   const close = () => { http.closeAllConnections(); http.close(); srv.close(); };
-  return { call, db, close, clear: () => { cookie = ''; } };
+  return { call, db, close, base, cookie: () => cookie, clear: () => { cookie = ''; } };
 }
 
 const OWNER = { username: 'owner', name: 'مالك', password: 'password123' };
@@ -176,4 +176,27 @@ test('وكيل المساعد الذكي: مفتاح مخفي، تحقق، وإ�
     for (const x of srvs) { x.http.closeAllConnections(); x.http.close(); x.s.close(); }
     mock.closeAllConnections(); mock.close();
   }
+});
+
+test('الأمان: تلويث النموذج الأولي، CSRF، حجم الطلب قبل الدخول، تحديد المحاولات', async () => {
+  const t = await boot();
+  try {
+    await t.call('POST', '/api/auth/setup', OWNER);
+    await t.db({ op: 'set', path: 'm/x/docs/d1', data: { a: 1 } });
+    assert.equal((await t.db({ op: 'update', path: 'm/x/docs/d1', data: { '__proto__.polluted': 1 } })).status, 400);
+    assert.equal({}.polluted, undefined);
+
+    const csrf = await fetch(`${t.base}/api/db`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example', cookie: t.cookie() }, body: JSON.stringify({ op: 'get', path: 'm/x/docs/d1' }) });
+    assert.equal(csrf.status, 403);
+    const big = await fetch(`${t.base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'a', password: 'x'.repeat(50000) }) });
+    assert.equal(big.status, 413);
+    const h = (await fetch(`${t.base}/login.html`)).headers;
+    assert.match(h.get('content-security-policy'), /frame-ancestors/);
+
+    t.clear();
+    let last;
+    for (let i = 0; i < 6; i++) last = await t.call('POST', '/api/auth/login', { username: 'owner', password: 'wrong-password' });
+    assert.equal(last.status, 429);
+    assert.equal((await t.call('POST', '/api/auth/login', { username: 'owner', password: OWNER.password })).status, 429);
+  } finally { t.close(); }
 });

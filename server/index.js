@@ -22,18 +22,36 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
   const notify = (p) => { for (const c of clients) c.write(`data: ${JSON.stringify({ path: p })}\n\n`); };
 
   app.disable('x-powered-by');
-  app.set('trust proxy', process.env.TRUST_PROXY === '1');
+  // خطوة وكيل واحدة فقط (الوكيل/النفق): نقرأ آخر عنوان في X-Forwarded-For فلا يستطيع المهاجم تزييف عنوانه لتجاوز تحديد المحاولات
+  app.set('trust proxy', process.env.TRUST_PROXY === '1' ? 1 : false);
   app.use((req, res, next) => {
-    res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN' });
+    res.set({
+      'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN',
+      'Cross-Origin-Opener-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+      'Content-Security-Policy': "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
+    });
+    if (secureCookie) res.set('Strict-Transport-Security', 'max-age=15552000');
+    // صفحات وبيانات المنصة خاصة: لا تُخزَّن في ذاكرة وسيطة
+    if (!req.path.startsWith('/vendor/') && !req.path.startsWith('/brand/')) res.set('Cache-Control', 'no-store');
     next();
   });
-  app.use(express.json({ limit: '25mb' }));
+  // قبل تسجيل الدخول: حجم صغير فقط، فلا يستطيع زائر مجهول إرسال 25 ميغابايت
+  app.use('/api/auth', express.json({ limit: '10kb' }));
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD' && !req.is('application/json')) return next(httpError(415, 'يلزم JSON'));
+    // حماية CSRF: الطلبات المغيِّرة يجب أن تأتي من نفس الموقع
+    const origin = req.headers.origin;
+    if (origin && req.method !== 'GET' && req.method !== 'HEAD') {
+      let ok = false;
+      try { ok = new URL(origin).host === req.headers.host; } catch { /* origin غير صالح */ }
+      if (!ok) return next(httpError(403, 'طلب مرفوض (مصدر غير مطابق)'));
+    }
     req.token = cookie(req, 'sid');
     req.user = auth.fromToken(req.token);
     next();
   });
+  // الحجم الكبير (حتى 25 ميغابايت) للمستخدمين المسجّلين فقط
+  app.use((req, res, next) => (req.user ? express.json({ limit: '25mb' })(req, res, next) : next()));
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   const needUser = (req, res, next) => (req.user ? next() : next(httpError(401, 'يلزم تسجيل الدخول')));
@@ -137,7 +155,7 @@ if (require.main === module) {
   if (process.env.BACKUP !== '0') {
     schedule(store, process.env.BACKUP_DIR || path.join(path.dirname(file), 'backups'), { keep: Number(process.env.BACKUP_KEEP) || 14 });
   }
-  app.listen(port, () => console.log(`تمام برو يعمل على http://localhost:${port}`));
+  app.listen(port, process.env.HOST || undefined, () => console.log(`تمام برو يعمل على http://localhost:${port}`));
 }
 
 module.exports = { createApp };

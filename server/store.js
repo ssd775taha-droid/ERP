@@ -33,6 +33,8 @@ function getField(obj, field) {
 }
 function setField(obj, field, value) {
   const ks = String(field).split('.');
+  // منع تلويث Object.prototype عبر مفاتيح مثل __proto__
+  if (ks.some((k) => k === '__proto__' || k === 'constructor' || k === 'prototype')) throw httpError(400, 'اسم حقل غير مسموح');
   let o = obj;
   for (const k of ks.slice(0, -1)) {
     if (o[k] == null || typeof o[k] !== 'object') o[k] = {};
