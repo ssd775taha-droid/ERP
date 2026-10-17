@@ -4,6 +4,7 @@
 // يتطلب تثبيت cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const net = require('node:net');
 const path = require('node:path');
 
 const port = process.env.PORT || '3000';
@@ -17,18 +18,32 @@ if (probe.error || probe.status !== 0) {
   process.exit(1);
 }
 
+// نتأكد أن المنفذ فارغ: نسخة قديمة عالقة تعني أن المتصفح والنفق قد يصلان إلى قاعدتي بيانات مختلفتين
+function portBusy(host) {
+  return new Promise((resolve) => {
+    const c = net.connect({ port: Number(port), host });
+    c.once('connect', () => { c.destroy(); resolve(true); });
+    c.once('error', () => resolve(false));
+  });
+}
+
 let token = (process.env.TUNNEL_TOKEN || '').trim();
 if (!token) {
   try { token = fs.readFileSync(path.join(dataDir, 'tunnel-token.txt'), 'utf8').trim(); } catch { /* لا رمز: نفق مؤقت */ }
 }
 
+async function main() {
+if ((await portBusy('127.0.0.1')) || (await portBusy('::1'))) {
+  console.error(`المنفذ ${port} مشغول بنسخة أخرى من المنصة. أغلقها أولًا (taskkill /f /im node.exe /im cloudflared.exe) ثم أعد التشغيل.`);
+  process.exit(3);
+}
 let stopping = false;
 const app = spawn(process.execPath, ['server/index.js'], { cwd: root, env, stdio: 'inherit' });
 
 function startTunnel() {
   const args = token
     ? ['tunnel', '--no-autoupdate', 'run', '--token', token]
-    : ['tunnel', '--no-autoupdate', '--url', `http://localhost:${port}`];
+    : ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`];
   const t = spawn('cloudflared', args, { stdio: ['ignore', 'ignore', 'pipe'] });
   let shown = false;
   t.stderr.on('data', (d) => {
@@ -54,3 +69,5 @@ const stop = () => { stopping = true; app.kill(); tunnel.kill(); process.exit(0)
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 app.on('exit', stop);
+}
+main();
