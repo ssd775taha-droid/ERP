@@ -2,18 +2,16 @@ const path = require('node:path');
 const express = require('express');
 const { Store, httpError } = require('./store');
 const { Auth } = require('./auth');
-const { schedule } = require('./backup');
-const { createAi } = require('./ai');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
-const OPEN = [/^\/healthz$/, /^\/theme\.css$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
+const OPEN = [/^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
 
 function cookie(req, name) {
   const m = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(`${name}=`));
   return m ? decodeURIComponent(m.slice(name.length + 1)) : null;
 }
 
-function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite'), secureCookie = process.env.COOKIE_SECURE === '1' } = {}) {
+function createApp({ dbFile = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite'), secureCookie = process.env.COOKIE_SECURE === '1' } = {}) {
   if (dbFile !== ':memory:') require('node:fs').mkdirSync(path.dirname(dbFile), { recursive: true });
   const store = new Store(dbFile);
   const auth = new Auth(store);
@@ -42,11 +40,6 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
     res.set('Set-Cookie', `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`);
 
   app.get('/favicon.ico', (req, res) => res.redirect(301, '/favicon.svg'));
-
-  app.get('/healthz', (req, res) => {
-    store.db.prepare('SELECT 1').get();
-    res.json({ ok: true });
-  });
 
   // ---- المصادقة ----
   app.get('/api/auth/state', (req, res) => res.json({ needsSetup: auth.userCount() === 0, user: req.user }));
@@ -97,12 +90,6 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
     for (const u of auth.list()) if (ids.includes(u.id)) out[u.id] = { name: u.name, avatarUrl: '' };
     res.json({ profiles: out });
   });
-  app.get('/api/ai/status', needUser, (req, res) => res.json({ enabled: ai.enabled() }));
-  app.post('/api/ai', needUser, wrap(async (req, res) => {
-    const ctl = new AbortController();
-    res.on('close', () => { if (!res.writableEnded) ctl.abort(); });
-    res.json(await ai.ask(req.user.id, req.body, ctl.signal));
-  }));
   app.get('/api/events', needUser, (req, res) => {
     res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.write('retry: 2000\n\n');
@@ -132,11 +119,7 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
-  const { app, store } = createApp();
-  const file = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite');
-  if (process.env.BACKUP !== '0') {
-    schedule(store, process.env.BACKUP_DIR || path.join(path.dirname(file), 'backups'), { keep: Number(process.env.BACKUP_KEEP) || 14 });
-  }
+  const { app } = createApp();
   app.listen(port, () => console.log(`تمام برو يعمل على http://localhost:${port}`));
 }
 

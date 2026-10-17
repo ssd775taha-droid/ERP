@@ -7,8 +7,6 @@ services:
       # فعّلهما عند التشغيل خلف HTTPS / وكيل عكسي
       COOKIE_SECURE: "0"
       TRUST_PROXY: "0"
-      # يفعّل المساعد الذكي في قسم المراجعة (اختياري)
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
     restart: unless-stopped
 volumes:
   erp-data:
