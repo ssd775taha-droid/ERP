@@ -36,6 +36,7 @@ p{margin:0}
 .bar{flex:none;background:var(--bar);color:var(--bar-ink);display:flex;align-items:center;gap:6px 14px;padding-inline:16px;min-height:50px}
 .brand{display:flex;align-items:center;gap:9px;background:none;border:0;padding:6px 0;font-family:var(--head);font-weight:700;font-size:17px;white-space:nowrap;color:var(--bar-ink)}
 .brand svg{flex:none;color:var(--brass)}
+.brand img{display:block;height:34px;width:auto;max-width:100%}
 .nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1;justify-content:flex-start;padding-block:6px}
 .nav::-webkit-scrollbar{display:none}
 .nav button{flex:none;background:transparent;border:1px solid transparent;color:var(--bar-mut);border-radius:9px;padding:4px 13px;font-weight:500;font-size:14.5px;min-height:36px;white-space:nowrap}
@@ -230,9 +231,7 @@ table.mx td,table.mx th,table.svt td,table.svt th{vertical-align:middle}
 
 <div dir="rtl" lang="ar" style="display:contents">
 <header class="bar">
-  <button class="brand" type="button" id="brand" data-go="home" aria-label="تمام برو، الصفحة الرئيسية">
-    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="23" height="23" rx="6" stroke="currentColor" stroke-width="2"/><path d="M7 13.5l4 4 8-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>تمام برو</span>
+  <button class="brand" type="button" id="brand" data-go="home" aria-label="تمام برو، الصفحة الرئيسية"><img src="/brand/logo-white.png" alt="تمام برو" height="34">
   </button>
   <button type="button" id="sbt" aria-label="طي القائمة الجانبية" title="طي / توسيع القائمة"><span class="sba">«</span><span class="sbl">طي القائمة</span></button>
   <nav class="nav" id="nav" aria-label="أقسام المنصة" hidden>

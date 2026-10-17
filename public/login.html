@@ -8,8 +8,8 @@
 <link rel="stylesheet" href="/vendor/fonts.css">
 <link rel="stylesheet" href="/theme.css">
 <style>
-:root{--bg:#F1F4F2;--surface:#fff;--ink:#13231E;--muted:#56675F;--line:#D5DEDA;--brand:#0B3C6E;--bad:#AE2E25;--bad-soft:#F8E2DF}
-@media (prefers-color-scheme:dark){:root{--bg:#0E1815;--surface:#16231F;--ink:#EDF4F1;--muted:#A3BCB3;--line:#24554A;--brand:#2FB391;--bad:#F2988F;--bad-soft:#3A1E1B}}
+:root{--bg:#F2F5F9;--surface:#fff;--ink:#0B2540;--muted:#54677D;--line:#D5DEE9;--brand:#0B3C6E;--bad:#AE2E25;--bad-soft:#F8E2DF}
+@media (prefers-color-scheme:dark){:root{--bg:#07121F;--surface:#0D1D31;--ink:#E4EDF7;--muted:#93A9C1;--line:#1F3855;--brand:#7DB4E6;--bad:#F2988F;--bad-soft:#3A1E1B}button{color:#06141F!important}}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px "IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif}
 main{width:min(400px,calc(100% - 32px));background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:28px}
@@ -21,7 +21,7 @@ input:focus{outline:2px solid var(--brand);outline-offset:1px}
 button{margin-top:20px;width:100%;padding:11px;border:0;border-radius:8px;background:var(--brand);color:#fff;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer}
 button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
-.brand img{width:32px;height:32px}
+.brand img.lg{width:auto;height:58px;max-width:100%}
 .brand h1{margin:0}
 button:disabled{opacity:.6;cursor:wait}
 #err{margin-top:14px;padding:10px 12px;border-radius:8px;background:var(--bad-soft);color:var(--bad);display:none}
@@ -29,7 +29,7 @@ button:disabled{opacity:.6;cursor:wait}
 </head>
 <body>
 <main>
-  <div class="brand"><img src="/favicon.svg" alt=""><h1>تمام برو</h1></div>
+  <div class="brand"><picture><source srcset="/brand/logo-white.png" media="(prefers-color-scheme:dark)"><img src="/brand/logo-color.png" alt="تمام برو" class="lg"></picture><h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">تمام برو</h1></div>
   <p id="sub">سجّل الدخول للمتابعة</p>
   <form id="f" autocomplete="on">
     <div id="nameRow" hidden><label for="name">الاسم الكامل</label><input id="name" autocomplete="name"></div>
