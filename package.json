@@ -8,6 +8,7 @@
     "start": "node server/index.js",
     "vendor": "node scripts/vendor.js",
     "backup": "node scripts/backup.js",
+    "share": "node scripts/share.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {
