@@ -4,19 +4,32 @@ if not exist data mkdir data
 where node >nul 2>&1
 if errorlevel 1 goto nonode
 if not exist node_modules call npm install --omit=dev
-set "LV=%~dp0launch.vbs"
-powershell -NoProfile -Command "$w=New-Object -ComObject WScript.Shell; $l=$w.CreateShortcut([Environment]::GetFolderPath('Startup')+'\TamamPro.lnk'); $l.TargetPath='wscript.exe'; $l.Arguments='\"'+$env:LV+'\"'; $l.Save(); $d=$w.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\TamamPro.url'); $d.TargetPath='http://localhost:3000'; $d.Save()"
+set "RB=%~dp0run.bat"
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "ST=%STARTUP%\TamamPro.vbs"
+rem Auto-start at Windows logon: a tiny VBS file in the Startup folder runs run.bat hidden
+> "%ST%" echo Set sh = CreateObject("WScript.Shell")
+>> "%ST%" echo sh.Run """%RB%""", 0, False
+if not exist "%ST%" goto nostartup
+rem Desktop shortcut
+> "%USERPROFILE%\Desktop\TamamPro.url" echo [InternetShortcut]
+>> "%USERPROFILE%\Desktop\TamamPro.url" echo URL=http://localhost:3000
 powercfg /change standby-timeout-ac 0 >nul 2>&1
 taskkill /f /im node.exe >nul 2>&1
-start "" wscript.exe "%LV%"
+wscript.exe "%ST%"
 timeout /t 8 /nobreak >nul
 start "" http://localhost:3000
 echo.
-echo DONE. Tamam Pro now runs in the background and starts with Windows.
+echo DONE. Tamam Pro runs in the background and starts by itself when you sign in to Windows.
+echo Auto-start file: %ST%
 echo Open it from the TamamPro shortcut on your Desktop or http://localhost:3000
 pause
 exit /b 0
 :nonode
 echo Node.js is not installed. Install it from https://nodejs.org then run this file again.
+pause
+exit /b 1
+:nostartup
+echo FAILED to create the auto-start file: %ST%
 pause
 exit /b 1
