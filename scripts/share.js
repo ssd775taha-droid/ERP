@@ -8,15 +8,13 @@ const net = require('node:net');
 const path = require('node:path');
 
 const port = process.env.PORT || '3000';
-const env = { ...process.env, PORT: port, COOKIE_SECURE: '1', TRUST_PROXY: '1', HOST: '127.0.0.1' };
+// بدون cloudflared (أو LOCAL_ONLY=1) تعمل المنصة على هذا الجهاز فقط عبر http://localhost
+const hasTunnel = process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
+const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: '127.0.0.1' };
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'data');
 
-const probe = spawnSync('cloudflared', ['--version'], { stdio: 'ignore' });
-if (probe.error || probe.status !== 0) {
-  console.error('cloudflared غير مثبّت. ثبّته أولًا (winget install Cloudflare.cloudflared على ويندوز، أو brew install cloudflared على ماك)، ثم أعد التشغيل.');
-  process.exit(1);
-}
+if (!hasTunnel) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
 
 // نتأكد أن المنفذ فارغ: نسخة قديمة عالقة تعني أن المتصفح والنفق قد يصلان إلى قاعدتي بيانات مختلفتين
 function portBusy(host) {
@@ -66,8 +64,8 @@ function startTunnel() {
   return t;
 }
 
-let tunnel = startTunnel();
-const stop = () => { stopping = true; app.kill(); tunnel.kill(); process.exit(0); };
+let tunnel = hasTunnel ? startTunnel() : null;
+const stop = () => { stopping = true; app.kill(); if (tunnel) tunnel.kill(); process.exit(0); };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 app.on('exit', stop);
