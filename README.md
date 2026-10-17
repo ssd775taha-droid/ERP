@@ -15,6 +15,12 @@ npm start            # http://localhost:3000
 
 Docker: `docker compose up -d --build` (البيانات في الوحدة `erp-data`).
 
+### تشغيل على جهازك مع رابط عام مجاني
+
+1. ثبّت Node 22 وcloudflared (ويندوز: `winget install Cloudflare.cloudflared`، ماك: `brew install cloudflared`).
+2. `npm install` ثم `npm run share`.
+3. يطبع الأمر رابطًا مثل `https://xxxx.trycloudflare.com`؛ شاركه مع من تريد. البيانات تُحفظ في `data/erp.sqlite` على جهازك، والرابط يتغيّر في كل تشغيل ويتوقف بإغلاق النافذة.
+
 ### نشر برابط عام (Render)
 
 1. ادمج الفرع في `main`، ثم من Render: **New > Blueprint** واختر المستودع (يقرأ `render.yaml`).
