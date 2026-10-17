@@ -150,7 +150,7 @@
     isOwner: function () { return who().then(function (u) { return u.role === 'owner'; }); },
     profiles: function (ids) { return api('/api/profiles', { ids: ids }).then(function (r) { return r.profiles; }); },
     can: function () { return Promise.resolve(true); },
-    me: function () { return who().then(function (u) { return { id: u.id, name: u.name, avatarUrl: '' }; }); }
+    me: function () { return who().then(function (u) { return { id: u.id, username: u.username, name: u.name, role: u.role, avatarUrl: '' }; }); }
   };
   var downloads = {
     save: function (o) {

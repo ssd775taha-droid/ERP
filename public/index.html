@@ -1,6 +1,7 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <title>تمام برو</title>
+<script>window.__tpSrv=true</script>
 <script src="/claude-shim.js"></script>
 <link rel="stylesheet" href="/vendor/fonts.css">
 <style>
@@ -383,6 +384,7 @@ function start(k){
   go(w&&(w==="home"||can(w))?w:"home",h);
 }
 function logout(m){
+  if(window.__tpSrvMode){var go2=function(){location.href="/login.html"};fetch("/api/auth/logout",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:"{}"}).then(go2,go2);return}
   C.me=null;window.__tpAuth=false;unsubClients();try{if(BRU)BRU()}catch(e){}BRU=null;BRD=null;BRL=false;try{if(TKU)TKU()}catch(e){}TKU=null;TKM={};
   try{sessionStorage.removeItem("tpp.sess");sessionStorage.removeItem("mizan.in");sessionStorage.removeItem("tp.sess")}catch(e){}
   HC={};Object.keys(fr).forEach(function(k){clearTimeout(tm[k]);try{fr[k].contentWindow.__tpDispose()}catch(e){}if(fr[k].parentNode)fr[k].parentNode.removeChild(fr[k]);delete fr[k];delete st[k]});
@@ -1182,10 +1184,25 @@ function onAccts(q){
     var k=C.me.key;C.me=Object.assign({key:k},a);paintBar();if(MODS[cur]&&!can(cur))go("home");if(cur==="users")usersView();return}
   if(!first){if(C.view==="nosetup"&&Object.keys(m).length)authView("login");return}
   var r=readRoute();C.want=r[0];C.wantHash=r[1];
+  if(srvStart(m))return;
   if(!Object.keys(m).length)return authView(C.owner?"setup":"nosetup");
   var s=sessGet();
   if(s&&m[s.k]&&m[s.k].active!==false&&!m[s.k].must)return start(s.k);
   authView("login");
+}
+/* دخول موحّد: حساب الخادم هو الهوية، ويُنشأ حساب القسم المقابل له تلقائياً عند أول دخول */
+function srvStart(m){
+  var u=C.user;if(!u||!u.me||!window.__tpSrv)return false;
+  u.me().then(function(p){
+    var k=ukey(p.username||"");if(!okUser(k))k="u"+String(p.id||"").replace(/[^a-z0-9]/gi,"").slice(0,12).toLowerCase();
+    var a=m[k],own=!!C.owner;
+    window.__tpSrvMode=true;
+    if(a&&a.active===false){C.msg="هذا الحساب موقوف. راجع مالك النظام.";return authView("err")}
+    if(a&&(a.role==="owner"||!own)){return start(k)}
+    var d=a?Object.assign({},a,{role:"owner",mods:ALL.slice()}):{user:k,name:p.name,role:own?"owner":"staff",mods:own?ALL.slice():[],active:true,must:false,fails:0,lockUntil:"",createdAt:now()};
+    return acc(k).set(d).then(function(){C.accts[k]=d;logIn(k,true);start(k)});
+  }).catch(function(er){C.msg=saveErr(er);authView("err")});
+  return true;
 }
 function init(){
   C.msg="";authView("boot");
