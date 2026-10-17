@@ -1,0 +1,15 @@
+# نشر مجاني على Render: Dashboard > New > Blueprint > اختر المستودع، ثم في "Blueprint Path" اكتب render.free.yaml.
+# تنبيه: الخطة المجانية بلا قرص دائم، فتضيع البيانات عند كل إعادة نشر أو إعادة تشغيل، والخدمة تنام بعد 15 دقيقة بلا استخدام.
+services:
+  - type: web
+    name: tamam-pro
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ANTHROPIC_API_KEY
+        sync: false
