@@ -6,5 +6,5 @@ echo %date% %time% run.bat started >> data\startup.log
 :loop
 node scripts\share.js >> data\server.log 2>&1
 if %errorlevel%==3 exit /b 3
-timeout /t 10 /nobreak >nul
+ping -n 11 127.0.0.1 >nul
 goto loop
