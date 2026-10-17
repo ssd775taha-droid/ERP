@@ -42,12 +42,14 @@ const app = spawn(process.execPath, ['server/index.js'], { cwd: root, env, stdio
 
 function startTunnel() {
   const args = token
-    ? ['tunnel', '--no-autoupdate', 'run', '--token', token]
-    : ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`];
+    ? ['tunnel', '--no-autoupdate', '--protocol', 'http2', 'run', '--token', token]
+    : ['tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', `http://127.0.0.1:${port}`];
   const t = spawn('cloudflared', args, { stdio: ['ignore', 'ignore', 'pipe'] });
   let shown = false;
   t.stderr.on('data', (d) => {
     const s = String(d);
+    // نطبع أخطاء النفق ليظهر سببها في data\\server.log
+    if (/\bERR\b|error|failed/i.test(s)) console.error('[cloudflared] ' + s.trim().split('\n').slice(-2).join(' | '));
     if (token) {
       if (!shown && /Registered tunnel connection/.test(s)) { shown = true; console.log('\nالنفق متصل: الموقع متاح على النطاق الذي ضبطته في Cloudflare.\n'); }
       return;
