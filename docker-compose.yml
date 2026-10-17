@@ -1,0 +1,12 @@
+services:
+  erp:
+    build: .
+    ports: ["3000:3000"]
+    volumes: ["erp-data:/data"]
+    environment:
+      # فعّلهما عند التشغيل خلف HTTPS / وكيل عكسي
+      COOKIE_SECURE: "0"
+      TRUST_PROXY: "0"
+    restart: unless-stopped
+volumes:
+  erp-data:

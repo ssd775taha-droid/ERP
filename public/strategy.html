@@ -1,0 +1,867 @@
+<!doctype html><html><head><script>(function(){
+var MOD="strategy",PRE="m/strategy/";
+var P=null;try{if(window.parent&&window.parent!==window&&window.parent.document)P=window.parent}catch(e){P=null}
+window.__tpH=window.__tpH||"";
+if(!P)return;
+function syncTheme(){try{var t=P.document.documentElement.getAttribute("data-theme"),r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme")}catch(e){}}
+syncTheme();
+try{if(P.__tpAuth){
+  if(MOD==="gov"&&!/^#p-/.test(String(location.hash||window.__tpH||"")))sessionStorage.setItem("mizan.in","1");
+  if(MOD==="audit"&&P.__tpUid)sessionStorage.setItem("tp.sess",JSON.stringify({uid:P.__tpUid,t:Date.now()}));
+}}catch(e){}
+["pointerdown","keydown"].forEach(function(ev){document.addEventListener(ev,function(){try{P.__tpAct&&P.__tpAct()}catch(e){}},{passive:true,capture:true})});
+try{new P.MutationObserver(syncTheme).observe(P.document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}
+var dead=false,unsubs=[];
+function sub(start){var u=start();unsubs.push(u);return u}
+window.__tpDispose=function(){dead=true;unsubs.forEach(function(u){try{u&&u()}catch(e){}});unsubs=[]};
+window.addEventListener("pagehide",window.__tpDispose);
+var fnMap=new WeakMap();
+function wrapCb(f){var w=fnMap.get(f);if(!w){w=function(){var r=f.apply(this,arguments);return r&&typeof r.then==="function"?r.then(toP):toP(r)};fnMap.set(f,w)}return w}
+function toP(x){
+  if(typeof x==="function")return wrapCb(x);
+  if(x===null||typeof x!=="object")return x;
+  try{
+    if(typeof File!=="undefined"&&x instanceof File)return new P.File([x],x.name,{type:x.type,lastModified:x.lastModified});
+    if(typeof Blob!=="undefined"&&x instanceof Blob)return new P.Blob([x],{type:x.type});
+    if(x instanceof ArrayBuffer)return new P.Uint8Array(new Uint8Array(x)).buffer;
+    if(ArrayBuffer.isView(x)){var C=P[x.constructor&&x.constructor.name];if(C&&x.constructor.name!=="DataView")return new C(x);return new P.Uint8Array(new Uint8Array(x.buffer,x.byteOffset,x.byteLength))}
+    if(typeof AbortSignal!=="undefined"&&x instanceof AbortSignal){var c=new P.AbortController();if(x.aborted)c.abort(x.reason);else x.addEventListener("abort",function(){c.abort(x.reason)},{once:true});return c.signal}
+    if(x instanceof Date)return new P.Date(+x);
+    if(Array.isArray(x)){var a=new P.Array();for(var i=0;i<x.length;i++)a.push(toP(x[i]));return a}
+    var pr=Object.getPrototypeOf(x);
+    if(pr===Object.prototype||pr===null){var o=new P.Object();Object.keys(x).forEach(function(k){o[k]=toP(x[k])});return o}
+  }catch(e){}
+  return x;
+}
+function args(a){return Array.prototype.map.call(a,toP)}
+function wrapNs(ns){
+  if(ns===null||(typeof ns!=="object"&&typeof ns!=="function"))return ns;
+  var isF=typeof ns==="function",memo={};
+  return new Proxy(isF?function(){}:{},{
+    get:function(_,k){var v=ns[k];if(typeof v!=="function")return v;if(!memo[k])memo[k]=function(){return v.apply(ns,args(arguments))};return memo[k]},
+    has:function(_,k){return k in ns},
+    apply:function(_,t,a){return ns.apply(undefined,args(a))}
+  });
+}
+function cp(d){if(d===undefined||d===null)return d;try{return structuredClone(d)}catch(e){return JSON.parse(JSON.stringify(d))}}
+function wSnap(s){return {id:s.id,exists:s.exists,metadata:s.metadata,data:function(){return cp(s.data())}}}
+function wQS(q){return {docs:Array.prototype.map.call(q.docs,wSnap),size:q.size,empty:q.empty,metadata:q.metadata,docChanges:function(){return Array.prototype.map.call(q.docChanges(),function(c){return {type:c.type,doc:wSnap(c.doc),oldIndex:c.oldIndex,newIndex:c.newIndex}})}}}
+function strip(p){p=String(p||"");return p.indexOf(PRE)===0?p.slice(PRE.length):p}
+function wDoc(r){return {id:r.id,path:strip(r.path),
+  get:function(){return Promise.resolve(r.get()).then(wSnap)},
+  set:function(d){return Promise.resolve(r.set(toP(d)))},
+  update:function(d){return Promise.resolve(r.update(toP(d)))},
+  delete:function(){return Promise.resolve(r.delete())},
+  acquire:function(o){return Promise.resolve(r.acquire(toP(o)))},
+  onSnapshot:function(n,e){return sub(function(){return r.onSnapshot(function(s){if(!dead)n(wSnap(s))},e?function(er){if(!dead)e(er)}:undefined)})},
+  collection:function(p){return wCol(r.collection(p))}}}
+function wQ(q,o){o=o||{};
+  o.where=function(f,op,v){return wQ(q.where(f,op,toP(v)))};
+  o.orderBy=function(f,d){return wQ(d===undefined?q.orderBy(f):q.orderBy(f,d))};
+  o.limit=function(n){return wQ(q.limit(n))};
+  o.get=function(){return Promise.resolve(q.get()).then(wQS)};
+  o.onSnapshot=function(n,e){return sub(function(){return q.onSnapshot(function(s){if(!dead)n(wQS(s))},e?function(er){if(!dead)e(er)}:undefined)})};
+  return o}
+function wCol(c){return wQ(c,{path:strip(c.path),
+  doc:function(id){return wDoc(id===undefined?c.doc():c.doc(String(id)))},
+  add:function(d){return Promise.resolve(c.add(toP(d))).then(wDoc)}})}
+function pre(p){p=String(p);if(p.indexOf("data/users/")===0||p==="data/users"){if(MOD!=="feas")return p;var a=p.split("/");return a.length<3?p:a.slice(0,3).concat(["feas","studies"],a.slice(3)).join("/")}return PRE+p}
+function wrapDb(db){return {doc:function(p){return wDoc(db.doc(pre(p)))},collection:function(p){return wCol(db.collection(pre(p)))}}}
+function parentClaude(){return new Promise(function(res){var n=0;(function t(){var c=null;try{c=P.claude&&P.claude.use?P.claude:null}catch(e){}if(c)return res(c);if(++n>30)return res(null);setTimeout(t,150)})()})}
+var memo={};
+window.claude={use:function(n){
+  if(!memo[n])memo[n]=parentClaude().then(function(c){if(!c)return null;return Promise.resolve(c.use(n)).then(function(ns){if(!ns)return null;return n==="db"?wrapDb(ns):wrapNs(ns)})}).catch(function(){return null});
+  return memo[n]}};
+try{P.__tpReady&&P.__tpReady(MOD,window)}catch(e){}
+})();
+</script><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>تمام برو للاستراتيجية</title>
+<link rel="stylesheet" href="/vendor/fonts.css">
+<style>
+/* Layout: شريط علوي لحالة الخطة، مسار مراحل جانبي يطابق مراحل النموذج، ومساحة عمل واحدة لكل مرحلة */
+:root{
+  --bg:#EEF1F3; --surface:#FFFFFF; --sunk:#E3E9EC; --ink:#13232B; --mut:#566972; --line:#CDD7DC;
+  --pri:#0D5C63; --pri-ink:#FFFFFF; --pri-soft:#DBECEE; --brass:#946610; --shade:rgba(19,35,43,.18);
+  --ok:#1C7448; --ok-soft:#DDF0E5; --warn:#9A5B06; --warn-soft:#FBEBCF; --bad:#AE342C; --bad-soft:#F8DEDB;
+  --display:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F181D; --surface:#17232A; --sunk:#101A20; --ink:#E6EEF1; --mut:#96A9B2; --line:#2C3D46;
+  --pri:#55BAC2; --pri-ink:#05262A; --pri-soft:#173A40; --brass:#DCA945; --shade:rgba(0,0,0,.5);
+  --ok:#62C897; --ok-soft:#153426; --warn:#E6AB52; --warn-soft:#3A2B10; --bad:#F0867D; --bad-soft:#40201D;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0F181D; --surface:#17232A; --sunk:#101A20; --ink:#E6EEF1; --mut:#96A9B2; --line:#2C3D46;
+  --pri:#55BAC2; --pri-ink:#05262A; --pri-soft:#173A40; --brass:#DCA945; --shade:rgba(0,0,0,.5);
+  --ok:#62C897; --ok-soft:#153426; --warn:#E6AB52; --warn-soft:#3A2B10; --bad:#F0867D; --bad-soft:#40201D;
+  color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.75}
+.app{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:0 56px}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.5}
+h1{font-size:1.25rem} h2{font-size:1.2rem} h3{font-size:1rem} h4{font-size:.9rem;font-family:var(--body);font-weight:600}
+p{margin:0}
+.mut{color:var(--mut)} .sm{font-size:.84rem} .num{font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding-block:12px;margin-bottom:20px}
+.brand{display:flex;gap:10px;align-items:center;min-width:0;flex:1 1 240px}
+.mark{flex:none;width:34px;height:34px;border-radius:8px;background:var(--pri);position:relative}
+.mark::before,.mark::after{content:"";position:absolute;inset-inline-start:8px;bottom:8px;width:5px;background:var(--pri-ink);border-radius:1px}
+.mark::before{height:9px}.mark::after{height:18px;inset-inline-start:20px;box-shadow:6px 6px 0 -0px transparent}
+.brand b{font-family:var(--display);font-size:1rem;display:block;line-height:1.4}
+.brand span{display:block;font-size:.8rem;color:var(--mut);overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 12px;font-size:.8rem;font-weight:600;background:var(--sunk);color:var(--mut);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.pri{background:var(--pri-soft);color:var(--pri)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 14px;font-weight:500}
+.btn:hover{border-color:var(--pri)}
+.btn.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:600}
+.btn.ghost{background:transparent}
+.btn.sm{padding:3px 10px;font-size:.84rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.x{border:0;background:transparent;color:var(--mut);border-radius:6px;padding:2px 8px;font-size:1rem;line-height:1.4}
+.x:hover{background:var(--bad-soft);color:var(--bad)}
+
+/* editor shell */
+.shell{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
+.nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 84px);display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;gap:10px;align-items:center;text-align:start;border:0;background:transparent;border-radius:8px;padding:8px 10px;width:100%}
+.nav button:hover{background:var(--sunk)}
+.nav button[aria-current="true"]{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+.nav i{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:.8rem;font-weight:700;background:var(--sunk);color:var(--mut);font-variant-numeric:tabular-nums}
+.nav button.done i{background:var(--ok-soft);color:var(--ok)}
+.nav button.part i{background:var(--warn-soft);color:var(--warn)}
+.nav em{margin-inline-start:auto;font-style:normal;font-size:.75rem;color:var(--mut);font-variant-numeric:tabular-nums}
+.main{min-width:0;display:flex;flex-direction:column;gap:20px}
+.head{display:flex;flex-direction:column;gap:4px}
+.head p{color:var(--mut);max-width:70ch}
+.eyebrow{font-size:.78rem;font-weight:600;color:var(--brass);letter-spacing:.02em}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card>header{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:baseline}
+.hint{font-size:.84rem;color:var(--mut)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.grid2{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr))}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f>span{font-size:.78rem;color:var(--mut);font-weight:500}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 10px;width:100%;min-width:0}
+textarea{resize:vertical;line-height:1.7}
+input:disabled,textarea:disabled,select:disabled{opacity:1;background:transparent;border-color:transparent;padding-inline:0;resize:none;-webkit-appearance:none;appearance:none}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;align-items:flex-start}
+.row>.grow{flex:1 1 0;min-width:0}
+.row>.fix{flex:0 0 96px}
+.row.wrap{flex-wrap:wrap}
+.row.wrap>.grow{flex-basis:160px}
+.add{align-self:flex-start;border:1px dashed var(--line);background:transparent;border-radius:8px;padding:5px 14px;color:var(--pri);font-weight:600;font-size:.88rem}
+.add:hover{border-color:var(--pri);background:var(--pri-soft)}
+.locked .add,.locked .x,.locked .lockhide{display:none}
+.empty{border:1px dashed var(--line);border-radius:8px;padding:14px;color:var(--mut);font-size:.9rem}
+
+/* swot */
+.quad{border-top:3px solid var(--q,var(--line))}
+.quad.S{--q:var(--ok)} .quad.W{--q:var(--warn)} .quad.O{--q:var(--pri)} .quad.T{--q:var(--bad)}
+.tows{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}
+.tops{display:flex;flex-direction:column;gap:2px;font-size:.84rem;color:var(--mut);background:var(--sunk);border-radius:8px;padding:8px 12px}
+.tops b{color:var(--ink);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:1px 10px;font-size:.82rem;cursor:pointer;max-width:100%}
+.chip input{width:auto;accent-color:var(--pri)}
+.chip span{overflow-wrap:anywhere}
+.goal{border-inline-start:3px solid var(--pri)}
+.sub{background:var(--sunk);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.act{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.bar{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--pri);border-radius:4px}
+.bar.ok>i{background:var(--ok)} .bar.warn>i{background:var(--warn)} .bar.bad>i{background:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px}
+.stat{background:var(--sunk);border-radius:8px;padding:10px 14px}
+.stat b{display:block;font-family:var(--display);font-size:1.3rem;font-variant-numeric:tabular-nums;line-height:1.5}
+.stat span{font-size:.8rem;color:var(--mut)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:center;font-size:.9rem}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:start;vertical-align:top}
+th{background:var(--sunk);font-weight:600}
+.checks{display:flex;flex-direction:column;gap:6px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:.9rem}
+.check i{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:.72rem;font-weight:700;margin-top:3px}
+.check.y i{background:var(--ok-soft);color:var(--ok)} .check.n i{background:var(--warn-soft);color:var(--warn)} .check.c i{background:var(--bad-soft);color:var(--bad)}
+.check small{display:block;color:var(--mut)}
+.doc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:clamp(16px,4vw,40px);display:flex;flex-direction:column;gap:12px}
+.doc .cover{text-align:center;padding-block:28px;border-bottom:2px solid var(--pri);display:flex;flex-direction:column;gap:6px}
+.doc .cover b{font-family:var(--display);font-size:1.5rem}
+.doc h2{color:var(--pri);margin-top:14px}
+.doc h3{margin-top:6px}
+.doc p,.doc li{max-width:75ch}
+.doc ul{margin:0;padding-inline-start:22px}
+details>summary{cursor:pointer;font-weight:600}
+
+/* home */
+.plans{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
+.plan{text-align:start;cursor:pointer}
+.plan:hover{border-color:var(--pri)}
+.method{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px 28px}
+.method div{border-top:2px solid var(--line);padding-top:10px}
+.method b{display:block}
+.toast{position:fixed;inset-inline:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));margin-inline:auto;width:fit-content;max-width:calc(100% - 32px);background:var(--ink);color:var(--bg);border-radius:8px;padding:8px 14px;display:flex;gap:12px;align-items:center;z-index:9;font-size:.9rem}
+.toast button{background:transparent;border:0;color:inherit;text-decoration:underline;font-weight:600}
+.ai{position:fixed;inset-block:0;inset-inline-end:0;width:min(430px,100%);z-index:8;background:var(--surface);border-inline-start:1px solid var(--line);
+  box-shadow:0 0 40px var(--shade);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.ai>header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.ai>header small{display:block;color:var(--mut);font-size:.78rem;font-family:var(--body);font-weight:400}
+.ai-log{flex:1 1 0;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;flex-direction:column;gap:8px;max-width:100%;min-width:0}
+.msg.u{align-self:flex-start;background:var(--pri-soft);color:var(--ink);border-radius:10px 10px 10px 2px;padding:6px 12px;font-size:.9rem;max-width:88%}
+.msg.a>p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.92rem}
+.msg.err>p{color:var(--bad)}
+.prop{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}
+.prop.done{opacity:.6}
+.prop b{font-size:.74rem;color:var(--brass);font-weight:600}
+.prop p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9rem}
+.prop small{color:var(--mut);overflow-wrap:anywhere}
+.prop .btn{align-self:flex-start}
+.ai-tasks{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-top:1px solid var(--line)}
+.ai-tasks button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:2px 12px;font-size:.84rem}
+.ai-tasks button:hover:not(:disabled){border-color:var(--pri);color:var(--pri)}
+.ai-form{display:flex;gap:8px;padding:10px 16px 14px;align-items:flex-end}
+.ai-form textarea{flex:1 1 0}
+.think{display:flex;gap:10px;align-items:center;color:var(--mut);font-size:.88rem}
+.think i{width:8px;height:8px;border-radius:50%;background:var(--pri)}
+@media (prefers-reduced-motion:no-preference){.think i{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.25}}}
+.map-row{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:start;padding-block:10px;border-top:1px solid var(--line)}
+.map-row>b{font-size:.86rem;color:var(--brass)}
+.gchips{display:flex;flex-wrap:wrap;gap:8px}
+.gchip{border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:1 1 190px;max-width:340px;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:.88rem;background:var(--bg)}
+.gantt{min-width:620px;display:flex;flex-direction:column;gap:5px}
+.g-row{display:grid;grid-template-columns:210px minmax(0,1fr);gap:10px;align-items:center}
+.g-row>span{font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.g-row.grp>span{font-weight:600;white-space:normal}
+.g-years{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;font-size:.76rem;color:var(--mut);font-variant-numeric:tabular-nums}
+.g-years span{border-inline-start:1px solid var(--line);padding-inline-start:4px}
+.g-track{position:relative;height:16px;background:var(--sunk);border-radius:4px}
+.g-bar{position:absolute;top:2px;bottom:2px;border-radius:3px;background:var(--pri);min-width:4px}
+.g-bar.ok{background:var(--ok)} .g-bar.bad{background:var(--bad)} .g-bar.idle{background:var(--mut)}
+.rm{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:4px;max-width:440px;font-size:.82rem}
+.rm div{padding:10px 6px;text-align:center;border-radius:6px}
+.rm .c{font-weight:700;font-variant-numeric:tabular-nums}
+.rm .c.ok{background:var(--ok-soft);color:var(--ok)} .rm .c.warn{background:var(--warn-soft);color:var(--warn)} .rm .c.bad{background:var(--bad-soft);color:var(--bad)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;color:var(--mut)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:5px;vertical-align:middle}
+/* وثيقة الطباعة: صفحات A4 بيضاء ثابتة الألوان عمداً، تُرسم خارج الشاشة ثم تُحوَّل إلى PDF */
+.pdf-host{position:fixed;top:0;left:-10000px;width:794px;direction:rtl}
+.pdf-page{width:794px;height:1123px;background:#fff;color:#16242b;padding:54px 60px 0;font-family:var(--body);font-size:13px;line-height:1.75;overflow:hidden}
+.pdf-body{height:1000px;overflow:hidden;display:flow-root}
+.pdf-foot{height:40px;margin-top:12px;border-top:1px solid #9aa9af;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:#55666e;font-variant-numeric:tabular-nums}
+.pdf-page h2{font-size:17px;color:#0d5c63;margin:12px 0 8px}
+.pdf-page h3{font-size:14px;color:#16242b;margin:10px 0 6px}
+.pdf-page p{margin:0 0 8px;color:#16242b}
+.pdf-page ul{margin:0 0 8px;padding-inline-start:22px}
+.pdf-page table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:11.5px;line-height:1.6;margin:0 0 12px}
+.pdf-page th,.pdf-page td{border:1px solid #8a9aa1;padding:5px 7px;text-align:start;vertical-align:top;color:#16242b;overflow-wrap:anywhere}
+.pdf-page th{background:#0d5c63;color:#fff;font-weight:600}
+.pdf-page .pdf-q{font-weight:600;font-size:14px;text-align:center;border:1px solid #0d5c63;padding:10px 14px;margin:4px 0 12px}
+.pdf-cover{height:1000px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;text-align:center}
+.pdf-cover span{font-size:20px;color:#0d5c63;font-weight:600}
+.pdf-cover b{font-family:var(--display);font-size:34px;line-height:1.6;color:#16242b}
+.pdf-cover i{font-style:normal;font-size:22px;font-variant-numeric:tabular-nums;border-top:2px solid #0d5c63;padding-top:12px;min-width:220px}
+.pdf-cover small{font-size:13px;color:#55666e}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .nav{position:static;flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .nav button{width:auto;white-space:nowrap;flex:none}
+  .nav em{display:none}
+  .map-row{grid-template-columns:minmax(0,1fr)}
+  .row.stack{flex-wrap:wrap}.row.stack>.grow{flex-basis:100%}
+}
+@media (prefers-reduced-motion:no-preference){.bar>i{transition:width .3s}}
+</style>
+
+<div class="app" dir="rtl" lang="ar" id="app"></div>
+<aside class="ai" id="ai" dir="rtl" lang="ar" aria-label="الوكيل الذكي" hidden>
+  <header><h3>الوكيل الذكي<small>يقترح، وأنت تقرر ما يدخل الخطة</small></h3><button type="button" class="x" id="ai-close" aria-label="إغلاق">×</button></header>
+  <div class="ai-log" id="ai-log" aria-live="polite"></div>
+  <div class="ai-tasks" id="ai-tasks"></div>
+  <form class="ai-form" id="ai-form"><textarea id="ai-in" rows="2" placeholder="اطلب من الوكيل: اقترح، راجع، صغ، حلّل..."></textarea><button type="submit" class="btn pri" id="ai-send">إرسال</button></form>
+</aside>
+<div class="toast" id="toast" dir="rtl" hidden></div>
+
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/html2canvas.min.js"></script>
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script>
+"use strict";
+/* ============ أدوات عامة ============ */
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const num=v=>{const n=parseFloat(String(v??'').replace(/,/g,''));return isFinite(n)?n:null};
+const money=n=>(n||0).toLocaleString('en-US',{maximumFractionDigits:0})+' ر.س';
+const today=()=>new Date().toISOString().slice(0,10);
+const words=s=>String(s||'').trim().split(/\s+/).filter(Boolean).length;
+const filled=s=>String(s??'').trim().length>0;
+
+const STAGES=[
+ {k:'prep', t:'التهيئة والإعداد', d:'التخطيط للتخطيط: الشركة، فريق الإعداد، أصحاب المصلحة، مصادر المعلومات والموارد المتاحة.'},
+ {k:'swot', t:'التحليل الاستراتيجي', d:'تحليل البيئة الداخلية والخارجية (SWOT) ثم دمج عناصرها في مصفوفة البدائل (TOWS).'},
+ {k:'dir',  t:'التوجهات الاستراتيجية', d:'الرؤية والرسالة والقيم والأهداف الاستراتيجية وأهدافها الفرعية، مبنية على بدائل مصفوفة الدمج.'},
+ {k:'exec', t:'الخطة التنفيذية', d:'ترجمة كل هدف فرعي إلى برامج وأنشطة بزمن ومسؤول وتكلفة ومؤشر أداء قابل للقياس.'},
+ {k:'mon',  t:'المتابعة والتقييم', d:'قياس المتحقق مقابل المستهدف، وتحديد مسؤول المتابعة والتقييم والمعالجات التصحيحية.'},
+ {k:'req',  t:'متطلبات التنفيذ', d:'المتطلبات البشرية والمالية والتكنولوجية والمادية والإدارية اللازمة لتنفيذ الخطة.'},
+ {k:'risk', t:'المشكلات والمعالجات', d:'التنبؤ بالمشكلات التي قد تواجه تنفيذ كل هدف، وتقدير أثرها، وبدائل معالجتها.'},
+ {k:'final',t:'المراجعة والاعتماد', d:'فحص جودة الخطة، سجل الإعداد والمراجعة والاعتماد، ووثيقة الخطة الجاهزة للتصدير.'}
+];
+const PERSP=['المالي','العملاء','العمليات الداخلية','التعلم والنمو'];
+const LVL=['منخفض','متوسط','عالٍ'];
+const ASTAT=['لم يبدأ','قيد التنفيذ','مكتمل','متأخر','متوقف'];
+const REQ={human:'المتطلبات البشرية',fin:'المتطلبات المالية',tech:'المتطلبات التكنولوجية',phys:'المتطلبات المادية',admin:'المتطلبات الإدارية'};
+const SW={S:['نقاط القوة','البيئة الداخلية','ما الذي تتقنه الشركة أفضل من منافسيها؟ ما الأصول والخبرات التي يصعب تقليدها؟'],
+          W:['نقاط الضعف','البيئة الداخلية','أين تتكرر الشكاوى أو التأخير أو الهدر؟ ما الذي ينقص الشركة مقارنة بالمنافسين؟'],
+          O:['الفرص','البيئة الخارجية','ما التغيرات في السوق أو الأنظمة أو المشاريع القادمة التي يمكن الاستفادة منها؟'],
+          T:['التهديدات','البيئة الخارجية','ما الذي قد يضر بالشركة من الخارج: منافسون، أسعار، أنظمة، تمويل، مورّدون؟']};
+const TW={SO:['استراتيجية هجومية','قوة + فرصة','استخدم نقاط القوة لاقتناص الفرص.','S','O'],
+          WO:['استراتيجية علاجية','ضعف + فرصة','عالج نقاط الضعف للاستفادة من الفرص.','W','O'],
+          ST:['استراتيجية دفاعية / تنافسية','قوة + تهديد','استخدم نقاط القوة لتحييد التهديدات.','S','T'],
+          WT:['استراتيجية انكماشية','ضعف + تهديد','قلّص نقاط الضعف وتجنّب التهديدات.','W','T']};
+const PEST={pol:'السياسية',eco:'الاقتصادية',soc:'الاجتماعية',tec:'التقنية',env:'البيئية',leg:'القانونية والتنظيمية'};
+const TPL={
+ pest:()=>({t:'',eff:'فرصة'}), read:()=>({d:today(),v:''}),
+ team:()=>({name:'',role:''}), stake:()=>({name:'',expect:'',power:'متوسط'}),
+ swot:()=>({id:uid(),t:'',w:'3'}), tows:()=>({id:uid(),t:''}), val:()=>({t:''}),
+ goal:()=>({id:uid(),t:'',persp:'',tows:[],subs:[],risks:[]}),
+ sub:()=>({id:uid(),t:'',acts:[]}),
+ act:()=>({id:uid(),t:'',start:'',end:'',owner:'',cost:'',kpi:'',unit:'',base:'',target:'',actual:'',reads:[],mon:'',evalr:'',status:'لم يبدأ',fix:''}),
+ risk:()=>({t:'',prob:'متوسط',imp:'متوسط',fix:''}), req:()=>({t:'',goal:'',owner:''})
+};
+function blank(){const y=new Date().getFullYear();return {id:'p'+Date.now().toString(36),name:'',sector:'',from:String(y),to:String(y+4),version:1,status:'draft',
+ intro:'',profile:'',team:[],stake:[],sources:'',res:{human:'',physical:'',financial:''},
+ pestel:{pol:[],eco:[],soc:[],tec:[],env:[],leg:[]},swot:{S:[],W:[],O:[],T:[]},tows:{SO:[],WO:[],ST:[],WT:[]},
+ vision:'',mission:{what:'',who:'',how:'',why:'',text:''},values:[],goals:[],
+ reqs:{human:[],fin:[],tech:[],phys:[],admin:[]},report:{label:'',notes:''},approval:{prepared:'',reviewed:'',approved:'',date:''},log:[],updatedAt:''}}
+function normalize(d){const b=blank(),p=Object.assign(b,JSON.parse(JSON.stringify(d||{})));
+ for(const k of ['report','res','pestel','swot','tows','mission','reqs','approval'])p[k]=Object.assign(blank()[k],p[k]||{});
+ for(const k of ['team','stake','values','goals','log'])if(!Array.isArray(p[k]))p[k]=[];
+ p.goals.forEach(g=>{g.id=g.id||uid();g.tows=g.tows||[];g.risks=g.risks||[];g.subs=g.subs||[];g.subs.forEach(s=>{s.id=s.id||uid();s.acts=(s.acts||[]).map(a=>{a=Object.assign(TPL.act(),a);if(!Array.isArray(a.reads))a.reads=[];return a})})});
+ return p}
+const allActs=p=>p.goals.flatMap((g,gi)=>g.subs.flatMap((s,si)=>s.acts.map((a,ai)=>({a,g,s,path:`goals.${gi}.subs.${si}.acts.${ai}`}))));
+function progress(a){const t=num(a.target),c=num(a.actual);if(t===null||c===null)return null;const b=num(a.base)||0;if(t===b)return c>=t?100:0;return Math.max(0,Math.min(100,Math.round((c-b)/(t-b)*100)))}
+/* نسبة الإنجاز المتوقعة زمنياً حتى اليوم: ما انقضى من مدة النشاط */
+function expected(a,now){if(!a.start||!a.end||a.start>a.end)return null;const [y1,m1]=a.start.split('-').map(Number),[y2,m2]=a.end.split('-').map(Number),s0=new Date(y1,m1-1,1).getTime(),e0=new Date(y2,m2,1).getTime();return Math.max(0,Math.min(100,Math.round(((now||Date.now())-s0)/(e0-s0)*100)))}
+const behind=a=>{const p=progress(a),x=expected(a);return a.status!=='مكتمل'&&(a.status==='متأخر'||a.status==='متوقف'||(x!==null&&x>0&&(p===null?x>=25:p<x-15)))};
+/* قوالب قطاعية: [المحور، الهدف، [[هدف فرعي، نشاط، مؤشر، وحدة]]، [مشكلة متوقعة، معالجة]] */
+const SECTORS={
+ contracting:{n:'المقاولات',g:[
+  ['المالي','تحسين ربحية المشاريع وتدفقها النقدي',[['رفع هامش الربح الإجمالي للمشاريع','تطبيق نظام تكاليف مستقل لكل مشروع','هامش الربح الإجمالي','٪'],['تقليص مدة تحصيل المستخلصات','وضع إجراء لمتابعة المستخلصات والمطالبات','متوسط أيام التحصيل','يوم']],['تأخر صرف المستخلصات من الملاك','تنويع العملاء وربط التوريد بجدول التحصيل']],
+  ['العملاء','تعزيز رضا الملاك والفوز بمشاريع جديدة',[['تسليم المشاريع في مواعيدها التعاقدية','جدولة ومتابعة أسبوعية لكل مشروع','نسبة المشاريع المسلّمة في موعدها','٪'],['زيادة نسبة الفوز بالمناقصات','إنشاء وحدة للتسعير ودراسة المناقصات','نسبة الفوز بالمناقصات','٪']],['اشتداد المنافسة السعرية','التميز بالجودة والالتزام والتخصص في فئة مشاريع محددة']],
+  ['العمليات الداخلية','رفع كفاءة تنفيذ المشاريع وسلامتها',[['تقليل إعادة العمل والهدر في المواد','تطبيق نظام ضبط الجودة في المواقع','نسبة تكلفة إعادة العمل','٪'],['تحقيق بيئة عمل آمنة','تنفيذ برنامج للسلامة والصحة المهنية','عدد الحوادث المسجلة','حادث']],['تقلب أسعار مواد البناء','عقود توريد إطارية وبنود لتعديل الأسعار']],
+  ['التعلم والنمو','بناء كوادر فنية وإدارية مؤهلة',[['تأهيل مهندسي ومشرفي المواقع','برنامج تدريب في إدارة المشاريع','ساعات التدريب لكل موظف','ساعة'],['أتمتة إدارة المشاريع والمشتريات','تطبيق نظام موحد لإدارة الموارد','نسبة العمليات المؤتمتة','٪']],['تسرب الكفاءات الفنية','حوافز مرتبطة بالأداء ومسار وظيفي واضح']]]},
+ rental:{n:'تأجير المعدات الثقيلة',g:[
+  ['المالي','تعظيم العائد على أسطول المعدات',[['رفع نسبة تشغيل الأسطول','نظام مركزي لحجز المعدات وتوزيعها','نسبة تشغيل الأسطول','٪'],['ضبط تكلفة التشغيل والصيانة','تحليل شهري لتكلفة كل معدة','تكلفة التشغيل لكل ساعة عمل','ر.س']],['ارتفاع تكلفة التمويل والإيجار التمويلي','إعادة جدولة الالتزامات وتنويع مصادر التمويل']],
+  ['العملاء','توسيع قاعدة العملاء والعقود طويلة الأجل',[['زيادة العقود السنوية مع شركات المقاولات','برنامج مبيعات للحسابات الرئيسية','عدد العقود طويلة الأجل','عقد'],['رفع رضا العملاء عن سرعة الاستجابة','تحديد زمن استجابة ملزم لطلبات التأجير','متوسط زمن الاستجابة للطلب','ساعة']],['تركّز الإيراد في عدد محدود من العملاء','حد أقصى لحصة العميل الواحد وتنويع القطاعات المخدومة']],
+  ['العمليات الداخلية','رفع جاهزية المعدات وسلامة التشغيل',[['تقليل الأعطال وزمن التوقف','تطبيق برنامج صيانة وقائية','نسبة جاهزية المعدات','٪'],['الالتزام بمتطلبات السلامة والفحص','جدولة الفحوص والشهادات الدورية للمعدات','نسبة المعدات سارية الشهادات','٪']],['حوادث التشغيل في مواقع العملاء','تأمين شامل وتأهيل المشغلين وإجراءات رفع موثقة']],
+  ['التعلم والنمو','تأهيل المشغلين والفنيين وتطوير الأنظمة',[['رفع كفاءة السائقين والمشغلين','برنامج تأهيل واعتماد للمشغلين','نسبة المشغلين المعتمدين','٪'],['رقمنة متابعة الأسطول','تطبيق نظام لتتبع الأسطول وإدارته','نسبة المعدات المرتبطة بالنظام','٪']],['نقص المشغلين المؤهلين','شراكات تدريب وبرنامج استبقاء']]]},
+ retail:{n:'تجارة التجزئة',g:[
+  ['المالي','تنمية المبيعات وتحسين هامش الربح',[['زيادة مبيعات الفروع القائمة','برنامج عروض موسمية مدروسة','نمو مبيعات الفروع المماثلة','٪'],['تحسين هامش الربح الإجمالي','مراجعة التسعير وشروط الموردين','هامش الربح الإجمالي','٪']],['تراجع القوة الشرائية','تنويع الفئات السعرية وضبط المصروفات']],
+  ['العملاء','بناء ولاء العملاء وتجربة شراء مميزة',[['رفع معدل تكرار الشراء','إطلاق برنامج ولاء','نسبة العملاء المتكررين','٪'],['تحسين رضا العملاء','قياس دوري للرضا ومعالجة الشكاوى','مؤشر رضا العملاء','٪']],['انتقال العملاء إلى المتاجر الإلكترونية','قناة بيع إلكترونية وخدمة توصيل']],
+  ['العمليات الداخلية','ضبط المخزون وسلسلة الإمداد',[['تقليل المخزون الراكد والتالف','تطبيق نظام لإدارة المخزون وإعادة الطلب','معدل دوران المخزون','مرة'],['ضمان توفر الأصناف الأساسية','اتفاقيات توريد مع موردين بدلاء','نسبة توفر الأصناف','٪']],['انقطاع التوريد','موردون بدلاء ومخزون أمان']],
+  ['التعلم والنمو','تطوير فريق المبيعات والأنظمة',[['رفع مهارات البيع وخدمة العملاء','برنامج تدريب لموظفي الفروع','ساعات التدريب لكل موظف','ساعة'],['الاعتماد على البيانات في القرار','تقارير أسبوعية للمبيعات والمخزون','عدد التقارير الدورية المعتمدة','تقرير']],['ارتفاع دوران الموظفين','حوافز مبيعات ومسار وظيفي']]]},
+ cafe:{n:'المطاعم والمقاهي',g:[
+  ['المالي','تحسين ربحية الفروع وضبط التكاليف',[['ضبط تكلفة المواد','إعداد بطاقة تكلفة لكل صنف','نسبة تكلفة المواد من المبيعات','٪'],['زيادة متوسط الفاتورة','تطوير قائمة الأصناف والعروض المجمّعة','متوسط قيمة الفاتورة','ر.س']],['ارتفاع أسعار المواد الخام','مراجعة دورية للتسعير وموردون بدلاء']],
+  ['العملاء','تقديم تجربة ضيافة متميزة',[['رفع تقييم العملاء','متابعة أسبوعية للتقييمات ومعالجة الملاحظات','متوسط تقييم العملاء','من 5'],['زيادة العملاء المتكررين','إطلاق برنامج ولاء','نسبة العملاء المتكررين','٪']],['كثرة المنافسين في المنطقة','هوية مميزة وأصناف خاصة']],
+  ['العمليات الداخلية','توحيد الجودة وسرعة الخدمة',[['ثبات جودة المنتجات','توثيق إجراءات التحضير القياسية','نسبة الالتزام بالإجراءات','٪'],['تقليل الهدر','متابعة يومية للهدر والجرد','نسبة الهدر من المشتريات','٪']],['مخالفة الاشتراطات الصحية','تدقيق داخلي دوري على النظافة وسلامة الغذاء']],
+  ['التعلم والنمو','تأهيل فريق العمل واستقراره',[['رفع مهارات التحضير والخدمة','برنامج تدريب عملي','ساعات التدريب لكل موظف','ساعة'],['استقرار فريق العمل','نظام حوافز وجداول عمل عادلة','معدل دوران الموظفين','٪']],['تسرب الموظفين المهرة','حوافز وبيئة عمل جاذبة']]]},
+ services:{n:'الخدمات المهنية والاستشارية',g:[
+  ['المالي','تنمية الإيرادات المتكررة',[['زيادة عقود الخدمات الشهرية','تصميم باقات خدمات باشتراك شهري','نسبة الإيراد المتكرر','٪'],['تحسين التحصيل','سياسة للفوترة والدفع المقدم','متوسط أيام التحصيل','يوم']],['تأخر العملاء في السداد','دفع مقدم وإيقاف الخدمة عند التأخر']],
+  ['العملاء','بناء سمعة مهنية وقاعدة عملاء مستقرة',[['رفع نسبة استبقاء العملاء','مراجعة دورية مع كل عميل','نسبة استبقاء العملاء','٪'],['اكتساب عملاء بالإحالة','إطلاق برنامج إحالات','عدد العملاء الجدد بالإحالة','عميل']],['الاعتماد على عدد قليل من العملاء','تنويع القطاعات المخدومة']],
+  ['العمليات الداخلية','توحيد جودة الخدمة وتسليمها في وقتها',[['الالتزام بمواعيد التسليم','قوالب وإجراءات عمل موحدة','نسبة المهام المسلّمة في موعدها','٪'],['تقليل الأخطاء','مراجعة ثانية قبل التسليم','عدد الملاحظات المعادة من العملاء','ملاحظة']],['تغيّر الأنظمة واللوائح','متابعة دورية للتحديثات النظامية']],
+  ['التعلم والنمو','تطوير الكفاءات والأدوات',[['تأهيل الفريق بالشهادات المهنية','خطة للشهادات المهنية','عدد الشهادات المهنية المحصّلة','شهادة'],['أتمتة الأعمال المتكررة','تطوير أدوات وأنظمة داخلية','ساعات العمل الموفَّرة شهرياً','ساعة']],['ضغط العمل على فريق صغير','توظيف تدريجي وتفويض موثق']]]}};
+function fromSector(k){const p=blank(),t=SECTORS[k];if(!t)return p;p.sector=t.n;
+ p.stake=[['المالك والشركاء','عائد مجزٍ ونمو مستدام','عالٍ'],['العاملون','استقرار وظيفي وأجور عادلة وفرص تطوير','متوسط'],['العملاء','خدمة موثوقة بسعر مناسب وفي الموعد','عالٍ'],['الموردون','سداد منتظم وعلاقة طويلة الأجل','متوسط'],['الجهات الحكومية','الالتزام بالأنظمة والتراخيص','عالٍ']].map(x=>({name:x[0],expect:x[1],power:x[2]}));
+ p.goals=t.g.map(g=>({id:uid(),t:g[1],persp:g[0],tows:[],risks:[{t:g[3][0],prob:'متوسط',imp:'متوسط',fix:g[3][1]}],subs:g[2].map(x=>({id:uid(),t:x[0],acts:[Object.assign(TPL.act(),{t:x[1],kpi:x[2],unit:x[3]})]}))}));return p}
+function reportBlocks(p){const B=[],acts=allActs(p),h2=t=>B.push({k:'h2',t}),P=t=>{if(filled(t))B.push({k:'p',t})},TB=(head,rows,w)=>B.push({k:'tb',head,rows:rows.length?rows:[head.map(()=>'')],w});
+ const pr=acts.map(x=>progress(x.a)).filter(v=>v!==null),avg=pr.length?Math.round(pr.reduce((a,b)=>a+b,0)/pr.length):null,cnt=s=>acts.filter(x=>x.a.status===s).length,late=acts.filter(x=>behind(x.a));
+ B.push({k:'cover',a:['تقرير أداء الخطة الاستراتيجية',p.name||'اسم الشركة',p.report.label||today(),`تاريخ التقرير ${today()} · الخطة ${p.from} - ${p.to} · الإصدار ${p.version}`]});
+ h2('ملخص الأداء');
+ TB(['المؤشر','القيمة'],[['متوسط تحقق مؤشرات الأداء',avg===null?'لم تُسجَّل قياسات':avg+'%'],['عدد البرامج والأنشطة',String(acts.length)],['مكتملة',String(cnt('مكتمل'))],['قيد التنفيذ',String(cnt('قيد التنفيذ'))],['لم تبدأ',String(cnt('لم يبدأ'))],['متأخرة أو متوقفة',String(cnt('متأخر')+cnt('متوقف'))],['أنشطة منحرفة عن الجدول الزمني',String(late.length)]],[60,40]);
+ h2('أداء الأهداف الاستراتيجية');
+ TB(['الهدف الاستراتيجي','المحور','عدد الأنشطة','نسبة التحقق','التقييم'],p.goals.map(g=>{const a=g.subs.flatMap(s=>s.acts),v=a.map(progress).filter(x=>x!==null),m=v.length?Math.round(v.reduce((x,y)=>x+y,0)/v.length):null;return [g.t,g.persp,String(a.length),m===null?'—':m+'%',m===null?'لا قياس':a.some(behind)?'يحتاج معالجة':m>=75?'جيد':'ضمن المسار']}),[36,18,14,14,18]);
+ h2('أداء البرامج والأنشطة');
+ TB(['النشاط','المسؤول','المؤشر','المستهدف','المتحقق','التحقق','المتوقع زمنياً','الحالة'],acts.map(({a})=>{const v=progress(a),x=expected(a);return [a.t,a.owner,a.kpi,filled(a.target)?`${a.target} ${a.unit||''}`:'',a.actual,v===null?'—':v+'%',x===null?'—':x+'%',a.status]}),[22,12,16,10,9,9,10,12]);
+ h2('الانحرافات والمعالجات');
+ if(late.length)TB(['النشاط','الهدف الاستراتيجي','وصف الانحراف','المعالجة التصحيحية','مسؤول المتابعة'],late.map(({a,g})=>{const v=progress(a),x=expected(a);return [a.t,g.t,`الحالة: ${a.status}${x!==null?`\nالمتحقق ${v===null?'غير مقيس':v+'%'} مقابل ${x}% متوقعة زمنياً`:''}`,a.fix||'لم تُحدد بعد',a.mon]}),[22,20,22,22,14]);else P('لا توجد أنشطة منحرفة عن الجدول الزمني حتى تاريخ التقرير.');
+ const risks=p.goals.flatMap(g=>g.risks.filter(r=>filled(r.t)).map(r=>({r,g}))).sort((a,b)=>riskScore(b.r)-riskScore(a.r)).slice(0,5);
+ if(risks.length){h2('أعلى المخاطر');TB(['المشكلة المتوقعة','الهدف','الاحتمال / الأثر','المعالجة'],risks.map(x=>[x.r.t,x.g.t,`${x.r.prob} / ${x.r.imp}`,x.r.fix]),[28,24,16,32])}
+ h2('التعليق والتوصيات');P(p.report.notes||'—');return B}
+function yearly(p){const m={};for(const {a} of allActs(p)){const c=num(a.cost);if(!c)continue;
+  if(!a.start||!a.end||a.start>a.end){m['غير مجدول']=(m['غير مجدول']||0)+c;continue}
+  const [y1,m1]=a.start.split('-').map(Number),[y2,m2]=a.end.split('-').map(Number),n=(y2-y1)*12+m2-m1+1;
+  for(let i=0;i<n;i++){const y=y1+Math.floor((m1-1+i)/12);m[y]=(m[y]||0)+c/n}}return m}
+function syncActual(a){const r=a.reads.filter(x=>x.d&&num(x.v)!==null).sort((x,y)=>x.d<y.d?-1:1);if(r.length)a.actual=String(num(r[r.length-1].v))}
+const riskScore=r=>(LVL.indexOf(r.prob)+1)*(LVL.indexOf(r.imp)+1);
+
+/* ============ فحص الجودة ============ */
+function audit(p){const R=[];const add=(stage,ok,t,hint,crit)=>R.push({stage,ok:!!ok,t,hint,crit:!!crit});
+ const acts=allActs(p).map(x=>x.a), subs=p.goals.flatMap(g=>g.subs), f=num(p.from), to=num(p.to);
+ add('prep',filled(p.name),'اسم الشركة محدد','أدخل اسم الشركة في بيانات الخطة.',1);
+ add('prep',f&&to&&to>f&&to-f<=10,'المدة الزمنية للخطة صحيحة','سنة النهاية يجب أن تلي سنة البداية، والمعتاد 3 إلى 5 سنوات.',1);
+ add('prep',filled(p.intro)&&filled(p.profile),'المقدمة والنبذة التعريفية مكتوبتان','اكتب المقدمة ونبذة عن الشركة.');
+ add('prep',p.team.filter(m=>filled(m.name)).length>=3,'فريق الإعداد من ثلاثة أعضاء على الأقل','خطة يعدّها شخص واحد أضعف مصداقية. أشرك الإدارة العليا ومسؤولي التشغيل والمالية.');
+ add('prep',p.stake.filter(s=>filled(s.name)).length>=3&&p.stake.every(s=>!filled(s.name)||filled(s.expect)),'أصحاب المصلحة محددون مع توقعاتهم','اكتب ما يتوقعه كل طرف من الشركة، فالأهداف تُبنى على هذه التوقعات.');
+ add('prep',filled(p.res.human)&&filled(p.res.physical)&&filled(p.res.financial),'الموارد المتاحة موثقة','وثّق الموارد البشرية والمادية والمالية.');
+ const q=k=>p.swot[k].filter(i=>filled(i.t)).length, tw=k=>p.tows[k].filter(i=>filled(i.t)).length;
+ add('swot',Object.keys(PEST).filter(k=>p.pestel[k].some(i=>filled(i.t))).length>=4,'تحليل PESTEL يغطي أربعة عوامل على الأقل','تحليل البيئة العامة يضمن ألا تغيب فرصة أو تهديد خارجي عن SWOT.');
+ add('swot',['S','W','O','T'].every(k=>q(k)>=1),'كل خانة في تحليل SWOT تحتوي عنصراً على الأقل','لا تُبنى استراتيجية على تحليل ناقص.',1);
+ add('swot',['S','W','O','T'].every(k=>q(k)>=3),'ثلاثة عناصر أو أكثر في كل خانة','التحليل المتوازن يتطلب 3 إلى 7 عناصر في كل خانة.');
+ add('swot',['SO','WO','ST','WT'].every(k=>tw(k)>=1),'مصفوفة الدمج TOWS مكتملة بأنواعها الأربعة','صغ بديلاً واحداً على الأقل في كل خانة.');
+ add('dir',filled(p.vision),'الرؤية مصاغة','الرؤية تجيب عن سؤال: ماذا نريد أن نكون؟',1);
+ add('dir',filled(p.vision)&&words(p.vision)<=25,'الرؤية موجزة (25 كلمة فأقل)','الرؤية الجيدة تُحفظ بسهولة.');
+ add('dir',filled(p.mission.text),'الرسالة مصاغة','الرسالة تجيب عن: ماذا نقدم، لمن، كيف، ولماذا.',1);
+ const nv=p.values.filter(v=>filled(v.t)).length;
+ add('dir',nv>=3&&nv<=7,'القيم بين 3 و7 قيم','كثرة القيم تضعف أثرها في السلوك اليومي.');
+ const ng=p.goals.filter(g=>filled(g.t)).length;
+ add('dir',ng>=1,'يوجد هدف استراتيجي واحد على الأقل','أضف الأهداف الاستراتيجية.',1);
+ add('dir',ng>=3&&ng<=7,'الأهداف الاستراتيجية بين 3 و7','أقل من 3 لا يغطي الشركة، وأكثر من 7 يشتت الموارد.');
+ add('dir',ng>0&&p.goals.every(g=>g.tows.length>0),'كل هدف مرتبط ببديل من مصفوفة الدمج','الربط يثبت أن الهدف ناتج عن التحليل وليس رغبة مجردة.');
+ add('dir',ng>0&&PERSP.every(x=>p.goals.some(g=>g.persp===x)),'الأهداف تغطي المحاور الأربعة لبطاقة الأداء المتوازن','المالي، العملاء، العمليات الداخلية، التعلم والنمو.');
+ add('dir',ng>0&&p.goals.every(g=>g.subs.some(s=>filled(s.t))),'لكل هدف استراتيجي أهداف فرعية','فصّل كل هدف إلى أهداف فرعية قابلة للتنفيذ.');
+ add('exec',acts.length>0,'الخطة التنفيذية تحتوي أنشطة','أضف برنامجاً أو نشاطاً واحداً على الأقل.',1);
+ add('exec',subs.length>0&&subs.every(s=>s.acts.length>0),'لكل هدف فرعي نشاط واحد على الأقل','هدف بلا نشاط لن يتحقق.');
+ add('exec',acts.length>0&&acts.every(a=>filled(a.owner)),'لكل نشاط مسؤول محدد','سمِّ مسؤولاً واحداً بالاسم أو بالمسمى الوظيفي.');
+ add('exec',acts.length>0&&acts.every(a=>a.start&&a.end&&a.start<=a.end&&a.start.slice(0,4)>=p.from&&a.end.slice(0,4)<=p.to),'تواريخ الأنشطة مكتملة وضمن مدة الخطة','راجع تاريخي البداية والنهاية لكل نشاط.');
+ add('exec',acts.length>0&&acts.every(a=>num(a.cost)!==null),'لكل نشاط تكلفة تقديرية','أدخل التكلفة ولو كانت صفراً.');
+ add('exec',acts.length>0&&acts.every(a=>filled(a.kpi)&&num(a.target)!==null),'لكل نشاط مؤشر أداء بقيمة مستهدفة رقمية','مؤشر بلا رقم مستهدف لا يمكن قياسه.');
+ add('mon',acts.length>0&&acts.every(a=>filled(a.mon)&&filled(a.evalr)),'لكل نشاط مسؤول متابعة ومسؤول تقييم','حدد من يتابع التنفيذ ومن يقيّم النتائج.');
+ add('mon',acts.length>0&&acts.every(a=>!filled(a.evalr)||a.evalr.trim()!==a.owner.trim()),'مسؤول التقييم مستقل عن مسؤول التنفيذ','من ينفذ النشاط لا يقيّم نفسه.');
+ add('mon',acts.length>0&&acts.some(a=>(a.reads||[]).some(r=>num(r.v)!==null)),'سُجّل قياس دوري واحد على الأقل','سجّل قراءات المؤشرات دورياً لتظهر الانحرافات مبكراً.');
+ add('req',Object.keys(REQ).every(k=>p.reqs[k].some(r=>filled(r.t))),'المتطلبات الخمسة محددة','حدد متطلباً واحداً على الأقل في كل نوع.');
+ add('risk',ng>0&&p.goals.every(g=>g.risks.some(r=>filled(r.t))),'لكل هدف مشكلة متوقعة واحدة على الأقل','فكّر في ما قد يعطل كل هدف.');
+ add('risk',p.goals.every(g=>g.risks.every(r=>!filled(r.t)||filled(r.fix))),'لكل مشكلة معالجة بديلة','اكتب أسلوب المعالجة لكل مشكلة.');
+ const ap=p.approval;
+ add('final',filled(ap.prepared)&&filled(ap.reviewed)&&filled(ap.approved),'أسماء المعدّ والمراجع والمعتمد مسجلة','سجّل الأسماء الثلاثة في سجل الاعتماد.');
+ add('final',filled(ap.approved)&&ap.approved.trim()!==ap.prepared.trim(),'المعتمد غير المعدّ','فصل الصلاحيات شرط لموثوقية الاعتماد.');
+ return R}
+function readiness(R){return Math.round(R.filter(r=>r.ok).length/R.length*100)}
+const STATUS={draft:['مسودة',''],review:['قيد المراجعة','warn'],approved:['معتمدة','ok']};
+
+/* ============ بناء وثيقة الخطة (مشتركة بين العرض وملف Word) ============ */
+function blocks(p){const B=[];
+ const h2=t=>B.push({k:'h2',t}),h3=t=>B.push({k:'h3',t}),P=t=>{if(filled(t))B.push({k:'p',t})},UL=a=>{a=a.filter(filled);if(a.length)B.push({k:'ul',a})};
+ const TB=(head,rows,w)=>B.push({k:'tb',head,rows:rows.length?rows:[head.map(()=>'')],w});
+ const list=a=>a.filter(filled).map((t,i)=>`${i+1}. ${t}`).join('\n');
+ B.push({k:'cover',a:['الخطة الاستراتيجية',p.name||'اسم الشركة',`${p.from} - ${p.to}`,`الإصدار ${p.version} · ${STATUS[p.status][0]}`]});
+ h2('المقدمة');P(p.intro);
+ h2('فريق إعداد الخطة الاستراتيجية');TB(['الاسم','الصفة'],p.team.map(m=>[m.name,m.role]),[50,50]);
+ h2('نبذة تعريفية عن الشركة');P(p.profile);
+ h2('منهجية إعداد الخطة الاستراتيجية');
+ P('اتُّبع في إعداد هذه الخطة نموذج تتوفر فيه أركان عملية التخطيط الاستراتيجي بتتابع وتسلسل منطقي: مرحلة ما قبل الصياغة (الإعداد والتحليل)، ثم صياغة التوجهات، ثم الخطة التنفيذية، ثم المتابعة والتقييم.');
+ h2('أولاً: مرحلة ما قبل صياغة الاستراتيجية');
+ h3('أصحاب المصلحة');TB(['صاحب المصلحة','ما يتوقعه من الشركة','درجة التأثير'],p.stake.map(s=>[s.name,s.expect,s.power]),[28,52,20]);
+ h3('المعلومات ومصادرها');P(p.sources);
+ h3('الموارد المتاحة');TB(['نوع الموارد','البيان'],[['الموارد البشرية',p.res.human],['الموارد المادية',p.res.physical],['الموارد المالية',p.res.financial]],[28,72]);
+ if(Object.keys(PEST).some(k=>p.pestel[k].some(i=>filled(i.t)))){h3('تحليل البيئة الخارجية العامة (PESTEL)');TB(['العامل','العناصر المؤثرة','نوع الأثر'],Object.keys(PEST).filter(k=>p.pestel[k].some(i=>filled(i.t))).map(k=>{const a=p.pestel[k].filter(i=>filled(i.t));return ['العوامل '+PEST[k],a.map((i,n)=>`${n+1}. ${i.t}`).join('\n'),a.map((i,n)=>`${n+1}. ${i.eff}`).join('\n')]}),[24,56,20])}
+ h3('تحليل البيئة الداخلية والخارجية (SWOT)');
+ TB(['البيئة الداخلية','نقاط القوة','نقاط الضعف'],[['',list(p.swot.S.map(i=>i.t)),list(p.swot.W.map(i=>i.t))]],[20,40,40]);
+ TB(['البيئة الخارجية','الفرص','التهديدات'],[['',list(p.swot.O.map(i=>i.t)),list(p.swot.T.map(i=>i.t))]],[20,40,40]);
+ h3('مصفوفة الدمج (TOWS)');
+ TB(['','أهم نقاط القوة (S)','أهم نقاط الضعف (W)'],[['أهم الفرص (O)','استراتيجية هجومية (SO)\n'+list(p.tows.SO.map(i=>i.t)),'استراتيجية علاجية (WO)\n'+list(p.tows.WO.map(i=>i.t))],['أهم التهديدات (T)','استراتيجية دفاعية / تنافسية (ST)\n'+list(p.tows.ST.map(i=>i.t)),'استراتيجية انكماشية (WT)\n'+list(p.tows.WT.map(i=>i.t))]],[20,40,40]);
+ h2('ثانياً: صياغة التوجهات الاستراتيجية');
+ h3('الرؤية');P('الرؤية هي الصورة التي تريد الشركة أن تكون عليها في المستقبل، وتجيب عن سؤال: ماذا نريد أن نكون؟');B.push({k:'q',t:p.vision});
+ h3('الرسالة');P('الرسالة بيان يوضح الغرض من وجود الشركة: ماذا نقدم، لمن نقدم، كيف نقدم، ولماذا نقدم.');B.push({k:'q',t:p.mission.text});
+ h3('القيم');UL(p.values.map(v=>v.t));
+ h3('الأهداف الاستراتيجية');TB(['الهدف الاستراتيجي','المحور','الأهداف التفصيلية (الفرعية)'],p.goals.map(g=>[g.t,g.persp,list(g.subs.map(s=>s.t))]),[32,18,50]);
+ h2('ثالثاً: الخطة التنفيذية');
+ p.goals.forEach((g,i)=>{h3(`الهدف الاستراتيجي ${i+1}: ${g.t}`);
+  TB(['الأهداف الفرعية','البرامج والأنشطة','زمن التنفيذ','المسؤول عن التنفيذ','التكلفة','مؤشرات الأداء'],
+   g.subs.flatMap(s=>s.acts.length?s.acts.map(a=>[s.t,a.t,[a.start,a.end].filter(Boolean).join(' إلى '),a.owner,num(a.cost)!==null?money(num(a.cost)):'',filled(a.kpi)?`${a.kpi}${num(a.target)!==null?' — المستهدف: '+a.target+' '+(a.unit||''):''}`:'']):[[s.t,'','','','','']]),[18,24,14,14,12,18])});
+ const total=allActs(p).reduce((s,x)=>s+(num(x.a.cost)||0),0);P(`إجمالي التكلفة التقديرية للخطة: ${money(total)}`);
+ {const y=yearly(p),ks=Object.keys(y).sort();if(ks.length){h3('توزيع الموازنة التقديرية على سنوات الخطة');TB(['السنة','التكلفة التقديرية'],ks.map(k=>[k,money(y[k])]),[40,60])}}
+ h2('رابعاً: المتابعة والتقييم');
+ TB(['الهدف الاستراتيجي','البرنامج / النشاط','مسؤول المتابعة','مسؤول التقييم','المؤشر والمتحقق','المعالجات والتغذية الراجعة'],
+  allActs(p).map(({a,g})=>{const pr=progress(a);return [g.t,a.t,a.mon,a.evalr,`${a.kpi||''}${pr!==null?` — المتحقق ${a.actual} من ${a.target} (${pr}%)`:''}\nالحالة: ${a.status}`,a.fix]}),[18,20,13,13,18,18]);
+ h2('خطة المتطلبات اللازمة لتنفيذ الخطة الاستراتيجية');
+ TB(['نوع المتطلب','المتطلبات','المسؤول عن التنفيذ'],Object.keys(REQ).map(k=>[REQ[k],list(p.reqs[k].map(r=>r.t)),p.reqs[k].filter(r=>filled(r.t)).map((r,i)=>`${i+1}. ${r.owner||'—'}`).join('\n')]),[24,50,26]);
+ h2('خطة التنبؤ بالمشكلات التي تواجه الخطة وأساليب معالجتها');
+ TB(['الهدف الاستراتيجي','المشكلات المتوقعة','الاحتمال / الأثر','البدائل وأساليب المعالجة'],p.goals.flatMap(g=>g.risks.filter(r=>filled(r.t)).map(r=>[g.t,r.t,`${r.prob} / ${r.imp}`,r.fix])),[24,28,16,32]);
+ h2('سجل الاعتماد');
+ TB(['الدور','الاسم'],[['إعداد',p.approval.prepared],['مراجعة',p.approval.reviewed],['اعتماد',p.approval.approved],['تاريخ الاعتماد',p.approval.date],['رقم الإصدار',String(p.version)]],[30,70]);
+ return B}
+function blocksHTML(B){const nl=t=>esc(t).replace(/\n/g,'<br>');return B.map(b=>{
+ if(b.k==='cover')return `<div class="cover"><span class="eyebrow">${esc(b.a[0])}</span><b>${esc(b.a[1])}</b><span class="num">${esc(b.a[2])}</span><span class="mut sm">${esc(b.a[3])}</span></div>`;
+ if(b.k==='h2')return `<h2>${esc(b.t)}</h2>`; if(b.k==='h3')return `<h3>${esc(b.t)}</h3>`;
+ if(b.k==='p')return `<p>${nl(b.t)}</p>`;
+ if(b.k==='q')return `<p style="font-weight:600;border-inline-start:3px solid var(--brass);padding-inline-start:12px">${filled(b.t)?nl(b.t):'<span class="mut">لم تُصغ بعد</span>'}</p>`;
+ if(b.k==='ul')return `<ul>${b.a.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+ if(b.k==='tb')return `<div class="scroll"><table><thead><tr>${b.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${b.rows.map(r=>`<tr>${r.map(c=>`<td>${nl(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+ return ''}).join('')}
+function docxXml(B){
+ const x=s=>String(s??'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+ const run=(t,o)=>`<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${o.b?'<w:b/><w:bCs/>':''}${o.c?`<w:color w:val="${o.c}"/>`:''}<w:sz w:val="${o.s||24}"/><w:szCs w:val="${o.s||24}"/><w:rtl/></w:rPr><w:t xml:space="preserve">${x(t)}</w:t></w:r>`;
+ const para=(t,o={})=>`<w:p><w:pPr>${o.pb?'<w:pageBreakBefore/>':''}<w:bidi/><w:spacing w:before="${o.sb??40}" w:after="${o.sa??100}"/>${o.j?`<w:jc w:val="${o.j}"/>`:''}</w:pPr>${run(t,o)}</w:p>`;
+ const bd=n=>`<w:${n} w:val="single" w:sz="4" w:space="0" w:color="7F9197"/>`;
+ const cell=(t,w,o={})=>`<w:tc><w:tcPr><w:tcW w:w="${w*50}" w:type="pct"/>${o.fill?`<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>`:''}</w:tcPr>${String(t??'').split('\n').map(l=>para(l,{s:20,b:o.b,c:o.c,sb:20,sa:20})).join('')}</w:tc>`;
+ const table=b=>`<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(bd).join('')}</w:tblBorders></w:tblPr><w:tblGrid>${b.w.map(w=>`<w:gridCol w:w="${Math.round(w*96.38)}"/>`).join('')}</w:tblGrid><w:tr><w:trPr><w:tblHeader/></w:trPr>${b.head.map((h,i)=>cell(h,b.w[i],{fill:'0D5C63',b:1,c:'FFFFFF'})).join('')}</w:tr>${b.rows.map(r=>`<w:tr>${r.map((c,i)=>cell(c,b.w[i])).join('')}</w:tr>`).join('')}</w:tbl>${para('',{sa:60})}`;
+ const body=B.map(b=>{
+  if(b.k==='cover')return para('',{sb:2400})+para(b.a[0],{s:56,b:1,j:'center',c:'0D5C63'})+para(b.a[1],{s:44,b:1,j:'center'})+para(b.a[2],{s:36,j:'center'})+para(b.a[3],{s:22,j:'center',c:'566972'});
+  if(b.k==='h2')return para(b.t,{s:32,b:1,c:'0D5C63',sb:280,sa:120,pb:b.t==='المقدمة'});
+  if(b.k==='h3')return para(b.t,{s:26,b:1,sb:200});
+  if(b.k==='p')return b.t.split('\n').map(l=>para(l)).join('');
+  if(b.k==='q')return para(b.t||'—',{b:1,s:26,j:'center',sb:120,sa:160});
+  if(b.k==='ul')return b.a.map(t=>para('•  '+t)).join('');
+  if(b.k==='tb')return table(b); return ''}).join('');
+ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr></w:body></w:document>`}
+function docxBlob(p,Zip){const z=new Zip();
+ z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+ z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+ z.file('word/document.xml',docxXml(blocks(p)));return z}
+if(typeof module!=='undefined')module.exports={expected,behind,reportBlocks,fromSector,SECTORS,blank,normalize,audit,readiness,blocks,docxBlob,progress,yearly};
+
+/* ============ الواجهة ============ */
+if(typeof document!=='undefined'){
+document.documentElement.dir='rtl';document.documentElement.lang='ar';
+const app=document.getElementById('app'),toastEl=document.getElementById('toast');
+let plans={},cur=null,stage='prep',ready=false,db=null,dl=null,pdfBusy=false,picking=false,ai=null,aiOpen=false,aiTurns=[],aiBusy=false,aiCtl=null,aiOff=false,mode='',dirty=false,saving=false,saveT=0,saveState='',undo=null,confirmDel='',RO=false,toastT=0;
+const use=n=>{try{return window.claude&&window.claude.use?window.claude.use(n).catch(()=>null):Promise.resolve(null)}catch(e){return Promise.resolve(null)}};
+
+function toast(msg,act){clearTimeout(toastT);toastEl.innerHTML=`<span>${esc(msg)}</span>${act?`<button id="toast-act" type="button">${esc(act)}</button>`:''}`;toastEl.hidden=false;toastT=setTimeout(()=>{toastEl.hidden=true;undo=null},6000)}
+toastEl.addEventListener('click',e=>{if(e.target.id==='toast-act'&&undo){cur=normalize(JSON.parse(undo));undo=null;toastEl.hidden=true;touch();render()}});
+
+/* --- التخزين --- */
+function localLoad(){try{return JSON.parse(localStorage.getItem('sp_plans')||'{}')}catch(e){return {}}}
+function localSave(){try{localStorage.setItem('sp_plans',JSON.stringify(plans))}catch(e){}}
+async function init(){
+ try{const s=localStorage.getItem('sp_stage');if(s)stage=s}catch(e){}
+ const h=location.hash.slice(1);if(h==='dash'||STAGES.some(s=>s.k===h))stage=h;
+ render();
+ [db,dl,ai]=await Promise.all([use('db'),use('downloads'),use('sample')]);
+ if(db){mode='db';db.collection('plans').onSnapshot(snap=>{const m={};snap.docs.forEach(d=>{m[d.id]=d.data()});plans=m;ready=true;
+   if(cur&&!dirty&&!saving&&m[cur.id]&&m[cur.id].updatedAt!==cur.updatedAt&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))cur=normalize(m[cur.id]);
+   if(!cur||!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))render()},e=>{mode='local';plans=localLoad();ready=true;render()})}
+ else{mode='local';plans=localLoad();ready=true;render()}
+}
+function touch(){dirty=true;saveState='جارٍ الحفظ';setSave();clearTimeout(saveT);saveT=setTimeout(save,900)}
+async function save(){if(!cur||saving)return;saving=true;dirty=false;cur.updatedAt=new Date().toISOString();const body=JSON.parse(JSON.stringify(cur));plans[cur.id]=body;
+ try{if(mode==='db')await db.collection('plans').doc(body.id).set(body);else localSave();saveState='تم الحفظ'}
+ catch(e){saveState=e&&e.code==='invalid_argument'?'لا تملك صلاحية التعديل':'تعذّر الحفظ، ستُعاد المحاولة';if(!(e&&e.code==='invalid_argument')){dirty=true}}
+ saving=false;setSave();if(dirty){clearTimeout(saveT);saveT=setTimeout(save,1500)}}
+function setSave(){const el=document.getElementById('save-state');if(el)el.textContent=saveState}
+
+/* --- مسارات البيانات --- */
+const getP=path=>path.split('.').reduce((o,k)=>o==null?undefined:o[k],cur);
+function setP(path,v){const ks=path.split('.'),last=ks.pop();const o=ks.reduce((o,k)=>o[k],cur);o[last]=v}
+const fid=p=>'f_'+p.replace(/\./g,'_');
+const dis=()=>RO?' disabled':'';
+const I=(p,ph='',type='text',rr=0)=>`<input id="${fid(p)}" type="${type}" data-p="${p}"${rr?' data-rr':''} value="${esc(getP(p))}" placeholder="${RO?'':esc(ph)}"${type==='number'?' inputmode="decimal" step="any"':''}${dis()}>`;
+const T=(p,ph='',rows=2)=>`<textarea id="${fid(p)}" rows="${rows}" data-p="${p}" placeholder="${RO?'':esc(ph)}"${dis()}>${esc(getP(p))}</textarea>`;
+const S=(p,opts,empty)=>{const v=getP(p);return `<select id="${fid(p)}" data-p="${p}" data-rr${dis()}>${empty?`<option value="">${esc(empty)}</option>`:''}${opts.map(o=>`<option${String(o)===String(v)?' selected':''}>${esc(o)}</option>`).join('')}</select>`};
+const F=(l,c,cls='')=>`<label class="f ${cls}"><span>${l}</span>${c}</label>`;
+const X=(p,i)=>`<button type="button" class="x" data-del="${p}" data-i="${i}" aria-label="حذف" title="حذف">×</button>`;
+const ADD=(p,tpl,l)=>`<button type="button" class="add" data-add="${p}" data-tpl="${tpl}">+ ${l}</button>`;
+const card=(title,hint,body,cls='')=>`<section class="card ${cls}"><header><h3>${title}</h3></header>${hint?`<p class="hint">${hint}</p>`:''}${body}</section>`;
+
+/* --- المراحل --- */
+function vPrep(){return card('بيانات الخطة','',`<div class="grid">${F('اسم الشركة',I('name','مثال: شركة ... للمقاولات','text',1))}${F('القطاع / النشاط',I('sector','مثال: تأجير المعدات الثقيلة'))}${F('سنة البداية',I('from','','number',1))}${F('سنة النهاية',I('to','','number',1))}</div>
+  ${F('المقدمة',T('intro','لماذا تُعد هذه الخطة الآن، وما الذي يُنتظر منها؟',3))}${F('نبذة تعريفية عن الشركة',T('profile','الشكل القانوني، تاريخ التأسيس، النشاط، الموقع، حجم الأعمال.',3))}`)
+ +card('فريق إعداد الخطة','الخطة التي يشارك في إعدادها أصحاب القرار والتنفيذ أسهل قبولاً وتنفيذاً.',`<div class="rows">${cur.team.map((m,i)=>`<div class="row stack"><div class="grow">${I(`team.${i}.name`,'الاسم')}</div><div class="grow">${I(`team.${i}.role`,'الصفة والدور في الفريق')}</div>${X('team',i)}</div>`).join('')||'<div class="empty">لم يُضف أعضاء بعد.</div>'}</div>${ADD('team','team','إضافة عضو')}`)
+ +card('أصحاب المصلحة','حدد كل طرف يتأثر بالشركة أو يؤثر فيها، وما الذي يتوقعه منها.',`<div class="rows">${cur.stake.map((s,i)=>`<div class="row stack"><div class="grow">${I(`stake.${i}.name`,'صاحب المصلحة')}</div><div class="grow" style="flex-grow:2">${I(`stake.${i}.expect`,'ما يتوقعه من الشركة')}</div><div class="fix">${S(`stake.${i}.power`,LVL)}</div>${X('stake',i)}</div>`).join('')||'<div class="empty">لم يُضف أصحاب مصلحة بعد.</div>'}</div><p class="hint">العمود الأخير: درجة تأثير الطرف في الشركة.</p>${ADD('stake','stake','إضافة صاحب مصلحة')}`)
+ +card('المعلومات والموارد المتاحة','',`${F('المعلومات ومصادرها وطريقة جمعها',T('sources','استمارة التشخيص، المقابلات، القوائم المالية، بيانات السوق...',2))}<div class="grid2">${F('الموارد البشرية',T('res.human','',3))}${F('الموارد المادية',T('res.physical','',3))}${F('الموارد المالية',T('res.financial','',3))}</div>`)}
+
+function vDash(){const p=cur,R=audit(p),acts=allActs(p),total=acts.reduce((s,x)=>s+(num(x.a.cost)||0),0),pr=acts.map(x=>progress(x.a)).filter(v=>v!==null),avg=pr.length?Math.round(pr.reduce((a,b)=>a+b,0)/pr.length):null;
+ const gp=g=>{const a=g.subs.flatMap(s=>s.acts).map(progress).filter(v=>v!==null);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null};
+ const chip=g=>{const v=gp(g),n=g.subs.reduce((s,x)=>s+x.acts.length,0);return `<div class="gchip"><span>${esc(g.t||'هدف بلا عنوان')}</span><div class="bar ${v===null?'':v>=75?'ok':v>=40?'warn':'bad'}"><i style="width:${v||0}%"></i></div><span class="hint num">${n} نشاط · ${v===null?'لا قياس بعد':'التحقق '+v+'%'}</span></div>`};
+ const rows=[...PERSP.map(x=>[x,p.goals.filter(g=>g.persp===x)]),['غير مصنّف',p.goals.filter(g=>!PERSP.includes(g.persp))]].filter((r,i)=>i<4||r[1].length);
+ const f=num(p.from)||0,t=num(p.to)||f,ny=Math.max(1,t-f+1),tm=ny*12;
+ const bar=a=>{if(!a.start||!a.end||a.start>a.end)return '<div class="g-track"></div>';const [y1,m1]=a.start.split('-').map(Number),[y2,m2]=a.end.split('-').map(Number);const s0=Math.max(0,Math.min(tm,(y1-f)*12+m1-1)),e0=Math.max(0,Math.min(tm,(y2-f)*12+m2));
+  return `<div class="g-track"><div class="g-bar ${{'مكتمل':'ok','متأخر':'bad','متوقف':'bad','لم يبدأ':'idle'}[a.status]||''}" style="inset-inline-start:${s0/tm*100}%;width:${Math.max(0,e0-s0)/tm*100}%" title="${esc(a.start)} إلى ${esc(a.end)}"></div></div>`};
+ const y=yearly(p),yk=Object.keys(y).sort(),ymax=Math.max(1,...yk.map(k=>y[k]));
+ const risks=p.goals.flatMap(g=>g.risks.filter(r=>filled(r.t)).map(r=>({r,g}))),cell=(pi,ii)=>{const n=risks.filter(x=>x.r.prob===LVL[pi]&&x.r.imp===LVL[ii]).length,sc=(pi+1)*(ii+1);return `<div class="c ${sc>=6?'bad':sc>=3?'warn':'ok'}">${n||'·'}</div>`};
+ const pct=readiness(R);
+ return `<section class="card"><div class="stats"><div class="stat"><b>${pct}%</b><span>جاهزية الخطة للاعتماد</span></div><div class="stat"><b>${p.goals.length}</b><span>أهداف استراتيجية</span></div><div class="stat"><b>${acts.length}</b><span>برامج وأنشطة</span></div><div class="stat"><b>${money(total)}</b><span>الموازنة التقديرية</span></div><div class="stat"><b>${avg===null?'—':avg+'%'}</b><span>متوسط تحقق المؤشرات</span></div></div></section>`
+ +card('الخريطة الاستراتيجية','الأهداف مرتبة على محاور بطاقة الأداء المتوازن. التعلم والنمو يبني العمليات، والعمليات تخدم العملاء، والعملاء يحققون النتائج المالية.',rows.map(r=>`<div class="map-row"><b>${r[0]}</b><div class="gchips">${r[1].map(chip).join('')||'<span class="hint">لا يوجد هدف في هذا المحور.</span>'}</div></div>`).join(''))
+ +card('الجدول الزمني للتنفيذ','',acts.length?`<div class="scroll"><div class="gantt"><div class="g-row"><span></span><div class="g-years">${Array.from({length:ny},(_,i)=>`<span>${f+i}</span>`).join('')}</div></div>${p.goals.filter(g=>g.subs.some(s=>s.acts.length)).map(g=>`<div class="g-row grp"><span>${esc(g.t)}</span><span></span></div>`+g.subs.flatMap(s=>s.acts).map(a=>`<div class="g-row"><span title="${esc(a.t)}">${esc(a.t||'نشاط بلا عنوان')}</span>${bar(a)}</div>`).join('')).join('')}</div></div><div class="legend"><span><i style="background:var(--mut)"></i>لم يبدأ</span><span><i style="background:var(--pri)"></i>قيد التنفيذ</span><span><i style="background:var(--ok)"></i>مكتمل</span><span><i style="background:var(--bad)"></i>متأخر أو متوقف</span></div>`:'<div class="empty">يظهر الجدول الزمني بعد إضافة الأنشطة وتواريخها في الخطة التنفيذية.</div>')
+ +`<div class="grid2">${card('الموازنة التقديرية حسب السنة','تُوزَّع تكلفة كل نشاط بالتساوي على أشهر تنفيذه.',yk.length?`<div class="kv">${yk.map(k=>`<span class="num">${esc(k)}</span><span class="num">${money(y[k])}</span><div class="bar" style="grid-column:1/-1"><i style="width:${y[k]/ymax*100}%"></i></div>`).join('')}</div>`:'<div class="empty">لم تُدخل تكاليف بعد.</div>')}
+ ${card('مصفوفة المخاطر','عدد المشكلات المتوقعة حسب الاحتمال والأثر.',risks.length?`<div class="rm"><div></div>${LVL.map(l=>`<div class="mut">أثر ${l}</div>`).join('')}${[2,1,0].map(pi=>`<div class="mut">احتمال ${LVL[pi]}</div>${[0,1,2].map(ii=>cell(pi,ii)).join('')}`).join('')}</div><div class="checks">${risks.sort((a,b)=>riskScore(b.r)-riskScore(a.r)).slice(0,3).map(x=>`<div class="check ${riskScore(x.r)>=6?'c':'n'}"><i>${riskScore(x.r)}</i><div>${esc(x.r.t)}<small>${esc(x.g.t)}</small></div></div>`).join('')}</div>`:'<div class="empty">لم تُسجل مشكلات متوقعة بعد.</div>')}</div>`}
+
+function vSwot(){const pest=`<section class="card"><header><h3>تحليل البيئة الخارجية العامة (PESTEL)</h3></header><p class="hint">امسح العوامل الستة قبل ملء الفرص والتهديدات، ثم انقل ما يهم منها إلى SWOT بزر «إلى SWOT».</p><div class="grid2">${Object.keys(PEST).map(k=>`<div class="f"><span>العوامل ${PEST[k]}</span><div class="rows">${cur.pestel[k].map((it,i)=>`<div class="row stack"><div class="grow">${I(`pestel.${k}.${i}.t`,'عامل خارجي مؤثر في الشركة')}</div><div class="fix" style="flex-basis:84px">${S(`pestel.${k}.${i}.eff`,['فرصة','تهديد'])}</div><button type="button" class="btn sm lockhide" data-act="toswot" data-f="${k}" data-i="${i}" title="نسخ العنصر إلى الفرص أو التهديدات">إلى SWOT</button>${X(`pestel.${k}`,i)}</div>`).join('')}</div>${ADD(`pestel.${k}`,'pest','إضافة عامل')}</div>`).join('')}</div></section>`;
+ const quad=k=>`<section class="card quad ${k}"><header><h3>${SW[k][0]}</h3><span class="pill">${SW[k][1]}</span></header><p class="hint">${SW[k][2]}</p>
+  <div class="rows">${cur.swot[k].map((it,i)=>`<div class="row"><div class="grow">${I(`swot.${k}.${i}.t`,'اكتب العنصر في جملة واحدة محددة')}</div><div class="fix" style="flex-basis:64px">${S(`swot.${k}.${i}.w`,[1,2,3,4,5])}</div>${X(`swot.${k}`,i)}</div>`).join('')||'<div class="empty">لا توجد عناصر بعد.</div>'}</div>${ADD(`swot.${k}`,'swot','إضافة عنصر')}</section>`;
+ const top=k=>{const a=cur.swot[k].filter(i=>filled(i.t)).sort((a,b)=>b.w-a.w).slice(0,3);return a.length?a.map(i=>esc(i.t)).join(' · '):'لم تُحدد بعد'};
+ const cell=k=>`<section class="card"><header><h3>${TW[k][0]} <span class="mut sm">(${k})</span></h3><span class="pill pri">${TW[k][1]}</span></header>
+  <div class="tops"><span><b>${SW[TW[k][3]][0]}:</b> ${top(TW[k][3])}</span><span><b>${SW[TW[k][4]][0]}:</b> ${top(TW[k][4])}</span></div><p class="hint">${TW[k][2]}</p>
+  <div class="rows">${cur.tows[k].map((it,i)=>`<div class="row"><div class="grow">${T(`tows.${k}.${i}.t`,'صغ البديل الاستراتيجي',2)}</div>${X(`tows.${k}`,i)}</div>`).join('')}</div>${ADD(`tows.${k}`,'tows','إضافة بديل')}</section>`;
+ return pest+`<p class="hint">الرقم بجانب كل عنصر هو وزنه النسبي من 1 إلى 5. العناصر الأعلى وزناً تظهر في مصفوفة الدمج بوصفها «أهم» النقاط.</p><div class="grid2">${['S','W','O','T'].map(quad).join('')}</div>
+ <div class="head"><h2>مصفوفة الدمج (TOWS)</h2><p>ادمج عناصر البيئة الداخلية بالخارجية لاستخراج البدائل الاستراتيجية التي تُبنى عليها الأهداف.</p></div><div class="tows">${['SO','WO','ST','WT'].map(cell).join('')}</div>`}
+
+function vDir(){const strategies=Object.keys(TW).flatMap(k=>cur.tows[k].filter(i=>filled(i.t)).map(i=>({id:i.id,l:`${k}: ${i.t}`})));
+ return card('الرؤية','تجيب عن سؤال: ماذا نريد أن نكون؟ اجعلها طموحة، محددة المجال، وقابلة للحفظ.',`${T('vision','تتطلع الشركة أن تكون ...',2)}<span class="hint num">عدد الكلمات: ${words(cur.vision)} (المستحسن 25 فأقل)</span>`)
+ +card('الرسالة','أجب عن الأسئلة الأربعة ثم صغ الرسالة في جملة واحدة.',`<div class="grid">${F('ماذا نقدم؟',I('mission.what'))}${F('لمن نقدم؟',I('mission.who'))}${F('كيف نقدم؟',I('mission.how'))}${F('لماذا نقدم؟',I('mission.why'))}</div>${F('نص الرسالة',T('mission.text','تسعى الشركة إلى تقديم ...',2))}<button type="button" class="btn sm lockhide" data-act="compose" style="align-self:flex-start">صياغة أولية من الإجابات</button>`)
+ +card('القيم','المبادئ التي تحكم السلوك وتدعم الرؤية والرسالة. يكفي من 3 إلى 7 قيم.',`<div class="rows">${cur.values.map((v,i)=>`<div class="row"><div class="grow">${I(`values.${i}.t`,'القيمة ومعناها العملي')}</div>${X('values',i)}</div>`).join('')||'<div class="empty">لم تُضف قيم بعد.</div>'}</div>${ADD('values','val','إضافة قيمة')}`)
+ +`<div class="head"><h2>الأهداف الاستراتيجية</h2><p>النتائج التي تريد الشركة تحقيقها خلال مدة الخطة. اربط كل هدف بالبديل الذي نتج عنه في مصفوفة الدمج، وصنّفه ضمن أحد محاور بطاقة الأداء المتوازن.</p></div>`
+ +(cur.goals.map((g,gi)=>`<section class="card goal"><header><h3>الهدف ${gi+1}</h3>${X('goals',gi)}</header>
+   <div class="row stack"><div class="grow" style="flex-grow:3">${F('نص الهدف الاستراتيجي',I(`goals.${gi}.t`,'مثال: رفع الكفاءة الإنتاجية للشركة','text',1))}</div><div class="grow">${F('المحور',S(`goals.${gi}.persp`,PERSP,'اختر المحور'))}</div></div>
+   <div class="f"><span>البدائل الاستراتيجية التي يستند إليها</span>${strategies.length?`<div class="chips">${strategies.map(s=>`<label class="chip"><input type="checkbox" id="c_${gi}_${s.id}" data-chk="goals.${gi}.tows" value="${s.id}"${g.tows.includes(s.id)?' checked':''}${dis()}><span>${esc(s.l)}</span></label>`).join('')}</div>`:'<div class="empty">أكمل مصفوفة الدمج في مرحلة التحليل ليظهر الربط هنا.</div>'}</div>
+   <div class="f"><span>الأهداف التفصيلية (الفرعية)</span><div class="rows">${g.subs.map((s,si)=>`<div class="row"><div class="grow">${I(`goals.${gi}.subs.${si}.t`,'هدف فرعي محدد وقابل للقياس')}</div>${X(`goals.${gi}.subs`,si)}</div>`).join('')}</div></div>${ADD(`goals.${gi}.subs`,'sub','إضافة هدف فرعي')}</section>`).join('')||'<div class="empty">لم تُضف أهداف استراتيجية بعد.</div>')
+ +ADD('goals','goal','إضافة هدف استراتيجي')}
+
+function vExec(){const acts=allActs(cur),total=acts.reduce((s,x)=>s+(num(x.a.cost)||0),0);
+ if(!cur.goals.length)return '<div class="empty">أضف الأهداف الاستراتيجية والفرعية في مرحلة «التوجهات الاستراتيجية» أولاً، ثم عُد لبناء الخطة التنفيذية.</div>';
+ const byGoal=cur.goals.map(g=>({t:g.t,c:g.subs.flatMap(s=>s.acts).reduce((s,a)=>s+(num(a.cost)||0),0)}));
+ return `<section class="card"><header><h3>ملخص الموازنة التقديرية</h3></header><div class="stats"><div class="stat"><b>${money(total)}</b><span>إجمالي تكلفة الخطة</span></div><div class="stat"><b>${acts.length}</b><span>برنامج ونشاط</span></div></div>
+  <div class="kv">${byGoal.map(b=>`<span>${esc(b.t||'هدف بلا عنوان')}</span><span class="num">${money(b.c)}</span><div class="bar" style="grid-column:1/-1"><i style="width:${total?b.c/total*100:0}%"></i></div>`).join('')}</div></section>`
+ +cur.goals.map((g,gi)=>`<section class="card goal"><header><h3>الهدف ${gi+1}: ${esc(g.t||'بلا عنوان')}</h3>${g.persp?`<span class="pill pri">${esc(g.persp)}</span>`:''}</header>
+  ${g.subs.map((s,si)=>`<div class="sub"><h4>${esc(s.t||'هدف فرعي بلا عنوان')}</h4>
+   ${s.acts.map((a,ai)=>{const p=`goals.${gi}.subs.${si}.acts.${ai}`;return `<div class="act"><div class="row"><div class="grow">${F('البرنامج / النشاط',I(p+'.t','ما الذي سيُنفَّذ تحديداً؟'))}</div>${X(`goals.${gi}.subs.${si}.acts`,ai)}</div>
+    <div class="grid">${F('من',I(p+'.start','','month'))}${F('إلى',I(p+'.end','','month'))}${F('المسؤول عن التنفيذ',I(p+'.owner','الاسم أو المسمى'))}${F('التكلفة (ر.س)',I(p+'.cost','0','number',1))}</div>
+    <div class="grid">${F('مؤشر الأداء',I(p+'.kpi','مثال: نسبة تشغيل الأسطول'))}${F('وحدة القياس',I(p+'.unit','٪، عدد، ر.س'))}${F('قيمة الأساس',I(p+'.base','الحالية','number'))}${F('القيمة المستهدفة',I(p+'.target','','number'))}</div></div>`}).join('')}
+   ${ADD(`goals.${gi}.subs.${si}.acts`,'act','إضافة برنامج أو نشاط')}</div>`).join('')||'<div class="empty">لا توجد أهداف فرعية لهذا الهدف.</div>'}</section>`).join('')}
+
+function vMon(){const acts=allActs(cur);if(!acts.length)return '<div class="empty">تظهر هنا أنشطة الخطة التنفيذية بعد إضافتها، لتسجيل المتحقق ومسؤولي المتابعة والتقييم.</div>';
+ const pr=acts.map(x=>progress(x.a)).filter(v=>v!==null),avg=pr.length?Math.round(pr.reduce((a,b)=>a+b,0)/pr.length):0,cnt=s=>acts.filter(x=>x.a.status===s).length;
+ return `<section class="card"><header><h3>لوحة المتابعة</h3></header><div class="stats"><div class="stat"><b>${pr.length?avg+'%':'—'}</b><span>متوسط تحقق المؤشرات</span></div><div class="stat"><b>${cnt('مكتمل')} / ${acts.length}</b><span>أنشطة مكتملة</span></div><div class="stat"><b>${cnt('قيد التنفيذ')}</b><span>قيد التنفيذ</span></div><div class="stat"><b>${cnt('متأخر')+cnt('متوقف')}</b><span>متأخرة أو متوقفة</span></div></div>
+  <div class="kv">${cur.goals.map(g=>{const a=g.subs.flatMap(s=>s.acts).map(progress).filter(v=>v!==null),v=a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0;return `<span>${esc(g.t||'هدف بلا عنوان')}</span><span class="num">${a.length?v+'%':'لا قياس بعد'}</span><div class="bar ${v>=75?'ok':v>=40?'warn':a.length?'bad':''}" style="grid-column:1/-1"><i style="width:${v}%"></i></div>`}).join('')}</div></section>`
+ +`<section class="card"><header><h3>تقرير الأداء الدوري</h3><button type="button" class="btn pri" data-act="report"${dl&&!pdfBusy?'':' disabled'}>${pdfBusy?'جارٍ تجهيز PDF...':'تنزيل تقرير الأداء PDF'}</button></header><p class="hint">تقرير للإدارة يضم ملخص الأداء، أداء الأهداف والأنشطة، الانحرافات عن الجدول الزمني ومعالجاتها، وأعلى المخاطر. عدد الأنشطة المنحرفة الآن: <b class="num">${acts.filter(x=>behind(x.a)).length}</b>.</p><div class="grid">${F('فترة التقرير',I('report.label','مثال: الربع الرابع 2026'))}</div>${F('التعليق والتوصيات',T('report.notes','قراءتكم للأداء في هذه الفترة وما توصون به للإدارة.',3))}</section>`
+ +acts.map(({a,g,path})=>{const p=progress(a),ex=expected(a),sc={'مكتمل':'ok','قيد التنفيذ':'pri','متأخر':'bad','متوقف':'bad'}[a.status]||'';
+  return `<section class="card"><header><h3>${esc(a.t||'نشاط بلا عنوان')}</h3><span class="pill ${sc}">${esc(a.status)}</span></header><p class="hint">${esc(g.t)}${filled(a.kpi)?` · المؤشر: ${esc(a.kpi)}`:''}${num(a.target)!==null?` · المستهدف: <span class="num">${esc(a.target)} ${esc(a.unit)}</span>`:''}</p>
+  ${p!==null?`<div class="row" style="align-items:center"><div class="grow bar ${p>=75?'ok':p>=40?'warn':'bad'}"><i style="width:${p}%"></i></div><b class="num">${p}%</b></div>`:''}${ex!==null?`<p class="hint num">المتوقع زمنياً حتى اليوم: ${ex}%${behind(a)?' · <b style="color:var(--bad)">منحرف عن الجدول الزمني</b>':''}</p>`:''}
+  <div class="grid">${a.reads.length?F('القيمة المتحققة (آخر قياس)',`<input id="${fid(path+'.actual')}" type="text" value="${esc(a.actual)}" disabled>`):F('القيمة المتحققة',I(path+'.actual','','number',1))}${F('حالة التنفيذ',S(path+'.status',ASTAT))}${F('مسؤول المتابعة',I(path+'.mon'))}${F('مسؤول التقييم',I(path+'.evalr'))}</div><div class="f"><span>سجل القياسات الدورية</span><div class="rows">${a.reads.map((r,ri)=>`<div class="row"><div class="grow">${I(`${path}.reads.${ri}.d`,'','date',1)}</div><div class="grow">${I(`${path}.reads.${ri}.v`,'القيمة','number',1)}</div>${X(path+'.reads',ri)}</div>`).join('')}</div></div>${ADD(path+'.reads','read','تسجيل قياس')}${F('المعالجات والتغذية الراجعة',T(path+'.fix','ما الإجراء التصحيحي عند الانحراف عن المستهدف؟',2))}</section>`}).join('')}
+
+function vReq(){return `<div class="grid2">${Object.keys(REQ).map(k=>`<section class="card"><header><h3>${REQ[k]}</h3></header><div class="rows">${cur.reqs[k].map((r,i)=>`<div class="row stack"><div class="grow" style="flex-grow:2">${I(`reqs.${k}.${i}.t`,'المتطلب')}</div><div class="grow">${I(`reqs.${k}.${i}.owner`,'المسؤول')}</div>${X(`reqs.${k}`,i)}</div>`).join('')||'<div class="empty">لم تُحدد متطلبات بعد.</div>'}</div>${ADD(`reqs.${k}`,'req','إضافة متطلب')}</section>`).join('')}</div>`}
+
+function vRisk(){if(!cur.goals.length)return '<div class="empty">أضف الأهداف الاستراتيجية أولاً، ثم حدد لكل هدف ما قد يعطل تنفيذه.</div>';
+ return cur.goals.map((g,gi)=>`<section class="card goal"><header><h3>الهدف ${gi+1}: ${esc(g.t||'بلا عنوان')}</h3></header>
+  <div class="rows">${g.risks.map((r,ri)=>{const p=`goals.${gi}.risks.${ri}`,sc=riskScore(r);return `<div class="act"><div class="row"><div class="grow">${F('المشكلة المتوقعة',I(p+'.t','ما الذي قد يعطل تنفيذ هذا الهدف؟'))}</div>${X(`goals.${gi}.risks`,ri)}</div>
+   <div class="row wrap" style="align-items:flex-end"><div class="grow">${F('الاحتمال',S(p+'.prob',LVL))}</div><div class="grow">${F('الأثر',S(p+'.imp',LVL))}</div><span class="pill ${sc>=6?'bad':sc>=3?'warn':'ok'}">درجة الخطورة ${sc} من 9</span></div>${F('البدائل وأساليب المعالجة',T(p+'.fix','',2))}</div>`}).join('')||'<div class="empty">لم تُسجل مشكلات متوقعة لهذا الهدف.</div>'}</div>${ADD(`goals.${gi}.risks`,'risk','إضافة مشكلة متوقعة')}</section>`).join('')}
+
+function vFinal(){const R=audit(cur),pct=readiness(R),crit=R.filter(r=>!r.ok&&r.crit),can=!crit.length&&pct>=80,ap=cur.approval;
+ const groups=STAGES.map(s=>{const a=R.filter(r=>r.stage===s.k);return a.length?`<div class="f"><span>${s.t}</span><div class="checks">${a.map(r=>`<div class="check ${r.ok?'y':r.crit?'c':'n'}"><i>${r.ok?'✓':'!'}</i><div>${esc(r.t)}${r.ok?'':`<small>${r.crit?'شرط أساسي — ':''}${esc(r.hint)}</small>`}</div></div>`).join('')}</div></div>`:''}).join('');
+ let actions='';
+ if(cur.status==='draft')actions=`<button type="button" class="btn pri" data-act="review">إرسال للمراجعة</button>`;
+ else if(cur.status==='review')actions=`<button type="button" class="btn pri" data-act="approve"${can?'':' disabled'}>اعتماد الخطة</button><button type="button" class="btn" data-act="draft">إعادتها مسودة</button>`;
+ else actions=`<button type="button" class="btn" data-act="newver">فتح إصدار جديد للتعديل</button>`;
+ return `<section class="card"><header><h3>جاهزية الخطة للاعتماد</h3><span class="pill ${pct>=80?'ok':pct>=50?'warn':'bad'} num">${pct}%</span></header>
+  <div class="bar ${pct>=80?'ok':pct>=50?'warn':'bad'}"><i style="width:${pct}%"></i></div><p class="hint">${R.filter(r=>r.ok).length} من ${R.length} معياراً متحقق. يُشترط للاعتماد استيفاء الشروط الأساسية وبلوغ 80% على الأقل.</p><div class="grid2">${groups}</div></section>`
+ +`<section class="card"><header><h3>سجل الاعتماد</h3><span class="pill ${STATUS[cur.status][1]}">${STATUS[cur.status][0]} · الإصدار ${cur.version}</span></header>
+  <div class="grid">${F('أعدّها',I('approval.prepared','','text',1))}${F('راجعها',I('approval.reviewed','','text',1))}${F('اعتمدها',I('approval.approved','','text',1))}${F('تاريخ الاعتماد',`<input id="f_apdate" type="text" value="${esc(ap.date||'—')}" disabled>`)}</div>
+  <div class="row wrap" style="align-items:center">${actions}${cur.status==='review'&&!can?`<span class="hint">${crit.length?`يتبقى ${crit.length} شرط أساسي غير مستوفى.`:'الجاهزية أقل من 80%.'}</span>`:''}${cur.status==='approved'?'<span class="hint">الخطة المعتمدة مقفلة عن التعديل. المتابعة والتقييم يبقيان مفتوحين.</span>':''}</div>
+  ${cur.log.length?`<div class="scroll"><table><thead><tr><th>التاريخ</th><th>الإجراء</th><th>بواسطة</th><th>الإصدار</th></tr></thead><tbody>${cur.log.slice().reverse().map(l=>`<tr><td class="num">${esc(l.d)}</td><td>${esc(l.a)}</td><td>${esc(l.by||'—')}</td><td class="num">${esc(l.v)}</td></tr>`).join('')}</tbody></table></div>`:''}</section>`
+ +`<section class="card"><header><h3>وثيقة الخطة</h3><div class="row wrap"><button type="button" class="btn pri" data-act="pdf"${dl&&!pdfBusy?'':' disabled'}>${pdfBusy?'جارٍ تجهيز PDF...':'تنزيل PDF للطباعة'}</button><button type="button" class="btn" data-act="word"${dl?'':' disabled'}>تنزيل ملف Word</button><button type="button" class="btn" data-act="backup"${dl?'':' disabled'}>نسخة احتياطية</button></div></header>${dl?'<p class="hint">ملف PDF بمقاس A4 مرقّم الصفحات وجاهز للطباعة: افتحه بعد التنزيل واطبعه من قارئ PDF. ملف Word للتحرير. النسخة الاحتياطية ملف JSON يُستورد من صفحة الخطط.</p>':'<p class="hint">التنزيل غير متاح في هذا العرض. يمكنك نسخ الوثيقة من المعاينة أدناه.</p>'}
+  <details id="doc-prev"><summary>معاينة الوثيقة كاملة</summary><div class="doc" style="margin-top:14px">${blocksHTML(blocks(cur))}</div></details></section>`}
+
+const VIEWS={dash:vDash,prep:vPrep,swot:vSwot,dir:vDir,exec:vExec,mon:vMon,req:vReq,risk:vRisk,final:vFinal};
+
+function navHTML(R){return `<button type="button" data-stage="dash"${stage==='dash'?' aria-current="true"':''}><i>◎</i><span>لوحة القيادة</span></button>`+STAGES.map((s,i)=>{const a=R.filter(r=>r.stage===s.k),ok=a.filter(r=>r.ok).length;return `<button type="button" data-stage="${s.k}" class="${a.length&&ok===a.length?'done':ok?'part':''}"${stage===s.k?' aria-current="true"':''}><i>${i+1}</i><span>${s.t}</span><em>${ok}/${a.length}</em></button>`}).join('')}
+function refreshMeta(){if(!cur)return;const R=audit(cur),n=document.getElementById('nav'),r=document.getElementById('ready-pill');if(n)n.innerHTML=navHTML(R);if(r){const pct=readiness(R);r.textContent='الجاهزية '+pct+'%';r.className='pill num '+(pct>=80?'ok':pct>=50?'warn':'bad')}
+ const b=document.getElementById('brand-name');if(b)b.textContent=cur.name||'خطة بلا اسم'}
+
+function homeHTML(){const list=Object.values(plans).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+ return `<div class="top"><div class="brand"><div class="mark"></div><div><b>تمام برو للاستراتيجية</b><span>إعداد الخطط الاستراتيجية للشركات من التحليل إلى الاعتماد</span></div></div>
+  <div class="meta">${mode==='local'?'<span class="pill warn">محفوظة على هذا المتصفح فقط</span>':''}<input type="file" id="imp" accept=".json,application/json" hidden><button type="button" class="btn" data-act="import"${ready?'':' disabled'}>استيراد خطة</button><button type="button" class="btn pri" data-act="new"${ready?'':' disabled'}>خطة جديدة</button></div></div>
+ <div class="main"><div class="head"><h2>الخطط الاستراتيجية</h2><p>كل خطة تمر بثماني مراحل متتابعة، وتُفحص آلياً قبل اعتمادها، وتُصدَّر وثيقة Word بالترتيب المتعارف عليه.</p></div>
+ ${picking?`<section class="card"><header><h3>بداية الخطة الجديدة</h3><button type="button" class="x" data-act="new" aria-label="إلغاء">×</button></header><p class="hint">القالب القطاعي يملأ أصحاب المصلحة وأربعة أهداف على محاور بطاقة الأداء المتوازن بأهدافها الفرعية وأنشطتها ومؤشراتها ومخاطرها. هو نقطة بداية عامة تُعدَّل حسب واقع الشركة، والأرقام المستهدفة والتواريخ والتكاليف تُدخل من بياناتها.</p><div class="row wrap"><button type="button" class="btn pri" data-tplk="blank">خطة فارغة</button>${Object.keys(SECTORS).map(k=>`<button type="button" class="btn" data-tplk="${k}">قالب ${SECTORS[k].n}</button>`).join('')}</div></section>`:''}
+ ${!ready?'<div class="empty">جارٍ تحميل الخطط المحفوظة...</div>':list.length?`<div class="plans">${list.map(p=>{const q=normalize(p),pct=readiness(audit(q));return `<section class="card plan" data-open="${esc(p.id)}" tabindex="0" role="button"><header><h3>${esc(p.name||'خطة بلا اسم')}</h3><span class="pill ${STATUS[q.status][1]}">${STATUS[q.status][0]}</span></header>
+   <p class="hint num">${esc(q.sector||'القطاع غير محدد')} · ${esc(q.from)} - ${esc(q.to)} · الإصدار ${q.version}</p><div class="row" style="align-items:center"><div class="grow bar ${pct>=80?'ok':pct>=50?'warn':'bad'}"><i style="width:${pct}%"></i></div><span class="num sm">الجاهزية ${pct}%</span></div>
+   <div class="row" style="justify-content:space-between;align-items:center"><span class="hint num">آخر تحديث ${esc(String(q.updatedAt).slice(0,10)||'—')}</span><span class="row"><button type="button" class="btn sm ghost" data-dup="${esc(p.id)}">نسخ</button><button type="button" class="btn sm ghost" data-rm="${esc(p.id)}">${confirmDel===p.id?'تأكيد الحذف نهائياً':'حذف'}</button></span></div></section>`}).join('')}</div>`
+   :'<div class="empty">لا توجد خطط بعد. اضغط «خطة جديدة» وابدأ ببيانات الشركة وفريق الإعداد.</div>'}
+ <section class="card"><header><h3>المنهجية التي تُبنى عليها الخطط</h3></header><div class="method">
+  <div><b>تحليل PESTEL و SWOT ومصفوفة TOWS</b><span class="hint">مسح للعوامل الخارجية الستة (PESTEL) ثم تحليل موزون للبيئة الداخلية والخارجية، تُشتق منه البدائل الهجومية والعلاجية والدفاعية والانكماشية.</span></div>
+  <div><b>تتبّع من التحليل إلى الهدف</b><span class="hint">كل هدف استراتيجي يُربط بالبديل الذي نتج عنه، فلا يدخل الخطة هدف بلا سند من التحليل.</span></div>
+  <div><b>بطاقة الأداء المتوازن</b><span class="hint">تصنيف الأهداف على المحاور الأربعة: المالي، العملاء، العمليات الداخلية، التعلم والنمو.</span></div>
+  <div><b>لوحة قيادة تنفيذية</b><span class="hint">خريطة استراتيجية وجدول زمني وموازنة سنوية ومصفوفة مخاطر، تُحدَّث من بيانات الخطة مباشرة.</span></div>
+  <div><b>قوالب قطاعية وتقرير أداء دوري</b><span class="hint">خمسة قوالب قطاعية لبدء الخطة، وتقرير أداء للإدارة يكشف الأنشطة المنحرفة عن جدولها الزمني.</span></div>
+  <div><b>مؤشرات قابلة للقياس</b><span class="hint">لكل نشاط مسؤول وزمن وتكلفة ومؤشر بقيمة أساس وقيمة مستهدفة، ويُحسب التحقق آلياً.</span></div>
+  <div><b>فحص جودة قبل الاعتماد</b><span class="hint">${audit(blank()).length} معياراً تُفحص آلياً، منها شروط أساسية لا تُعتمد الخطة بدونها.</span></div>
+  <div><b>وكيل ذكي بموافقة بشرية</b><span class="hint">يقترح عناصر التحليل والأهداف والأنشطة والمعالجات من بيانات الخطة، ولا يدخل الخطة شيء إلا بموافقتكم.</span></div>
+  <div><b>فصل الصلاحيات وسجل الإصدارات</b><span class="hint">معدّ ومراجع ومعتمد، وقفل للخطة بعد اعتمادها، وسجل مؤرخ لكل إجراء.</span></div></div></section></div>`}
+
+function editorHTML(){const R=audit(cur),pct=readiness(R),s=STAGES.find(x=>x.k===stage),i=STAGES.indexOf(s);RO=cur.status==='approved'&&stage!=='mon';
+ const body=VIEWS[stage]();
+ return `<div class="top"><div class="brand"><div class="mark"></div><div><b id="brand-name">${esc(cur.name||'خطة بلا اسم')}</b><span class="num">الخطة الاستراتيجية ${esc(cur.from)} - ${esc(cur.to)}</span></div></div>
+  <div class="meta"><span class="mut sm" id="save-state">${esc(saveState)}</span><span class="pill ${STATUS[cur.status][1]}">${STATUS[cur.status][0]} · إصدار ${cur.version}</span><span id="ready-pill" class="pill num ${pct>=80?'ok':pct>=50?'warn':'bad'}">الجاهزية ${pct}%</span>${ai&&!aiOff?'<button type="button" class="btn pri" data-act="ai">الوكيل الذكي</button>':''}<button type="button" class="btn" data-act="home">كل الخطط</button></div></div>
+ <div class="shell"><nav class="nav" id="nav" aria-label="مراحل الخطة">${navHTML(R)}</nav>
+ <div class="main${RO?' locked':''}">${s?`<div class="head"><span class="eyebrow">المرحلة ${i+1} من ${STAGES.length}</span><h2>${s.t}</h2><p>${s.d}</p></div>`:`<div class="head"><span class="eyebrow">نظرة شاملة</span><h2>لوحة القيادة</h2><p>ملخص تنفيذي حي للخطة: الخريطة الاستراتيجية، الجدول الزمني، الموازنة والمخاطر.</p></div>`}${body}
+ <div class="row" style="justify-content:space-between"${s?'':' hidden'}>${i>0?`<button type="button" class="btn" data-stage="${STAGES[i-1].k}">السابق: ${STAGES[i-1].t}</button>`:'<span></span>'}${i<STAGES.length-1?`<button type="button" class="btn pri" data-stage="${STAGES[i+1].k}">التالي: ${STAGES[i+1].t}</button>`:''}</div></div></div>`}
+
+function render(){const ae=document.activeElement,id=ae&&ae.id,pos=ae&&'selectionStart' in ae?(()=>{try{return ae.selectionStart}catch(e){return null}})():null;
+ const open=document.getElementById('doc-prev')?.open;
+ app.innerHTML=cur?editorHTML():homeHTML();
+ if(open&&document.getElementById('doc-prev'))document.getElementById('doc-prev').open=true;
+ if(id){const el=document.getElementById(id);if(el&&!el.disabled){el.focus({preventScroll:true});if(pos!==null)try{el.setSelectionRange(pos,pos)}catch(e){}}}}
+function go(k){stage=k;try{localStorage.setItem('sp_stage',k)}catch(e){};render();aiDraw();window.scrollTo({top:0})}
+function logAct(a,by){cur.log.push({d:today(),a,by:by||'',v:cur.version})}
+
+/* --- الأحداث --- */
+async function persist(body){plans[body.id]=body;try{if(mode==='db')await db.collection('plans').doc(body.id).set(body);else localSave();return true}catch(e){delete plans[body.id];toast('تعذّر الحفظ: لا تملك صلاحية التعديل أو المخزن غير متاح.');return false}}
+function fresh(src,suffix){const p=normalize(src);p.id='p'+Date.now().toString(36)+uid().slice(0,3);p.name=(p.name||'خطة')+suffix;p.status='draft';p.version=1;p.log=[];p.approval.date='';p.updatedAt=new Date().toISOString();return JSON.parse(JSON.stringify(p))}
+const readsAct=path=>{const m=path.match(/^(.*)\.reads(\.|$)/);return m?getP(m[1]):null};
+app.addEventListener('input',e=>{const t=e.target;if(!cur||!t.dataset.p||t.type==='checkbox')return;setP(t.dataset.p,t.value);{const a=readsAct(t.dataset.p);if(a)syncActual(a)}touch();if(!t.dataset.rr)refreshMeta()});
+app.addEventListener('change',e=>{const t=e.target;
+ if(t.id==='imp'){const f=t.files&&t.files[0];if(!f)return;const fr=new FileReader();fr.onload=async()=>{try{const d=JSON.parse(fr.result);if(!d||typeof d!=='object'||Array.isArray(d)||!('goals' in d))throw 0;if(await persist(fresh(d,''))){render();toast('استُوردت الخطة كمسودة جديدة.')}}catch(er){toast('الملف ليس نسخة احتياطية صالحة من المنصة.')}};fr.readAsText(f);return}
+ if(!cur)return;
+ if(t.dataset.chk){const a=getP(t.dataset.chk),i=a.indexOf(t.value);if(t.checked&&i<0)a.push(t.value);if(!t.checked&&i>=0)a.splice(i,1);touch();refreshMeta();return}
+ if(t.dataset.p&&t.dataset.rr){setP(t.dataset.p,t.value);touch();setTimeout(render,0)}});
+app.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.dataset.open){e.preventDefault();e.target.click()}});
+app.addEventListener('click',async e=>{const t=e.target.closest('button,[data-open]');if(!t)return;const d=t.dataset;
+ if(d.rm){e.stopPropagation();if(confirmDel!==d.rm){confirmDel=d.rm;render();return}confirmDel='';const id=d.rm;delete plans[id];try{if(mode==='db')await db.collection('plans').doc(id).delete();else localSave()}catch(er){toast('تعذّر حذف الخطة.')}render();return}
+ if(d.tplk){picking=false;cur=d.tplk==='blank'?blank():fromSector(d.tplk);aiTurns=[];stage='prep';touch();render();if(d.tplk!=='blank')toast('أُنشئت الخطة من القالب. عدّل الأهداف والأنشطة حسب واقع الشركة.');return}
+ if(d.dup){e.stopPropagation();if(await persist(fresh(plans[d.dup],' (نسخة)'))){render();toast('أُنشئت نسخة جديدة كمسودة.')}return}
+ if(d.open){cur=normalize(plans[d.open]);aiTurns=[];confirmDel='';saveState='';go(VIEWS[stage]?stage:'prep');return}
+ if(d.stage){go(d.stage);return}
+ if(d.add){undo=null;getP(d.add).push(TPL[d.tpl]());touch();render();const els=app.querySelectorAll(`[data-p^="${d.add}."]`);const last=[...els].filter(x=>x.dataset.p.startsWith(d.add+'.'+(getP(d.add).length-1)+'.'))[0];if(last)last.focus();return}
+ if(d.del){undo=JSON.stringify(cur);getP(d.del).splice(+d.i,1);{const a=readsAct(d.del);if(a)syncActual(a)}touch();render();toast('تم الحذف.','تراجع');return}
+ switch(d.act){
+  case 'import':document.getElementById('imp').click();break;
+  case 'toswot':{const it=cur.pestel[d.f][+d.i];if(!it||!filled(it.t)){toast('اكتب نص العامل أولاً.');break}const q=it.eff==='تهديد'?'T':'O';if(cur.swot[q].some(x=>x.t.trim()===it.t.trim())){toast('العنصر موجود في SWOT.');break}undo=JSON.stringify(cur);cur.swot[q].push({id:uid(),t:it.t.trim(),w:'3'});touch();render();toast(`أُضيف إلى ${SW[q][0]}.`,'تراجع');break}
+  case 'backup':{if(!dl)break;try{await dl.save({filename:`نسخة احتياطية - ${cur.name||'خطة'}.json`,data:JSON.stringify(cur,null,1)});toast('تم تنزيل النسخة الاحتياطية.')}catch(er){if(!er||er.code!=='declined')toast('تعذّر تنزيل الملف في هذا العرض.')}break}
+  case 'new':picking=!picking;render();break;
+  case 'home':if(dirty){clearTimeout(saveT);await save()}cur=null;aiShow(false);aiTurns=[];render();break;
+  case 'ai':aiShow(!aiOpen);break;
+  case 'compose':{const m=cur.mission;if(![m.what,m.who,m.how,m.why].some(filled)){toast('أجب عن الأسئلة الأربعة أولاً.');break}m.text=`تسعى ${cur.name||'الشركة'} إلى تقديم ${m.what||'...'} لـ${m.who||'...'} ${m.how||''} ${m.why||''}`.replace(/\s+/g,' ').trim()+'.';touch();render();break}
+  case 'review':cur.status='review';logAct('إرسال للمراجعة',cur.approval.prepared);touch();render();break;
+  case 'draft':cur.status='draft';logAct('إعادة إلى مسودة',cur.approval.reviewed);touch();render();break;
+  case 'approve':cur.status='approved';cur.approval.date=today();logAct('اعتماد الخطة',cur.approval.approved);touch();render();toast('اعتُمدت الخطة وأُقفلت عن التعديل.');break;
+  case 'newver':cur.status='draft';cur.version++;cur.approval.date='';logAct('فتح إصدار جديد',cur.approval.prepared);touch();render();break;
+  case 'report':{if(!dl||pdfBusy)break;pdfBusy=true;render();let blob=null;
+   try{blob=await makePdf(cur,(i,n)=>toast(`جارٍ تجهيز الصفحة ${i} من ${n}...`),reportBlocks(cur),'تقرير الأداء')}catch(er){toast('تعذّر إنشاء ملف PDF في هذا العرض.')}
+   pdfBusy=false;render();if(!blob)break;
+   try{await dl.save({filename:`تقرير الأداء - ${cur.name||'شركة'}${cur.report.label?' - '+cur.report.label:''}.pdf`,data:blob});toast('تم تنزيل تقرير الأداء.')}catch(er){if(!er||er.code!=='declined')toast('تعذّر تنزيل الملف في هذا العرض.')}break}
+  case 'pdf':{if(!dl||pdfBusy)break;pdfBusy=true;render();let blob=null;
+   try{blob=await makePdf(cur,(i,n)=>toast(`جارٍ تجهيز الصفحة ${i} من ${n}...`))}catch(er){toast('تعذّر إنشاء ملف PDF في هذا العرض. استخدم ملف Word بديلاً.')}
+   pdfBusy=false;render();if(!blob)break;
+   try{await dl.save({filename:`الخطة الاستراتيجية - ${cur.name||'شركة'}.pdf`,data:blob});toast('تم تنزيل ملف PDF. افتحه واطبعه من قارئ PDF.')}catch(er){if(!er||er.code!=='declined')toast('تعذّر تنزيل الملف في هذا العرض.')}break}
+  case 'word':{if(!dl)break;try{const blob=await docxBlob(cur,JSZip).generateAsync({type:'blob'});await dl.save({filename:`الخطة الاستراتيجية - ${cur.name||'شركة'}.docx`,data:blob});toast('تم تنزيل ملف Word.')}catch(er){if(!er||er.code!=='declined')toast('تعذّر تنزيل الملف في هذا العرض.')}break}
+ }});
+
+
+/* ============ تصدير PDF ============ */
+async function makePdf(p,onPage,B,title){B=B||blocks(p);title=title||'الخطة الاستراتيجية';
+ if(!window.html2canvas||!window.jspdf)throw new Error('lib');
+ try{await document.fonts.ready}catch(e){}
+ const host=document.createElement('div');host.className='pdf-host';host.lang='ar';document.body.append(host);
+ try{
+  const pages=[];let body;
+  const el=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e};
+  const nl=t=>esc(t).replace(/\n/g,'<br>');
+  const newPage=()=>{const pg=el('div','pdf-page');body=el('div','pdf-body');pg.append(body,el('div','pdf-foot'));host.append(pg);pages.push(pg)};
+  const over=()=>body.scrollHeight>body.clientHeight+1;
+  /* عند الانتقال لصفحة جديدة تُنقل العناوين الأخيرة معها حتى لا يبقى عنوان يتيم أسفل الصفحة */
+  const breakPage=()=>{const old=body,carry=[];while(old.children.length>1&&/^H[23]$/.test(old.lastElementChild.tagName)){carry.unshift(old.lastElementChild);old.lastElementChild.remove()}newPage();carry.forEach(c=>body.append(c))};
+  const place=e=>{body.append(e);if(over()&&body.children.length>1){e.remove();breakPage();body.append(e)}};
+  const mkTable=b=>el('table',null,`<colgroup>${b.w.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${b.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody></tbody>`);
+  for(const b of B){
+   if(b.k==='cover'){newPage();body.append(el('div','pdf-cover',`<span>${esc(b.a[0])}</span><b>${esc(b.a[1])}</b><i>${esc(b.a[2])}</i><small>${esc(b.a[3])}</small>`));newPage();continue}
+   if(b.k==='h2')place(el('h2',null,esc(b.t)));
+   else if(b.k==='h3')place(el('h3',null,esc(b.t)));
+   else if(b.k==='p')place(el('p',null,nl(b.t)));
+   else if(b.k==='q')place(el('p','pdf-q',filled(b.t)?nl(b.t):'—'));
+   else if(b.k==='ul')place(el('ul',null,b.a.map(x=>`<li>${esc(x)}</li>`).join('')));
+   else if(b.k==='tb'){let t=mkTable(b);place(t);
+    for(const r of b.rows){const tr=el('tr',null,r.map(c=>`<td>${nl(c)}</td>`).join(''));t.tBodies[0].append(tr);
+     if(over()&&!(t.tBodies[0].rows.length===1&&body.children.length===1)){tr.remove();if(!t.tBodies[0].rows.length)t.remove();breakPage();t=mkTable(b);body.append(t);t.tBodies[0].append(tr)}}}
+  }
+  pages.forEach((pg,i)=>{const f=pg.lastElementChild;if(i===0){f.style.visibility='hidden';return}
+   f.innerHTML=`<span>${esc(p.name||'')} · ${esc(title)} ${esc(p.from)} - ${esc(p.to)}</span><span>الإصدار ${p.version} · ${STATUS[p.status][0]}</span><span>صفحة ${i+1} من ${pages.length}</span>`});
+  const pdf=new window.jspdf.jsPDF({unit:'pt',format:'a4',compress:true}),W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight();
+  for(let i=0;i<pages.length;i++){if(onPage)onPage(i+1,pages.length);
+   const c=await window.html2canvas(pages[i],{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:true});
+   if(i)pdf.addPage();pdf.addImage(c.toDataURL('image/jpeg',.92),'JPEG',0,0,W,H,undefined,'FAST')}
+  return pdf.output('blob');
+ }finally{host.remove()}
+}
+
+/* ============ الوكيل الذكي ============ */
+const aiEl=document.getElementById('ai'),aiLogEl=document.getElementById('ai-log'),aiTasksEl=document.getElementById('ai-tasks'),aiIn=document.getElementById('ai-in'),aiSend=document.getElementById('ai-send');
+const TASKS={
+ dash:[['ملخص تنفيذي','اكتب ملخصاً تنفيذياً للخطة يصلح للعرض على الإدارة العليا: التوجه، أهم الأهداف، حالة التنفيذ، وأبرز المخاطر، في reply (حتى 200 كلمة) دون مقترحات.']],
+ prep:[['صياغة المقدمة','اكتب مقدمة للخطة الاستراتيجية (فقرة واحدة من 80 إلى 120 كلمة) تبيّن دواعي إعدادها وما يُنتظر منها، وقدّمها مقترحاً من نوع text للحقل intro.'],['توقعات أصحاب المصلحة','اقترح ما يتوقعه كل صاحب مصلحة مسجل في الخطة من الشركة، مقترحاً من نوع stake لكل واحد بالاسم المسجل نفسه.']],
+ swot:[['اقتراح عوامل PESTEL','اقترح عاملين خارجيين لكل فئة من فئات PESTEL الست (نوع pestel) مما يؤثر في شركة بهذا القطاع في السعودية، وحدد أثر كل عامل فرصةً أو تهديداً. صغها فرضيات تحتاج تحققاً.'],['اقتراح عناصر SWOT','اقترح ثلاثة عناصر لكل خانة من خانات تحليل SWOT الأربع، مبنية على بيانات الشركة ومواردها وطبيعة قطاعها، مع وزن لكل عنصر. لا تكرر العناصر المسجلة.'],['اشتقاق بدائل TOWS','اشتق من عناصر SWOT المسجلة بديلين استراتيجيين لكل خانة من مصفوفة الدمج (SO, WO, ST, WT)، واذكر في why العنصرين اللذين دمجتهما. إن كانت خانات SWOT فارغة فاطلب إكمالها ولا تقترح شيئاً.']],
+ dir:[['تحسين الرؤية والرسالة','قيّم الرؤية والرسالة الحاليتين باختصار، ثم اقترح صياغة محسّنة واحدة لكل منهما (نوع text للحقلين vision و mission). الرؤية 25 كلمة فأقل، والرسالة تجيب عن: ماذا، لمن، كيف، لماذا.'],['تصنيف الأهداف وربطها','صنّف كل هدف استراتيجي بلا محور على أحد محاور بطاقة الأداء المتوازن (نوع persp)، ونبّه في reply إلى أي محور غير مغطى.'],['اقتراح أهداف وأهداف فرعية','اقترح أهدافاً استراتيجية تسد المحاور غير المغطاة أو البدائل غير المترجمة إلى أهداف (نوع goal مع ربطها بمعرّفات بدائل TOWS إن وُجدت)، وأهدافاً فرعية قابلة للقياس للأهداف القليلة التفصيل (نوع sub).']],
+ exec:[['اقتراح أنشطة ومؤشرات','اقترح نشاطاً واحداً لكل هدف فرعي ليس له أنشطة (حتى 12 مقترحاً من نوع act)، بمؤشر أداء ووحدة قياس وقيمة مستهدفة رقمية وتواريخ ضمن مدة الخطة ومسؤول بالمسمى الوظيفي.']],
+ mon:[['صياغة تعليق التقرير','اكتب تعليقاً وتوصيات لتقرير الأداء الدوري موجهاً للإدارة العليا (100 إلى 150 كلمة): قراءة للأداء العام، أبرز الانحرافات وأسبابها المحتملة بوصفها فرضيات، وثلاث توصيات عملية. قدّمه مقترحاً من نوع text للحقل report.'],['تحليل الانحرافات','حلّل حالة الأنشطة ونسب تحقق مؤشراتها، وحدّد الأنشطة المتأخرة أو المنحرفة عن المستهدف، واقترح معالجة تصحيحية لكل منها (نوع fix). إن لم تُسجَّل قيم متحققة فاذكر ذلك.']],
+ req:[['اقتراح المتطلبات','اقترح المتطلبات اللازمة لتنفيذ الأنشطة والأهداف المسجلة، متطلبين لكل نوع من الأنواع الخمسة (نوع req) مع المسؤول بالمسمى الوظيفي.']],
+ risk:[['اقتراح المشكلات والمعالجات','اقترح لكل هدف استراتيجي مشكلتين متوقعتين قد تعطلان تنفيذه، مع تقدير الاحتمال والأثر وأسلوب المعالجة (نوع risk).']],
+ final:[['مراجعة نقدية للخطة','راجع الخطة مراجعة نقدية كمراجع مستقل: الاتساق بين التحليل والأهداف والأنشطة، قابلية القياس، واقعية الطموح مقارنة بالموارد، والثغرات. اذكر أهم خمس ملاحظات مرتبة بالأولوية في reply (حتى 220 كلمة)، ولا تقدّم مقترحات إلا لما يمكن إصلاحه مباشرة.']]};
+const RULES=`أنت مستشار تخطيط استراتيجي خبير تعمل داخل منصة لإعداد الخطط الاستراتيجية للشركات في السعودية. تساعد معدّ الخطة في تحليلها وصياغتها ومراجعتها.
+القواعد:
+- اعتمد على بيانات الخطة المرفقة فقط. لا تختلق حقائق أو أرقاماً عن الشركة أو سوقها. ما تستنتجه من طبيعة القطاع صغه بوصفه فرضية وبيّن في why أنه يحتاج تحققاً.
+- لا تقترح تكاليف مالية ولا قيم أساس للمؤشرات، فهذه يدخلها المستخدم من بياناته.
+- اكتب بعربية رسمية واضحة وموجزة، بلا رموز تنسيق (لا نجوم ولا عناوين).
+- استخدم المعرّفات (id) الواردة في البيانات كما هي عند الربط، ولا تخترع معرّفات.
+- لا تكرر ما هو مسجل في الخطة.
+أجب بكائن JSON واحد فقط بهذا الشكل: {"reply":"...","proposals":[...]}
+reply: ردّك على المستخدم في حدود 150 كلمة ما لم يُطلب غير ذلك.
+proposals: مصفوفة من 0 إلى 12 مقترحاً قابلاً للإضافة إلى الخطة. اجعلها فارغة إن كان السؤال استفساراً لا يحتاج إضافة. كل مقترح أحد هذه الأشكال، ومعه دائماً "why" يبرره في جملة:
+{"kind":"pestel","f":"pol|eco|soc|tec|env|leg","t":"نص العامل","eff":"فرصة|تهديد"}
+{"kind":"swot","q":"S|W|O|T","t":"نص العنصر","w":1-5}
+{"kind":"tows","q":"SO|WO|ST|WT","t":"نص البديل"}
+{"kind":"text","field":"intro|profile|vision|mission|report","t":"النص الكامل البديل"}
+{"kind":"stake","name":"اسم صاحب المصلحة","expect":"ما يتوقعه"}
+{"kind":"value","t":"القيمة"}
+{"kind":"goal","t":"نص الهدف","persp":"المالي|العملاء|العمليات الداخلية|التعلم والنمو","tows":["id"]}
+{"kind":"persp","goalId":"id","persp":"أحد المحاور الأربعة"}
+{"kind":"sub","goalId":"id","t":"هدف فرعي"}
+{"kind":"act","subId":"id","t":"النشاط","start":"YYYY-MM","end":"YYYY-MM","owner":"مسمى وظيفي","kpi":"المؤشر","unit":"الوحدة","target":رقم}
+{"kind":"req","cat":"human|fin|tech|phys|admin","t":"المتطلب","owner":"مسمى وظيفي"}
+{"kind":"risk","goalId":"id","t":"المشكلة","prob":"منخفض|متوسط|عالٍ","imp":"منخفض|متوسط|عالٍ","fix":"المعالجة"}
+{"kind":"fix","actId":"id","t":"المعالجة التصحيحية"}`;
+const str=v=>String(v??'').trim();
+const findGoal=id=>cur.goals.find(g=>g.id===id),findSub=id=>cur.goals.flatMap(g=>g.subs).find(s=>s.id===id),findAct=id=>allActs(cur).map(x=>x.a).find(a=>a.id===id);
+const TXT={intro:'المقدمة',profile:'النبذة التعريفية',vision:'الرؤية',mission:'الرسالة',report:'تعليق تقرير الأداء'};
+/* لكل نوع: وصف للعرض، وتطبيق على الخطة يعيد false إن تعذّر */
+const KINDS={
+ pestel:{d:o=>[`PESTEL · العوامل ${PEST[o.f]||''}`,`${str(o.t)}\nالأثر: ${o.eff==='تهديد'?'تهديد':'فرصة'}`],a:o=>PEST[o.f]&&str(o.t)&&cur.pestel[o.f].push({t:str(o.t),eff:o.eff==='تهديد'?'تهديد':'فرصة'})},
+ swot:{d:o=>[`تحليل SWOT · ${(SW[o.q]||[''])[0]}`,`${str(o.t)}\nالوزن: ${o.w||3}`],a:o=>SW[o.q]&&str(o.t)&&cur.swot[o.q].push({id:uid(),t:str(o.t),w:String(Math.min(5,Math.max(1,Math.round(+o.w)||3)))})},
+ tows:{d:o=>[`مصفوفة الدمج · ${(TW[o.q]||[''])[0]}`,str(o.t)],a:o=>TW[o.q]&&str(o.t)&&cur.tows[o.q].push({id:uid(),t:str(o.t)})},
+ text:{d:o=>[`${TXT[o.field]||''} · يستبدل النص الحالي`,str(o.t)],a:o=>{if(!TXT[o.field]||!str(o.t))return false;if(o.field==='mission')cur.mission.text=str(o.t);else if(o.field==='report')cur.report.notes=str(o.t);else cur[o.field]=str(o.t);return true}},
+ stake:{d:o=>[`أصحاب المصلحة · ${str(o.name)}`,str(o.expect)],a:o=>{if(!str(o.name)||!str(o.expect))return false;const s=cur.stake.find(x=>x.name.trim()===str(o.name));if(s)s.expect=str(o.expect);else cur.stake.push({name:str(o.name),expect:str(o.expect),power:'متوسط'});return true}},
+ value:{d:o=>['القيم',str(o.t)],a:o=>str(o.t)&&cur.values.push({t:str(o.t)})},
+ goal:{d:o=>[`هدف استراتيجي${PERSP.includes(o.persp)?' · '+o.persp:''}`,str(o.t)],a:o=>{if(!str(o.t))return false;const ids=Object.keys(TW).flatMap(k=>cur.tows[k].map(i=>i.id));cur.goals.push({id:uid(),t:str(o.t),persp:PERSP.includes(o.persp)?o.persp:'',tows:(Array.isArray(o.tows)?o.tows:[]).filter(i=>ids.includes(i)),subs:[],risks:[]});return true}},
+ persp:{d:o=>[`تصنيف هدف · ${(findGoal(o.goalId)||{}).t||'هدف غير موجود'}`,`المحور: ${str(o.persp)}`],a:o=>{const g=findGoal(o.goalId);if(!g||!PERSP.includes(o.persp))return false;g.persp=o.persp;return true}},
+ sub:{d:o=>[`هدف فرعي · ${(findGoal(o.goalId)||{}).t||'هدف غير موجود'}`,str(o.t)],a:o=>{const g=findGoal(o.goalId);return !!g&&!!str(o.t)&&g.subs.push({id:uid(),t:str(o.t),acts:[]})}},
+ act:{d:o=>[`نشاط · ${(findSub(o.subId)||{}).t||'هدف فرعي غير موجود'}`,`${str(o.t)}\nالمؤشر: ${str(o.kpi)||'—'}${num(o.target)!==null?' · المستهدف: '+o.target+' '+str(o.unit):''}\n${str(o.start)} إلى ${str(o.end)} · ${str(o.owner)}`],a:o=>{const s=findSub(o.subId);if(!s||!str(o.t))return false;const m=v=>/^\d{4}-\d{2}$/.test(str(v))?str(v):'';s.acts.push(Object.assign(TPL.act(),{t:str(o.t),start:m(o.start),end:m(o.end),owner:str(o.owner),kpi:str(o.kpi),unit:str(o.unit),target:num(o.target)!==null?String(num(o.target)):''}));return true}},
+ req:{d:o=>[REQ[o.cat]||'متطلب',`${str(o.t)}${str(o.owner)?'\nالمسؤول: '+str(o.owner):''}`],a:o=>REQ[o.cat]&&str(o.t)&&cur.reqs[o.cat].push({t:str(o.t),goal:'',owner:str(o.owner)})},
+ risk:{d:o=>[`مشكلة متوقعة · ${(findGoal(o.goalId)||{}).t||'هدف غير موجود'}`,`${str(o.t)}\nالاحتمال: ${str(o.prob)} · الأثر: ${str(o.imp)}\nالمعالجة: ${str(o.fix)}`],a:o=>{const g=findGoal(o.goalId);if(!g||!str(o.t))return false;const l=v=>LVL.includes(v)?v:'متوسط';g.risks.push({t:str(o.t),prob:l(o.prob),imp:l(o.imp),fix:str(o.fix)});return true}},
+ fix:{d:o=>[`معالجة تصحيحية · ${(findAct(o.actId)||{}).t||'نشاط غير موجود'}`,str(o.t)],a:o=>{const a=findAct(o.actId);if(!a||!str(o.t))return false;a.fix=str(o.t);return true}}};
+function ctx(){const p=cur;return {company:p.name,sector:p.sector,period:[p.from,p.to],status:STATUS[p.status][0],intro:p.intro,profile:p.profile,resources:p.res,team:p.team,stakeholders:p.stake,pestel:Object.fromEntries(Object.keys(PEST).map(k=>[k,p.pestel[k].filter(i=>filled(i.t))])),
+ swot:Object.fromEntries(['S','W','O','T'].map(k=>[k,p.swot[k].filter(i=>filled(i.t)).map(i=>({t:i.t,w:+i.w}))])),
+ tows:Object.keys(TW).flatMap(k=>p.tows[k].filter(i=>filled(i.t)).map(i=>({id:i.id,q:k,t:i.t}))),
+ vision:p.vision,mission:p.mission.text,values:p.values.map(v=>v.t),
+ goals:p.goals.map(g=>({id:g.id,t:g.t,persp:g.persp,tows:g.tows,risks:g.risks,subs:g.subs.map(s=>({id:s.id,t:s.t,acts:s.acts.map(a=>({id:a.id,t:a.t,start:a.start,end:a.end,owner:a.owner,cost:a.cost,kpi:a.kpi,unit:a.unit,base:a.base,target:a.target,actual:a.actual,readings:a.reads,progress:progress(a),expectedByTime:expected(a),behindSchedule:behind(a),status:a.status,fix:a.fix}))}))})),
+ requirements:p.reqs,unmetQualityChecks:audit(p).filter(r=>!r.ok).map(r=>r.t)}}
+function aiShow(v){aiOpen=v&&!!ai&&!!cur;aiEl.hidden=!aiOpen;if(aiOpen){aiDraw();aiIn.focus()}}
+function aiDraw(){if(!aiOpen||!cur)return;const locked=cur.status==='approved';
+ aiTasksEl.innerHTML=(TASKS[stage]||[]).map((t,i)=>`<button type="button" data-task="${i}"${aiBusy?' disabled':''}>${t[0]}</button>`).join('');
+ aiSend.textContent=aiBusy?'إيقاف':'إرسال';
+ aiLogEl.innerHTML=(aiTurns.length?'':`<div class="empty">أنا مطّلع على بيانات هذه الخطة كاملة. اختر مهمة من مهام المرحلة الحالية في الأسفل، أو اكتب طلبك. مقترحاتي مسودات تراجعها ثم تضيف منها ما تراه، ولا أعدّل الخطة من تلقاء نفسي.</div>`)
+ +aiTurns.map((t,ti)=>t.role==='user'?`<div class="msg u">${esc(t.text)}</div>`:`<div class="msg a${t.err?' err':''}"><p>${esc(t.text)}</p>${(t.props||[]).map((o,pi)=>{const d=KINDS[o.kind].d(o),no=locked&&o.kind!=='fix';return `<div class="prop${o.done?' done':''}"><b>${esc(d[0])}</b><p>${esc(d[1])}</p>${str(o.why)?`<small>${esc(o.why)}</small>`:''}<button type="button" class="btn sm" data-apply="${ti}:${pi}"${o.done||no?' disabled':''}>${o.done?'أُضيف للخطة':no?'الخطة معتمدة ومقفلة':'إضافة للخطة'}</button></div>`}).join('')}${(t.props||[]).filter(o=>!o.done).length>1&&!locked?`<button type="button" class="btn sm pri" data-applyall="${ti}" style="align-self:flex-start">إضافة كل المقترحات</button>`:''}</div>`).join('')
+ +(aiBusy?'<div class="think"><i></i><span>يحلّل الوكيل بيانات الخطة. قد يستغرق ذلك حتى دقيقة.</span></div>':'');
+ aiLogEl.scrollTop=aiLogEl.scrollHeight}
+const AIERR={rate_limited:'بلغتَ حد الاستخدام حالياً. حاول مرة أخرى لاحقاً.',session_expired:'انتهت الجلسة. سجّل الدخول من جديد ثم أعد المحاولة.',refused:'تعذّر تنفيذ هذا الطلب بصيغته الحالية. أعد صياغته.',prompt_too_large:'بيانات الخطة أكبر من أن تُرسل دفعة واحدة. اطلب مهمة أضيق.',empty_completion:'لم يصل رد. بسّط الطلب وأعد المحاولة.'};
+async function ask(msg,label){if(aiBusy||!cur||!ai||!str(msg))return;
+ const hist=aiTurns.filter(t=>!t.err).slice(-8).map(t=>({role:t.role,content:t.role==='user'?(t.full||t.text):t.text+(t.props&&t.props.length?`\n[قدّمتُ ${t.props.length} مقترحاً]`:'')}));
+ aiTurns.push({role:'user',text:label||msg,full:msg});aiBusy=true;aiCtl=new AbortController();aiDraw();
+ const input=[{role:'user',content:`${RULES}\n\nالمرحلة المفتوحة أمام المستخدم الآن: ${(STAGES.find(s=>s.k===stage)||{t:'لوحة القيادة'}).t}\n\nبيانات الخطة الحالية (JSON):\n${JSON.stringify(ctx())}`},...hist,{role:'user',content:msg}];
+ try{const r=await ai.json(input,{cache:false,signal:aiCtl.signal});const props=(r&&Array.isArray(r.proposals)?r.proposals:[]).filter(o=>o&&typeof o==='object'&&KINDS[o.kind]).slice(0,12);
+  aiTurns.push({role:'assistant',text:str(r&&r.reply)||(props.length?'هذه مقترحاتي للمراجعة:':'لم أجد ما أضيفه.'),props})}
+ catch(e){const c=e&&e.code;
+  if(c==='cancelled')aiTurns.push({role:'assistant',err:1,text:'أُوقف الطلب.'});
+  else if(c==='invalid_json'&&e.text)aiTurns.push({role:'assistant',text:str(e.text),props:[]});
+  else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(c)){aiOff=true;aiBusy=false;aiShow(false);render();toast('الوكيل الذكي غير متاح في هذا العرض.');return}
+  else aiTurns.push({role:'assistant',err:1,text:AIERR[c]||'تعذّر الاتصال بالوكيل. أعد المحاولة.'})}
+ aiBusy=false;aiCtl=null;aiDraw()}
+function applyProps(list){undo=JSON.stringify(cur);let ok=0,bad=0;for(const o of list){if(o.done)continue;if(cur.status==='approved'&&o.kind!=='fix'){bad++;continue}let r=false;try{r=KINDS[o.kind].a(o)}catch(e){}if(r){o.done=true;ok++}else bad++}
+ if(ok){touch();render();aiDraw();toast(`أُضيف ${ok} إلى الخطة${bad?`، وتعذّر ${bad}`:''}.`,'تراجع')}else{undo=null;toast('تعذّر تطبيق المقترح: العنصر المرتبط به غير موجود في الخطة.')}}
+aiEl.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;const d=t.dataset;
+ if(t.id==='ai-close'){aiShow(false);return}
+ if(d.task){const k=TASKS[stage][+d.task];ask(k[1],k[0]);return}
+ if(d.apply){const [ti,pi]=d.apply.split(':');applyProps([aiTurns[+ti].props[+pi]]);return}
+ if(d.applyall){applyProps(aiTurns[+d.applyall].props)}});
+document.getElementById('ai-form').addEventListener('submit',e=>{e.preventDefault();if(aiBusy){if(aiCtl)aiCtl.abort();return}const v=aiIn.value;if(!str(v))return;aiIn.value='';ask(v)});
+aiIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!aiBusy){e.preventDefault();document.getElementById('ai-form').requestSubmit()}});
+window.addEventListener('beforeunload',()=>{if(dirty&&mode==='local'&&cur){plans[cur.id]=cur;localSave()}});
+init();
+}
+</script>
+
+</body></html>
