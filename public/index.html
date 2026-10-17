@@ -9,20 +9,20 @@
 /* Layout: شريط علوي ثابت يحمل هوية المكتب وأقسام المنصة الثلاثة، وتحته مساحة واحدة تعرض الصفحة الرئيسية أو القسم المفتوح بكامل الارتفاع */
 :root{
   --bg:#F1F4F2; --surface:#FFFFFF; --ink:#13231E; --muted:#56675F; --line:#D5DEDA;
-  --brand:#3B4BC8; --brand-ink:#FFFFFF; --brand-soft:#E3E6FA; --brass:#8F6714;
-  --bar:#141B4D; --bar-ink:#EDF4F1; --bar-mut:#A3BCB3; --bar-on:#1D473D; --bar-line:#24554A;
+  --brand:#0B3C6E; --brand-ink:#FFFFFF; --brand-soft:#E3E6FA; --brass:#8F6714;
+  --bar:#062A4D; --bar-ink:#EDF4F1; --bar-mut:#A3BCB3; --bar-on:#1D473D; --bar-line:#24554A;
   --bad:#AE2E25; --bad-soft:#F8E2DF;
   --head:"Readex Pro","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;
   --body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0C1412; --surface:#141F1B; --ink:#E4ECE8; --muted:#94A69F; --line:#273630;
-  --brand:#8C9BFF; --brand-ink:#06231B; --brand-soft:#16372E; --brass:#DDAE52;
+  --brand:#7DB4E6; --brand-ink:#06231B; --brand-soft:#16372E; --brass:#DDAE52;
   --bar:#08100E; --bar-ink:#E4ECE8; --bar-mut:#8AA199; --bar-on:#17302A; --bar-line:#203A33;
   --bad:#F0867D; --bad-soft:#3A1D1A; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0C1412; --surface:#141F1B; --ink:#E4ECE8; --muted:#94A69F; --line:#273630;
-  --brand:#8C9BFF; --brand-ink:#06231B; --brand-soft:#16372E; --brass:#DDAE52;
+  --brand:#7DB4E6; --brand-ink:#06231B; --brand-soft:#16372E; --brass:#DDAE52;
   --bar:#08100E; --bar-ink:#E4ECE8; --bar-mut:#8AA199; --bar-on:#17302A; --bar-line:#203A33;
   --bad:#F0867D; --bad-soft:#3A1D1A; color-scheme:dark}
 *,*::before,*::after{box-sizing:border-box}
@@ -983,7 +983,7 @@ document.addEventListener("securitypolicyviolation",function(e){
 });
 /* تحسينات مشتركة تُحقن في كل الأقسام: تركيز لوحة المفاتيح، تحديد النص، وتقليل الحركة */
 var DECO='(function(){var v;function wrap(f){return function(el){var rm=null;try{rm=window.parent.__tpDeco&&window.parent.__tpDeco(el)}catch(e){}var r;try{r=f.apply(this,arguments)}catch(e){if(rm)rm();throw e}return Promise.resolve(r).then(function(c){if(rm)rm();return c},function(e){if(rm)rm();throw e})}}try{Object.defineProperty(window,"html2canvas",{configurable:true,get:function(){return v},set:function(f){v=typeof f==="function"&&!f.__tpw?wrap(f):f;if(v&&v!==f)v.__tpw=1}})}catch(e){}})();';
-var UNI=':focus-visible{outline:2px solid var(--accent,var(--brand,#3B4BC8));outline-offset:2px}html{-webkit-text-size-adjust:100%;scrollbar-width:thin}::selection{background:rgba(59,75,200,.25)}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}';
+var UNI=':focus-visible{outline:2px solid var(--accent,var(--brand,#0B3C6E));outline-offset:2px}html{-webkit-text-size-adjust:100%;scrollbar-width:thin}::selection{background:rgba(59,75,200,.25)}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}';
 /* تعديلات واجهة خاصة بكل قسم عند عرضه داخل المنصة: إخفاء المكرر من الهوية والمظهر، وتحسين الجوال */
 var MODCSS={audit:'.pdfpage,.pdfpage *{font-family:Arial,"Segoe UI",Tahoma,sans-serif!important}aside .brand>svg,aside .brand>div{display:none}aside .brand{padding:0;justify-content:flex-end}.side-foot [data-act="theme"]{display:none}#gq{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 10px;min-height:36px}.panel.kpi .v{font-variant-numeric:tabular-nums}@media (max-width:520px){.grid.g4{grid-template-columns:1fr 1fr!important;gap:10px!important}.panel.kpi{padding:10px 12px!important}.panel.kpi .v{font-size:19px!important}}@media (max-width:900px){aside{display:none!important}}.modal .nav button.btn{color:var(--ink)!important;border:1px solid var(--line)!important;border-radius:8px!important;padding:10px 12px!important;background:var(--surface)!important;cursor:pointer}.modal .nav button.btn:hover{border-color:var(--accent)!important;background:var(--accent-soft)!important}',gov:'[data-a="lock"]{display:none!important}',strategy:'.pdf-page,.pdf-page *{font-family:Arial,"Segoe UI",Tahoma,sans-serif!important}@media (max-width:860px){.nav{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;overflow:visible!important}.nav button{white-space:normal!important;padding:8px 6px!important;font-size:12.5px;line-height:1.3;text-align:center;flex-direction:column;gap:4px;justify-content:center;min-height:62px}.nav button i{margin:0 auto}}',feas:'.pdfpg,.pdfpg *{font-family:Arial,"Segoe UI",Tahoma,sans-serif!important}@media (max-width:900px){.nav{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;overflow:visible!important}.nav button{white-space:normal!important;padding:8px 6px!important;text-align:center;line-height:1.3;min-height:48px;border:1px solid var(--line)!important;border-radius:8px!important}.nav button small{display:none}.nav button .pc{display:inline-block;margin:0 0 0 4px!important}}'};
 
