@@ -129,3 +129,51 @@ test('فحص الصحة والنسخ الاحتياطي مع الإبقاء عل
     assert.equal(fs.readdirSync(dir).length, 2);
   } finally { t.close(); srv.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('وكيل المساعد الذكي: مفتاح مخفي، تحقق، وإعادة توجيه', async () => {
+  const http = require('node:http');
+  const { createAi } = require('../server/ai');
+  const seen = [];
+  const mock = http.createServer((req, res) => {
+    let b = '';
+    req.on('data', (c) => { b += c; });
+    req.on('end', () => {
+      seen.push({ key: req.headers['x-api-key'], body: JSON.parse(b) });
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ content: [{ type: 'text', text: 'مرحبا' }], stop_reason: 'end_turn' }));
+    });
+  }).listen(0);
+  const baseUrl = `http://127.0.0.1:${mock.address().port}`;
+  const on = createApp({ dbFile: ':memory:', ai: createAi({ apiKey: 'sk-test', baseUrl }) });
+  const off = createApp({ dbFile: ':memory:', ai: createAi({ apiKey: '' }) });
+  const srvs = [on, off].map((s) => ({ s, http: s.app.listen(0) }));
+  const run = async (i, method, url, body, cookie) => {
+    const r = await fetch(`http://127.0.0.1:${srvs[i].http.address().port}${url}`, {
+      method, headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) }, body: body ? JSON.stringify(body) : undefined,
+    });
+    return { r, j: await r.json().catch(() => null) };
+  };
+  try {
+    const cookies = [];
+    for (const i of [0, 1]) {
+      const { r } = await run(i, 'POST', '/api/auth/setup', OWNER);
+      cookies[i] = r.headers.get('set-cookie').split(';')[0];
+    }
+    assert.equal((await run(0, 'GET', '/api/ai/status')).r.status, 401);
+    assert.equal((await run(0, 'GET', '/api/ai/status', null, cookies[0])).j.enabled, true);
+    assert.equal((await run(1, 'GET', '/api/ai/status', null, cookies[1])).j.enabled, false);
+    assert.equal((await run(1, 'POST', '/api/ai', { messages: [{ role: 'user', content: 'x' }] }, cookies[1])).r.status, 503);
+    assert.equal((await run(0, 'POST', '/api/ai', { messages: [] }, cookies[0])).r.status, 400);
+    assert.equal((await run(0, 'POST', '/api/ai', { messages: [{ role: 'system', content: 'x' }] }, cookies[0])).r.status, 400);
+    const ok = await run(0, 'POST', '/api/ai', { messages: [{ role: 'user', content: 'سلام' }], tools: [{ name: 't', input_schema: { type: 'object' } }], model: 'evil' }, cookies[0]);
+    assert.equal(ok.r.status, 200);
+    assert.equal(ok.j.content[0].text, 'مرحبا');
+    assert.equal(seen[0].key, 'sk-test');
+    assert.equal(seen[0].body.model, 'claude-sonnet-5-5');
+    assert.equal(seen[0].body.tools[0].name, 't');
+    assert.equal(JSON.stringify(ok.j).includes('sk-test'), false);
+  } finally {
+    for (const x of srvs) { x.http.closeAllConnections(); x.http.close(); x.s.close(); }
+    mock.closeAllConnections(); mock.close();
+  }
+});

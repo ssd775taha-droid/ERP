@@ -3,6 +3,7 @@ const express = require('express');
 const { Store, httpError } = require('./store');
 const { Auth } = require('./auth');
 const { schedule } = require('./backup');
+const { createAi } = require('./ai');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const OPEN = [/^\/healthz$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
@@ -12,7 +13,7 @@ function cookie(req, name) {
   return m ? decodeURIComponent(m.slice(name.length + 1)) : null;
 }
 
-function createApp({ dbFile = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite'), secureCookie = process.env.COOKIE_SECURE === '1' } = {}) {
+function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite'), secureCookie = process.env.COOKIE_SECURE === '1' } = {}) {
   if (dbFile !== ':memory:') require('node:fs').mkdirSync(path.dirname(dbFile), { recursive: true });
   const store = new Store(dbFile);
   const auth = new Auth(store);
@@ -96,6 +97,12 @@ function createApp({ dbFile = process.env.DB_FILE || path.join(__dirname, '..', 
     for (const u of auth.list()) if (ids.includes(u.id)) out[u.id] = { name: u.name, avatarUrl: '' };
     res.json({ profiles: out });
   });
+  app.get('/api/ai/status', needUser, (req, res) => res.json({ enabled: ai.enabled() }));
+  app.post('/api/ai', needUser, wrap(async (req, res) => {
+    const ctl = new AbortController();
+    res.on('close', () => { if (!res.writableEnded) ctl.abort(); });
+    res.json(await ai.ask(req.user.id, req.body, ctl.signal));
+  }));
   app.get('/api/events', needUser, (req, res) => {
     res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.write('retry: 2000\n\n');
