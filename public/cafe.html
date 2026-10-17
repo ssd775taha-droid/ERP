@@ -81,18 +81,18 @@ try{P.__tpReady&&P.__tpReady(MOD,window)}catch(e){}
 /* Layout: side rail (sections + language) and one working pane; rail becomes a strip on phones. */
 :root{
   --bg:#F2F5F4; --surface:#FFFFFF; --ink:#15211E; --muted:#5A6A65; --line:#D8E0DD;
-  --accent:#0F5B4C; --accent-ink:#FFFFFF; --accent-soft:#DDEBE6;
+  --accent:#3B4BC8; --accent-ink:#FFFFFF; --accent-soft:#DDEBE6;
   --good:#1B7548; --good-soft:#DCEFE4; --warn:#9A5B00; --warn-soft:#F6E8CF; --bad:#AE2A22; --bad-soft:#F6DEDB;
   --display:"Alexandria","IBM Plex Sans Arabic",Tahoma,sans-serif;
   --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0F1514; --surface:#172120; --ink:#E6EEEB; --muted:#9AABA5; --line:#2A3835;
-  --accent:#5CC0A6; --accent-ink:#06211B; --accent-soft:#1D3A34;
+  --accent:#8C9BFF; --accent-ink:#06211B; --accent-soft:#1D3A34;
   --good:#6FD09A; --good-soft:#173527; --warn:#E9B45A; --warn-soft:#3A2D12; --bad:#F08A80; --bad-soft:#3F1D1A; color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#0F1514; --surface:#172120; --ink:#E6EEEB; --muted:#9AABA5; --line:#2A3835;
-  --accent:#5CC0A6; --accent-ink:#06211B; --accent-soft:#1D3A34;
+  --accent:#8C9BFF; --accent-ink:#06211B; --accent-soft:#1D3A34;
   --good:#6FD09A; --good-soft:#173527; --warn:#E9B45A; --warn-soft:#3A2D12; --bad:#F08A80; --bad-soft:#3F1D1A; color-scheme:dark }
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
@@ -333,7 +333,7 @@ const HELP={ar:{home:'ملخص المقهى: المؤشرات، التنبيها
  en:{home:'Café summary: key figures, alerts that need action, and shortcuts to frequent tasks.',products:'Each product has its recipe, sizes and prices. Cost per cup, cost ratio and suggested price are calculated from material prices.',preps:'Items made in-house such as syrups and sauces. Enter the components and yield; the unit cost is calculated and used inside products.',materials:'Purchase prices, pack size, waste and suppliers. Any price change immediately updates every product’s cost.',offers:'A discounted product or a bundle at one price, with the lowest price that keeps it on target.',eng:'Enter the month’s sales and expenses; each product is classed by popularity and profitability, with net profit and break-even.',sim:'Try material price rises before they happen, see the effect on each product, then apply suggested prices if you wish.',chan:'Each delivery app has its commission and price uplift; see each product’s profit there and the price that keeps your margin.',buy:'From monthly sales, the quantity, packs and cost of each material are calculated, with a purchase order per supplier.',imp:'Import materials and recipes from Excel, copy them from another café, and export Foodics files.',log:'Full backup and restore, the change log, and deleted items.',settings:'Café details and logo, document header, VAT and target ratio, Foodics link, and the access code.'}};
 const DFONTS=['Arial','IBM Plex Sans Arabic','Cairo','Tajawal','Almarai','Noto Naskh Arabic','Amiri'],XFONTS=['Arial','Tahoma','Calibri','Times New Roman','Sakkal Majalla','Traditional Arabic'];
 const VIEWS=['home','products','preps','materials','eng','sim','chan','offers','buy','imp','log','settings','help'],COLLS=['materials','products'],MAXS=3;
-const DEF={name:'',nameEn:'',address:'',phone:'',cr:'',vatNo:'',logo:'',vat:.15,target:.30,accent:'#0F5B4C',fxLang:'en',fxTax:'',fxInv:'',fxCat0:'',fxCat1:'',fxCat2:'',fxCat3:'',hdLayout:'start',hdLogo:'m',hdAddr:true,hdPhone:true,hdCr:true,hdVat:true,hdDate:true,ftPage:true,hdExtra:'',ftText:'',channels:[],docFont:'IBM Plex Sans Arabic',xlFont:'Arial'};
+const DEF={name:'',nameEn:'',address:'',phone:'',cr:'',vatNo:'',logo:'',vat:.15,target:.30,accent:'#3B4BC8',fxLang:'en',fxTax:'',fxInv:'',fxCat0:'',fxCat1:'',fxCat2:'',fxCat3:'',hdLayout:'start',hdLogo:'m',hdAddr:true,hdPhone:true,hdCr:true,hdVat:true,hdDate:true,ftPage:true,hdExtra:'',ftText:'',channels:[],docFont:'IBM Plex Sans Arabic',xlFont:'Arial'};
 const S={cafes:[],cafe:null,regReady:false,gate:{sel:null},cfg:{...DEF},materials:[],products:[],db:null,dl:null,ready:false,offline:false,edit:null,draft:null,
   q:{products:'',preps:'',materials:''},fcat:'',sel:new Set(),rep:'costing',repLang:'ui',orient:'p',imp:null,sales:{},log:[],month:'',sq:null,sx:null,sa:null,cmp:null,unlocked:new Set(),trash:[],offers:[],od:null,buy:{pct:'',safe:'10'},dirty:false,pending:null,chd:null,sim:{pct:'',ov:[],round:'0.5',only:true},msup:[],msel:0,rest:null};
 let lang='ar';try{lang=localStorage.getItem('lang')==='en'?'en':'ar'}catch(e){}
@@ -574,7 +574,7 @@ settings(){const c=S.cfg,anyEx=COLLS.some(k=>S[k].some(x=>x.example)),saveRow=`<
     <div class="grid">${inp('s-name',t('cafeAr'),c.name)}${inp('s-nameEn',t('cafeEn'),c.nameEn,'text','dir="ltr"')}${inp('s-address',t('address'),c.address)}${inp('s-phone',t('phone'),c.phone,'tel','dir="ltr"')}${inp('s-cr',t('cr'),c.cr,'text','dir="ltr"')}${inp('s-vatNo',t('vatNo'),c.vatNo,'text','dir="ltr"')}</div>${saveRow}</form>`;
   if(sub==='calc')return`<form class="card" data-form="settings"><div class="grid">${inp('s-vat',t('vat'),+(c.vat*100).toFixed(4),'number')}${inp('s-target',t('target'),+(c.target*100).toFixed(4),'number')}</div>${saveRow}</form>`;
   if(sub==='head'){const ck=k=>`<label class="row" style="gap:4px"><input type="checkbox" id="s-${k}" ${c[k]!==false?'checked':''}>${t(k)}</label>`;
-    return`<form class="card" data-form="settings" data-hd="1"><div class="grid">${sel('s-hdLayout',t('hdLayout'),[['start',t('hlStart')],['end',t('hlEnd')],['center',t('hlCenter')],['dual',t('hlDual')]],c.hdLayout,'data-keep')}${sel('s-hdLogo',t('hdLogo'),[['s',t('szS')],['m',t('szM')],['l',t('szL')]],c.hdLogo,'data-keep')}${inp('s-accent',t('accent'),c.accent||'#0F5B4C','color')}${sel('s-docFont',t('docFont'),DFONTS.map(f=>[f,f]),c.docFont,'data-keep')}${sel('s-xlFont',t('xlFont'),XFONTS.map(f=>[f,f]),c.xlFont,'data-keep')}</div><p class="sub">${t('fontNote')}</p>
+    return`<form class="card" data-form="settings" data-hd="1"><div class="grid">${sel('s-hdLayout',t('hdLayout'),[['start',t('hlStart')],['end',t('hlEnd')],['center',t('hlCenter')],['dual',t('hlDual')]],c.hdLayout,'data-keep')}${sel('s-hdLogo',t('hdLogo'),[['s',t('szS')],['m',t('szM')],['l',t('szL')]],c.hdLogo,'data-keep')}${inp('s-accent',t('accent'),c.accent||'#3B4BC8','color')}${sel('s-docFont',t('docFont'),DFONTS.map(f=>[f,f]),c.docFont,'data-keep')}${sel('s-xlFont',t('xlFont'),XFONTS.map(f=>[f,f]),c.xlFont,'data-keep')}</div><p class="sub">${t('fontNote')}</p>
       <div class="f"><span>${t('hdShowT')}</span><div class="row">${['hdAddr','hdPhone','hdCr','hdVat','hdDate','ftPage'].map(ck).join('')}</div></div>
       <div class="grid">${inp('s-hdExtra',t('hdExtra'),c.hdExtra)}${inp('s-ftText',t('ftText'),c.ftText)}</div>${saveRow}</form>
     <div class="card"><h2>${t('hdPrev')}</h2><div class="scroll"><img id="hd-prev" alt="${t('hdPrev')}" style="width:100%;min-width:520px;border:1px solid var(--line);border-radius:6px;background:#fff"></div><p class="sub">${t('hdPrevNote')}</p></div>`}
@@ -738,7 +738,7 @@ const xlLib=()=>lib('/vendor/exceljs.min.js',()=>!!window.ExcelJS);
 
 const mix=(hex,k)=>{const n=parseInt(hex.slice(1),16);return'rgb('+[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v+(255-v)*k)).join(',')+')'};
 async function pdfPages(rep,meta){const land=S.orient==='l',W=land?2246:1588,H=land?1588:2246,M=96,TW=W-2*M,rtl=RL!=='en',both=RL==='both',INK='#15211E',MUT='#5A6A65',LINE='#C9D3CF',ZEB='#F5F7F6',
-    AC=/^#[0-9a-f]{6}$/i.test(S.cfg.accent||'')?S.cfg.accent:'#0F5B4C',SOFT=mix(AC,.86),DOCW=440,BOT=H-M-40;
+    AC=/^#[0-9a-f]{6}$/i.test(S.cfg.accent||'')?S.cfg.accent:'#3B4BC8',SOFT=mix(AC,.86),DOCW=440,BOT=H-M-40;
   const FF=DFONTS.includes(S.cfg.docFont)?S.cfg.docFont:DFONTS[0],font=(w,s)=>`${w} ${s}px "${FF}", "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif`;
   try{await Promise.all([document.fonts.load(font(400,26),'اختبار Test 123'),document.fonts.load(font(600,26),'اختبار Test 123')])}catch(e){}
   const logo=S.cfg.logo?await loadImg(S.cfg.logo):null,pages=[];let x,y;

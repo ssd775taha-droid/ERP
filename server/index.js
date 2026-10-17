@@ -6,7 +6,7 @@ const { schedule } = require('./backup');
 const { createAi } = require('./ai');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
-const OPEN = [/^\/healthz$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
+const OPEN = [/^\/healthz$/, /^\/theme\.css$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//];
 
 function cookie(req, name) {
   const m = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(`${name}=`));

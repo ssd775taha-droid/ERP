@@ -1,0 +1,123 @@
+/* هوية تمام برو: نيلي مع ذهبي. تغلب على ألوان الأقسام بخصوصية أعلى، ويحقنها الغلاف في كل قسم.
+   الألوان الدلالية (نجاح/تحذير/خطأ) تبقى كما في كل قسم. */
+:root:root{
+  --bg:#F3F4FA;
+  --surface:#FFFFFF;
+  --surface2:#F7F8FC;
+  --card:#FFFFFF;
+  --ink:#161A33;
+  --muted:#5B6182;
+  --mut:#5B6182;
+  --line:#DADDEE;
+  --brand:#3B4BC8;
+  --brand-ink:#FFFFFF;
+  --brand-soft:#E3E6FA;
+  --accent:#3B4BC8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E3E6FA;
+  --acc:#3B4BC8;
+  --acc-ink:#FFFFFF;
+  --acc-soft:#E3E6FA;
+  --acc-h:#2E3CA8;
+  --pri:#3B4BC8;
+  --pri-ink:#FFFFFF;
+  --pri-soft:#E3E6FA;
+  --pine:#3B4BC8;
+  --pine-ink:#FFFFFF;
+  --pine-soft:#E3E6FA;
+  --s1:#3B4BC8;
+  --soft:#E8EAF7;
+  --sunk:#E6E8F5;
+  --brass:#9A6700;
+  --bar:#141B4D;
+  --bar-ink:#ECEFFD;
+  --bar-mut:#A9B3E6;
+  --bar-on:#262F7A;
+  --bar-line:#313B8C;
+  --side:#141B4D;
+  --side-ink:#D5DBF7;
+  --side-mute:#8F9AD6;
+  --side-active:#262F7A;
+}
+:root:root[data-theme="light"]{color-scheme:light}
+@media (prefers-color-scheme:dark){
+:root:root:not([data-theme="light"]){
+  --bg:#0D1020;
+  --surface:#151933;
+  --surface2:#1A1F3F;
+  --card:#151933;
+  --ink:#E6E9FA;
+  --muted:#9AA2CC;
+  --mut:#9AA2CC;
+  --line:#2A3160;
+  --brand:#8C9BFF;
+  --brand-ink:#0B1030;
+  --brand-soft:#222A5E;
+  --accent:#8C9BFF;
+  --accent-ink:#0B1030;
+  --accent-soft:#222A5E;
+  --acc:#8C9BFF;
+  --acc-ink:#0B1030;
+  --acc-soft:#222A5E;
+  --acc-h:#A7B3FF;
+  --pri:#8C9BFF;
+  --pri-ink:#0B1030;
+  --pri-soft:#222A5E;
+  --pine:#8C9BFF;
+  --pine-ink:#0B1030;
+  --pine-soft:#222A5E;
+  --s1:#8C9BFF;
+  --soft:#1F2552;
+  --sunk:#10142B;
+  --brass:#E8BE5A;
+  --bar:#090C1E;
+  --bar-ink:#E6E9FA;
+  --bar-mut:#8F9AD6;
+  --bar-on:#1B2252;
+  --bar-line:#232B63;
+  --side:#090C1E;
+  --side-ink:#D5DBF7;
+  --side-mute:#7F8AC6;
+  --side-active:#1B2252;
+}
+}
+:root:root[data-theme="dark"]{
+  --bg:#0D1020;
+  --surface:#151933;
+  --surface2:#1A1F3F;
+  --card:#151933;
+  --ink:#E6E9FA;
+  --muted:#9AA2CC;
+  --mut:#9AA2CC;
+  --line:#2A3160;
+  --brand:#8C9BFF;
+  --brand-ink:#0B1030;
+  --brand-soft:#222A5E;
+  --accent:#8C9BFF;
+  --accent-ink:#0B1030;
+  --accent-soft:#222A5E;
+  --acc:#8C9BFF;
+  --acc-ink:#0B1030;
+  --acc-soft:#222A5E;
+  --acc-h:#A7B3FF;
+  --pri:#8C9BFF;
+  --pri-ink:#0B1030;
+  --pri-soft:#222A5E;
+  --pine:#8C9BFF;
+  --pine-ink:#0B1030;
+  --pine-soft:#222A5E;
+  --s1:#8C9BFF;
+  --soft:#1F2552;
+  --sunk:#10142B;
+  --brass:#E8BE5A;
+  --bar:#090C1E;
+  --bar-ink:#E6E9FA;
+  --bar-mut:#8F9AD6;
+  --bar-on:#1B2252;
+  --bar-line:#232B63;
+  --side:#090C1E;
+  --side-ink:#D5DBF7;
+  --side-mute:#7F8AC6;
+  --side-active:#1B2252;
+}
+::selection{background:rgba(59,75,200,.25)}
