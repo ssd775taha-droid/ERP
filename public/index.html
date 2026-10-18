@@ -404,7 +404,7 @@ function pwFields(a,b){return '<label class="f">كلمة المرور الجدي
 function authView(v){
   C.view=v;authEl.hidden=false;var h="";
   if(v==="boot")h='<h1>تمام برو</h1><p class="sub">جارٍ الاتصال بقاعدة بيانات المنصة…</p>';
-  else if(v==="err")h='<h1>تعذّر فتح المنصة</h1>'+note()+'<p class="sub">افتح المنصة من claude.ai وأنت مسجّل الدخول، وتأكد أن مالك المنصة شاركها معك بصلاحية «مساهم» أو أعلى.</p><button class="btn" type="button" id="again">إعادة المحاولة</button>';
+  else if(v==="err")h='<h1>تعذّر فتح المنصة</h1>'+note()+'<p class="sub">تحقّق من اتصالك بالإنترنت أو بشبكة الواي فاي، ثم أعد المحاولة.</p><button class="btn" type="button" id="again">إعادة المحاولة</button>';
   else if(v==="nosetup")h='<h1>تمام برو</h1><p class="sub">لم يُنشئ مالك النظام حسابات الدخول بعد. اطلب منه فتح المنصة وإنشاء حسابه أولاً.</p>';
   else if(v==="setup")h='<h1>إنشاء حساب مالك النظام</h1><p class="sub">هذا أول تشغيل. أنشئ حسابك، ثم أضف بقية المستخدمين من صفحة «المستخدمون».</p>'+note()+'<form id="f-setup" novalidate><label class="f">الاسم الكامل<input id="su-name" type="text" autocomplete="name" required></label><label class="f">اسم المستخدم<input id="su-user" type="text" autocomplete="username" dir="ltr" autocapitalize="none" spellcheck="false" required></label>'+pwFields("su-p1","su-p2")+'<button class="btn" type="submit" id="su-go">إنشاء الحساب والدخول</button></form>';
   else if(v==="login")h='<h1>تسجيل الدخول</h1><p class="sub">تمام برو: المراجعة، الاستراتيجية، الحوكمة، دراسات الجدوى، المحاسبة القضائية، المهام والعمل عن بعد، تكاليف المقاهي.</p>'+note()+'<form id="f-login" novalidate><label class="f">اسم المستخدم أو البريد الإلكتروني<input id="li-user" type="text" autocomplete="username" dir="ltr" autocapitalize="none" spellcheck="false" required></label><label class="f">كلمة المرور<input id="li-pw" type="password" autocomplete="current-password" dir="ltr" required></label><label class="ck"><input type="checkbox" id="li-show"> إظهار كلمة المرور</label><button class="btn" type="submit" id="li-go">دخول</button></form>'+(C.owner?'<button class="lnk" type="button" id="to-reset">نسيت كلمة المرور؟ أعد تعيينها بصفتك مالك المنصة</button>':'<p class="sub" style="font-size:13px">نسيت كلمة المرور؟ اطلب من مالك النظام إعادة تعيينها.</p>');
@@ -1215,7 +1215,6 @@ function init(){
   C.msg="";authView("boot");
   var c=window.claude,nul=function(){return null};
   if(!c||!c.use){C.msg="قاعدة بيانات المنصة غير متاحة في هذا العرض.";return authView("err")}
-  if(!(window.crypto&&crypto.subtle)){C.msg="هذا المتصفح لا يدعم التشفير اللازم لتسجيل الدخول.";return authView("err")}
   Promise.all([c.use("db").catch(nul),c.use("user").catch(nul)]).then(function(r){
     C.db=r[0];C.user=r[1];
     if(!C.db){C.msg="قاعدة بيانات المنصة غير متاحة في هذا العرض.";return authView("err")}
