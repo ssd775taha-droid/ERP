@@ -10,11 +10,45 @@ const path = require('node:path');
 const port = process.env.PORT || '3000';
 // بدون cloudflared (أو LOCAL_ONLY=1) تعمل المنصة على هذا الجهاز فقط عبر http://localhost
 const hasTunnel = process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
-const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: '127.0.0.1' };
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'data');
+const LOCAL_DB_URL = 'postgres://erp:erp@127.0.0.1:5432/erp';
 
 if (!hasTunnel) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
+
+// بدون DATABASE_URL نشغّل قاعدة بيانات PostgreSQL محلية عبر Docker (تتطلب تثبيت Docker Desktop)
+function dockerComposeCmd(args) {
+  let r = spawnSync('docker', ['compose', ...args], { cwd: root, stdio: 'inherit' });
+  if (r.error) r = spawnSync('docker-compose', args, { cwd: root, stdio: 'inherit' });
+  return r;
+}
+function waitForDb(tries = 30) {
+  return new Promise((resolve, reject) => {
+    const attempt = (n) => {
+      const c = net.connect({ port: 5432, host: '127.0.0.1' });
+      c.once('connect', () => { c.destroy(); resolve(); });
+      c.once('error', () => {
+        c.destroy();
+        if (n <= 0) return reject(new Error('تعذّر الاتصال بقاعدة البيانات المحلية بعد المحاولات'));
+        setTimeout(() => attempt(n - 1), 1000);
+      });
+    };
+    attempt(tries);
+  });
+}
+async function ensureLocalDatabase() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  console.log('لا يوجد DATABASE_URL: يتم تشغيل قاعدة بيانات PostgreSQL محلية عبر Docker...');
+  const r = dockerComposeCmd(['up', '-d', 'db']);
+  if (r.error || r.status !== 0) {
+    console.error('تعذّر تشغيل قاعدة البيانات المحلية. ثبّت Docker Desktop (https://www.docker.com/products/docker-desktop/) وشغّله، ثم أعد المحاولة.');
+    process.exit(4);
+  }
+  await waitForDb();
+  return LOCAL_DB_URL;
+}
+
+const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: '127.0.0.1' };
 
 // نتأكد أن المنفذ فارغ: نسخة قديمة عالقة تعني أن المتصفح والنفق قد يصلان إلى قاعدتي بيانات مختلفتين
 function portBusy(host) {
@@ -35,6 +69,7 @@ if ((await portBusy('127.0.0.1')) || (await portBusy('::1'))) {
   console.error(`المنفذ ${port} مشغول بنسخة أخرى من المنصة. أغلقها أولًا (taskkill /f /im node.exe /im cloudflared.exe) ثم أعد التشغيل.`);
   process.exit(3);
 }
+env.DATABASE_URL = await ensureLocalDatabase();
 let stopping = false;
 const app = spawn(process.execPath, ['server/index.js'], { cwd: root, env, stdio: 'inherit' });
 
