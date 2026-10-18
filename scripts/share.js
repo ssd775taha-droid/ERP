@@ -2,9 +2,11 @@
 // بلا إعداد: رابط مؤقت trycloudflare.com يتغيّر كل تشغيل.
 // برابط ثابت (نطاقك): ضع رمز النفق في data/tunnel-token.txt أو في المتغير TUNNEL_TOKEN، ويُضبط اسم المضيف في لوحة Cloudflare.
 // يتطلب تثبيت cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
+// مشاركة عبر شبكة الواي فاي المحلية فقط (بلا إنترنت): أنشئ ملف data/lan.txt (أي محتوى) أو اضبط LAN=1.
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
 
 const port = process.env.PORT || '3000';
@@ -13,8 +15,19 @@ const hasTunnel = process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'data');
 const LOCAL_DB_URL = 'postgres://erp:erp@127.0.0.1:5432/erp';
+// وضع الواي فاي: نربط الخادم بكل واجهات الشبكة بدل localhost فقط، ليصله أي جهاز على نفس الشبكة
+const lanMode = process.env.LAN === '1' || fs.existsSync(path.join(dataDir, 'lan.txt'));
 
 if (!hasTunnel) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
+if (lanMode) {
+  var lanIps = [];
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const a of addrs || []) if (a.family === 'IPv4' && !a.internal) lanIps.push(a.address);
+  }
+  console.log('\nوضع مشاركة الواي فاي: أي جهاز على نفس شبكة الواي فاي يفتح أحد هذه الروابط:');
+  if (lanIps.length) lanIps.forEach((ip) => console.log('  http://' + ip + ':' + port)); else console.log('  (تعذّر العثور على عنوان الشبكة؛ تأكد من اتصالك بالواي فاي)');
+  console.log('يعمل فقط لمن هو على نفس شبكة الواي فاي، ويتوقف إن أغلقت هذا الجهاز.\n');
+}
 
 // بدون DATABASE_URL نشغّل قاعدة بيانات PostgreSQL محلية عبر Docker (تتطلب تثبيت Docker Desktop)
 function dockerComposeCmd(args) {
@@ -48,7 +61,7 @@ async function ensureLocalDatabase() {
   return LOCAL_DB_URL;
 }
 
-const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: '127.0.0.1' };
+const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: lanMode ? '0.0.0.0' : '127.0.0.1' };
 
 // نتأكد أن المنفذ فارغ: نسخة قديمة عالقة تعني أن المتصفح والنفق قد يصلان إلى قاعدتي بيانات مختلفتين
 function portBusy(host) {
