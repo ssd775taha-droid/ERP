@@ -1,9 +1,32 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const { Pool } = require('pg');
 const { createApp } = require('../server');
 
+// كل اختبار يحصل على مخطط (schema) منفصل داخل نفس قاعدة بيانات PostgreSQL، لعزل كامل بلا تعارض.
+const ADMIN_URL = process.env.TEST_DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:5432/tamam_test';
+
+async function freshDatabaseUrl() {
+  const schema = `t${crypto.randomBytes(8).toString('hex')}`;
+  const admin = new Pool({ connectionString: ADMIN_URL });
+  await admin.query(`CREATE SCHEMA "${schema}"`);
+  await admin.end();
+  const url = new URL(ADMIN_URL);
+  // نبني الاستعلام يدوياً: URLSearchParams يرمّز الفراغ كـ + الذي لا يفهمه pg_dump (libpq) كفراغ
+  url.search = `?options=${encodeURIComponent(`-c search_path=${schema}`)}`;
+  return { databaseUrl: url.toString(), schema };
+}
+
+async function dropSchema(schema) {
+  const admin = new Pool({ connectionString: ADMIN_URL });
+  await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  await admin.end();
+}
+
 async function boot() {
-  const srv = createApp({ dbFile: ':memory:' });
+  const { databaseUrl, schema } = await freshDatabaseUrl();
+  const srv = await createApp({ databaseUrl });
   const http = srv.app.listen(0);
   const base = `http://127.0.0.1:${http.address().port}`;
   let cookie = '';
@@ -21,8 +44,8 @@ async function boot() {
     return { status: r.status, body: j };
   };
   const db = (b) => call('POST', '/api/db', b);
-  const close = () => { http.closeAllConnections(); http.close(); srv.close(); };
-  return { call, db, close, base, cookie: () => cookie, clear: () => { cookie = ''; } };
+  const close = async () => { http.closeAllConnections(); http.close(); await srv.close(); await dropSchema(schema); };
+  return { call, db, close, base, databaseUrl, cookie: () => cookie, clear: () => { cookie = ''; } };
 }
 
 const OWNER = { username: 'owner', name: 'مالك', password: 'password123' };
@@ -43,7 +66,7 @@ test('الإعداد الأول ثم الدخول وحماية الواجهات'
     assert.equal((await t.call('POST', '/api/auth/setup', { ...OWNER, username: 'other' })).status, 403);
     assert.equal((await t.call('GET', '/audit.html')).status, 200);
     assert.equal((await t.call('GET', '/vendor/jspdf.umd.min.js')).status, 200);
-  } finally { t.close(); }
+  } finally { await t.close(); }
 });
 
 test('المستند: set/get/update/delete', async () => {
@@ -61,7 +84,7 @@ test('المستند: set/get/update/delete', async () => {
     assert.equal((await t.db({ op: 'get', path: 'm/audit/clients/c1' })).body.exists, false);
     assert.equal((await t.db({ op: 'get', path: 'a/../b' })).status, 400);
     assert.equal((await t.db({ op: 'get', path: 'a/b/c' })).status, 400);
-  } finally { t.close(); }
+  } finally { await t.close(); }
 });
 
 test('الاستعلام: where وorderBy وlimit والإضافة', async () => {
@@ -81,7 +104,7 @@ test('الاستعلام: where وorderBy وlimit والإضافة', async () =>
     assert.equal((await t.db({ op: 'query', path: 'col', where: [['n', '~', 1]] })).status, 400);
     assert.ok((await t.db({ op: 'add', path: 'col', data: { n: 9 } })).body.id);
     assert.equal((await ids({})).length, 4);
-  } finally { t.close(); }
+  } finally { await t.close(); }
 });
 
 test('إدارة المستخدمين والصلاحيات', async () => {
@@ -101,7 +124,7 @@ test('إدارة المستخدمين والصلاحيات', async () => {
     assert.equal((await t.db({ op: 'set', path: 'a/b', data: { x: 1 } })).status, 200);
     await t.call('POST', '/api/auth/logout');
     assert.equal((await t.db({ op: 'get', path: 'a/b' })).status, 401);
-  } finally { t.close(); }
+  } finally { await t.close(); }
 });
 
 test('تقييد محاولات الدخول الفاشلة', async () => {
@@ -111,7 +134,7 @@ test('تقييد محاولات الدخول الفاشلة', async () => {
     t.clear();
     for (let i = 0; i < 5; i++) await t.call('POST', '/api/auth/login', { username: 'owner', password: 'nope-nope' });
     assert.equal((await t.call('POST', '/api/auth/login', { username: 'owner', password: 'password123' })).status, 429);
-  } finally { t.close(); }
+  } finally { await t.close(); }
 });
 
 test('فحص الصحة والنسخ الاحتياطي مع الإبقاء على الأحدث', async () => {
@@ -120,14 +143,15 @@ test('فحص الصحة والنسخ الاحتياطي مع الإبقاء عل
   const path = require('node:path');
   const { backup } = require('../server/backup');
   const t = await boot();
+  const { databaseUrl, schema } = await freshDatabaseUrl();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erp-bk-'));
-  const srv = createApp({ dbFile: ':memory:' });
+  const srv = await createApp({ databaseUrl });
   try {
     assert.equal((await t.call('GET', '/healthz')).body.ok, true);
-    srv.store.setDoc('a/b', { x: 1 });
+    await srv.store.setDoc('a/b', { x: 1 });
     for (let i = 0; i < 4; i++) { backup(srv.store, dir, 2); await new Promise((r) => setTimeout(r, 5)); }
     assert.equal(fs.readdirSync(dir).length, 2);
-  } finally { t.close(); srv.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally { await t.close(); await srv.close(); await dropSchema(schema); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('وكيل المساعد الذكي: مفتاح مخفي، تحقق، وإعادة توجيه', async () => {
@@ -144,8 +168,10 @@ test('وكيل المساعد الذكي: مفتاح مخفي، تحقق، وإ�
     });
   }).listen(0);
   const baseUrl = `http://127.0.0.1:${mock.address().port}`;
-  const on = createApp({ dbFile: ':memory:', ai: createAi({ apiKey: 'sk-test', baseUrl }) });
-  const off = createApp({ dbFile: ':memory:', ai: createAi({ apiKey: '' }) });
+  const dbOn = await freshDatabaseUrl();
+  const dbOff = await freshDatabaseUrl();
+  const on = await createApp({ databaseUrl: dbOn.databaseUrl, ai: createAi({ apiKey: 'sk-test', baseUrl }) });
+  const off = await createApp({ databaseUrl: dbOff.databaseUrl, ai: createAi({ apiKey: '' }) });
   const srvs = [on, off].map((s) => ({ s, http: s.app.listen(0) }));
   const run = async (i, method, url, body, cookie) => {
     const r = await fetch(`http://127.0.0.1:${srvs[i].http.address().port}${url}`, {
@@ -173,7 +199,8 @@ test('وكيل المساعد الذكي: مفتاح مخفي، تحقق، وإ�
     assert.equal(seen[0].body.tools[0].name, 't');
     assert.equal(JSON.stringify(ok.j).includes('sk-test'), false);
   } finally {
-    for (const x of srvs) { x.http.closeAllConnections(); x.http.close(); x.s.close(); }
+    for (const x of srvs) { x.http.closeAllConnections(); x.http.close(); await x.s.close(); }
+    await dropSchema(dbOn.schema); await dropSchema(dbOff.schema);
     mock.closeAllConnections(); mock.close();
   }
 });
@@ -198,5 +225,5 @@ test('الأمان: تلويث النموذج الأولي، CSRF، حجم ال�
     for (let i = 0; i < 6; i++) last = await t.call('POST', '/api/auth/login', { username: 'owner', password: 'wrong-password' });
     assert.equal(last.status, 429);
     assert.equal((await t.call('POST', '/api/auth/login', { username: 'owner', password: OWNER.password })).status, 429);
-  } finally { t.close(); }
+  } finally { await t.close(); }
 });

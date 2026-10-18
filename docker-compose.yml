@@ -1,14 +1,34 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-erp}"
+      POSTGRES_DB: erp
+    # منفذ 5432 مفتوح على الجهاز: يلزم عند تشغيل التطبيق خارج Docker محلياً (npm run share)
+    ports: ["5432:5432"]
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
   erp:
     build: .
     ports: ["3000:3000"]
     volumes: ["erp-data:/data"]
     environment:
+      DATABASE_URL: "postgres://erp:${POSTGRES_PASSWORD:-erp}@db:5432/erp"
       # فعّلهما عند التشغيل خلف HTTPS / وكيل عكسي
       COOKIE_SECURE: "0"
       TRUST_PROXY: "0"
       # يفعّل المساعد الذكي في قسم المراجعة (اختياري)
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 volumes:
   erp-data:
+  pg-data:
