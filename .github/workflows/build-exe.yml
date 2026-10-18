@@ -1,0 +1,44 @@
+name: Build cleanup-old-files.exe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/exciting-albattani-am016p]
+    paths:
+      - tools/cleanup_old_files.py
+      - .github/workflows/build-exe.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build exe
+        run: |
+          pip install pyinstaller
+          pyinstaller --onefile --console --name cleanup-old-files tools/cleanup_old_files.py
+
+      - name: Smoke test
+        run: dist\cleanup-old-files.exe --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cleanup-old-files-exe
+          path: dist/cleanup-old-files.exe
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cleanup-old-files-latest
+          name: cleanup-old-files.exe
+          body: "ملف تنفيذي لأداة حذف/نقل الملفات القديمة. شغّله من PowerShell: cleanup-old-files.exe C:\\Users\\you\\Downloads --since 2024-01-01"
+          files: dist/cleanup-old-files.exe
+          target_commitish: ${{ github.sha }}
