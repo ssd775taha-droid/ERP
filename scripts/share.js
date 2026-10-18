@@ -10,15 +10,16 @@ const os = require('node:os');
 const path = require('node:path');
 
 const port = process.env.PORT || '3000';
-// بدون cloudflared (أو LOCAL_ONLY=1) تعمل المنصة على هذا الجهاز فقط عبر http://localhost
-const hasTunnel = process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'data');
 const LOCAL_DB_URL = 'postgres://erp:erp@127.0.0.1:5432/erp';
 // وضع الواي فاي: نربط الخادم بكل واجهات الشبكة بدل localhost فقط، ليصله أي جهاز على نفس الشبكة
 const lanMode = process.env.LAN === '1' || fs.existsSync(path.join(dataDir, 'lan.txt'));
+// بدون cloudflared (أو LOCAL_ONLY=1) تعمل المنصة على هذا الجهاز فقط عبر http://localhost
+// وضع الواي فاي يوقف النفق العام: النفق يفرض كوكي مشفّرة (Secure) لا تعمل على رابط http العادي لعنوان الشبكة المحلية
+const hasTunnel = !lanMode && process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
 
-if (!hasTunnel) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
+if (!hasTunnel && !lanMode) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
 if (lanMode) {
   var lanIps = [];
   for (const addrs of Object.values(os.networkInterfaces())) {
