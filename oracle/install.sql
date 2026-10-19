@@ -8,5 +8,7 @@ SET DEFINE OFF
 @sql/04_pkg_erp_stock.sql
 @sql/05_pkg_erp_trade.sql
 @sql/06_pkg_erp_asset.sql
-@sql/07_views.sql
-PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/08_selftest.sql
+@sql/07_pkg_erp_hr.sql
+@sql/08_pkg_erp_payroll.sql
+@sql/09_views.sql
+PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/10_selftest.sql

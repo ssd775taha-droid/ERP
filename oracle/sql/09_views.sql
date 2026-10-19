@@ -96,3 +96,35 @@ SELECT 'ACCUM', y.account_code,
           LEFT JOIN erp_assets a ON a.cat_id = c.cat_id AND a.status = 'ACTIVE'
           LEFT JOIN erp_depreciation d ON d.asset_id = a.asset_id AND d.status = 'OK'
          GROUP BY c.accum_account) y;
+
+-- الموظفون مع القسم والراتب الأساسي الساري هذا الشهر
+CREATE OR REPLACE VIEW v_erp_employee AS
+SELECT e.emp_id, e.code, e.name, e.job_title, d.name AS dept_name, e.hire_date, e.term_date, e.status,
+       (SELECT h.basic_salary FROM erp_salary_history h
+         WHERE h.emp_id = e.emp_id
+           AND h.effective_from = (SELECT MAX(h2.effective_from) FROM erp_salary_history h2
+                                    WHERE h2.emp_id = e.emp_id AND h2.effective_from <= TRUNC(SYSDATE, 'MM'))) AS current_basic
+  FROM erp_employees e
+  LEFT JOIN erp_departments d ON d.dept_id = e.dept_id;
+
+-- رصيد السلف
+CREATE OR REPLACE VIEW v_erp_advance_balance AS
+SELECT a.adv_id, e.code AS emp_code, e.name AS emp_name, a.grant_date, a.amount, a.repaid,
+       a.amount - a.repaid AS remaining, a.installments_done, a.installments, a.status
+  FROM erp_advances a JOIN erp_employees e ON e.emp_id = a.emp_id
+ WHERE a.status <> 'VOID';
+
+-- ملخص كشوف الرواتب
+CREATE OR REPLACE VIEW v_erp_payroll_summary AS
+SELECT r.run_id, r.period, r.status,
+       (SELECT COUNT(*) FROM erp_payroll_lines l WHERE l.run_id = r.run_id) AS employees,
+       r.total_gross, r.total_deductions, r.total_net, r.total_employer, r.entry_id, r.pay_entry_id, r.pay_date
+  FROM erp_payroll_runs r;
+
+-- مطابقة: صافي الكشوف المرحَّلة غير المصروفة مقابل رصيد ح/2300 رواتب مستحقة. الفرق صفر ما لم تُرحَّل قيود يدوية عليه.
+CREATE OR REPLACE VIEW v_erp_payroll_vs_gl AS
+SELECT NVL((SELECT SUM(total_net) FROM erp_payroll_runs WHERE status = 'POSTED'), 0) AS unpaid_net,
+       NVL((SELECT SUM(credit - debit) FROM erp_lines WHERE account_code = '2300'), 0) AS gl_balance,
+       NVL((SELECT SUM(total_net) FROM erp_payroll_runs WHERE status = 'POSTED'), 0)
+         - NVL((SELECT SUM(credit - debit) FROM erp_lines WHERE account_code = '2300'), 0) AS difference
+  FROM dual;

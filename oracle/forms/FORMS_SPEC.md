@@ -451,7 +451,79 @@ END;
 
 زر `BTN_SCHEDULE` على كتلة `ASSETS` يشغّل التقرير `RPT_ASSET_SCHEDULE` للأصل الحالي: `run_erp_report('RPT_ASSET_SCHEDULE', 'P_ASSET=' || :ASSETS.ASSET_ID)`.
 
-## الشاشة 8: `FRM_PAYMENT` — سند قبض/صرف (نافذة منبثقة Modal)
+## الشاشة 8: `FRM_EMPLOYEES` — الموظفون والمكوّنات
+
+**تبويب الموظفين:** كتلة غير مرتبطة `NEWE` لإضافة موظف: `CODE`, `NAME`, `HIRE_DATE`, `BASIC_SALARY`, `DEPT_NAME` (LOV الأقسام) و`DEPT_ID`, `JOB_TITLE`, `NATIONAL_ID`, `BANK_ACCOUNT`، وكتلة `EMPS` مرتبطة بالعرض `v_erp_employee` (استعلام فقط) تعرض الموظفين مع الراتب الساري. زرا `BTN_SALARY` (تعديل راتب: نافذة `SAL` بحقلي الراتب وشهر السريان) و`BTN_TERMINATE` (إنهاء خدمة بتاريخ).
+
+```plsql
+-- NEWE.BTN_SAVE : WHEN-BUTTON-PRESSED
+DECLARE v_id NUMBER;
+BEGIN
+  v_id := erp_hr.add_employee(:NEWE.CODE, :NEWE.NAME, :NEWE.HIRE_DATE, :NEWE.BASIC_SALARY, :NEWE.DEPT_ID,
+                              :NEWE.JOB_TITLE, :NEWE.NATIONAL_ID, :NEWE.BANK_ACCOUNT);
+  commit_db;
+  MESSAGE('أُضيف الموظف');
+  GO_BLOCK('NEWE'); CLEAR_BLOCK(NO_VALIDATE);
+  GO_BLOCK('EMPS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- SAL.BTN_OK :  erp_hr.set_salary(:EMPS.EMP_ID, :SAL.BASIC_SALARY, :SAL.EFFECTIVE_FROM);  commit_db;
+-- BTN_TERMINATE : erp_hr.terminate(:EMPS.EMP_ID, :TERM.TERM_DATE);  commit_db;   (كلاهما بنفس نمط معالجة الأخطاء أعلاه)
+```
+
+**تبويب المكوّنات:** كتلة `COMPS` مرتبطة بـ `erp_pay_components` للعرض فقط، وكتلة غير مرتبطة `NEWC` لتعريف مكوّن تستدعي `erp_hr.add_component(CODE, NAME, KIND, CALC_TYPE, PCT, BASE_TYPE, BASE_CAP, EXPENSE_ACCOUNT, LIABILITY_ACCOUNT)` (`KIND` وCALC_TYPE وBASE_TYPE قوائم List Item بقيمها الإنجليزية وعناوين عربية). **نسب التأمينات والضرائب وسقوفها تُضبط هنا وفق نظام بلدك**؛ لا شيء مزروع. كتلة `ASSIGN` غير مرتبطة (`EMP_CODE`, `COMP_CODE`, `AMOUNT`, `PCT`) وزر يستدعي `erp_hr.assign_component(:ASSIGN.EMP_ID, :ASSIGN.COMP_ID, :ASSIGN.AMOUNT, :ASSIGN.PCT)`، وزر `BTN_UNASSIGN` يستدعي `erp_hr.unassign_component`. كتلة `EMP_COMPS` مرتبطة بـ `erp_emp_components` (للعرض فقط، ربط Master-Detail مع `EMPS`).
+
+## الشاشة 9: `FRM_PAYROLL` — كشوف الرواتب
+
+- كتلة `RUNS` مرتبطة بالعرض `v_erp_payroll_summary` (استعلام فقط، `ORDER BY period DESC`): `PERIOD`, `STATUS`, `EMPLOYEES`, `TOTAL_GROSS`, `TOTAL_DEDUCTIONS`, `TOTAL_NET`, `TOTAL_EMPLOYER`، و`RUN_ID` غير مرئي.
+- كتلة `LINES` تفصيل لـ `RUNS` (علاقة على `run_id`، استعلام فقط) على `erp_payroll_lines` مع اسم الموظف، وكتلة `ITEMS` تفصيل لـ `LINES` على `line_id` تعرض البنود.
+- كتلة تحكم `CTRL`: `NEW_PERIOD` (شهر) وأزرار الدورة. يُفعَّل كل زر بحسب `RUNS.STATUS` (`SET_ITEM_PROPERTY(..., ENABLED, ...)` في `WHEN-NEW-RECORD-INSTANCE`):
+
+| الزر | يُفعَّل عند | الإجراء |
+|---|---|---|
+| إنشاء كشف | دائماً | `erp_payroll.create_run(:CTRL.NEW_PERIOD)` |
+| إعادة حساب | DRAFT | `erp_payroll.calculate_run(:RUNS.RUN_ID)` |
+| إلغاء مسودة | DRAFT | `erp_payroll.cancel_run(:RUNS.RUN_ID)` |
+| ترحيل | DRAFT | `v := erp_payroll.post_run(:RUNS.RUN_ID)` |
+| صرف | POSTED | نافذة (التاريخ، `METHOD`) ثم `v := erp_payroll.pay_run(:RUNS.RUN_ID, :PAYW.PAY_DATE, :PAYW.METHOD)` |
+| إلغاء الصرف | PAID | `erp_payroll.unpay_run(:RUNS.RUN_ID)` |
+| إلغاء الكشف | POSTED | `erp_payroll.void_run(:RUNS.RUN_ID)` |
+| قسيمة / كشف / بنود | أي حالة | `run_erp_report('RPT_PAYSLIP', 'P_RUN=' || :RUNS.RUN_ID || ' P_EMP=' || :LINES.EMP_ID)` وأخواتها |
+
+```plsql
+-- القالب المشترك لكل زر دورة (مثال: الترحيل) : WHEN-BUTTON-PRESSED
+DECLARE v_entry NUMBER;
+BEGIN
+  IF SHOW_ALERT('AL_CONFIRM_POST_PAYROLL') <> ALERT_BUTTON1 THEN RETURN; END IF;
+  v_entry := erp_payroll.post_run(:RUNS.RUN_ID);
+  commit_db;
+  MESSAGE('رُحّل الكشف (قيد رقم ' || v_entry || ')');
+  GO_BLOCK('RUNS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- RUNS : WHEN-NEW-RECORD-INSTANCE  (تفعيل الأزرار بحسب الحالة)
+SET_ITEM_PROPERTY('CTRL.BTN_CALC',   ENABLED, CASE WHEN :RUNS.STATUS = 'DRAFT'  THEN PROPERTY_TRUE ELSE PROPERTY_FALSE END);
+SET_ITEM_PROPERTY('CTRL.BTN_POST',   ENABLED, CASE WHEN :RUNS.STATUS = 'DRAFT'  THEN PROPERTY_TRUE ELSE PROPERTY_FALSE END);
+SET_ITEM_PROPERTY('CTRL.BTN_PAY',    ENABLED, CASE WHEN :RUNS.STATUS = 'POSTED' THEN PROPERTY_TRUE ELSE PROPERTY_FALSE END);
+SET_ITEM_PROPERTY('CTRL.BTN_VOID',   ENABLED, CASE WHEN :RUNS.STATUS = 'POSTED' THEN PROPERTY_TRUE ELSE PROPERTY_FALSE END);
+SET_ITEM_PROPERTY('CTRL.BTN_UNPAY',  ENABLED, CASE WHEN :RUNS.STATUS = 'PAID'   THEN PROPERTY_TRUE ELSE PROPERTY_FALSE END);
+```
+
+> رسائل `-20605` («صافي الراتب سالب للموظف …») و`-20604` تظهر عند إنشاء الكشف أو إعادة حسابه، وتعني مراجعة الاستقطاعات والسلف قبل المتابعة.
+
+## الشاشة 10: `FRM_HR_ADJUST` — السلف والتسويات الشهرية
+
+**تبويب السلف:** كتلة غير مرتبطة `ADV` (`EMP_CODE`/`EMP_ID` بـ LOV، `ADV_DATE`, `AMOUNT`, `INSTALLMENTS`, `FIRST_PERIOD` شهر، `METHOD` قائمة CASH/BANK، `NOTE`) وزر يستدعي `erp_hr.grant_advance(:ADV.EMP_ID, :ADV.ADV_DATE, :ADV.AMOUNT, :ADV.INSTALLMENTS, :ADV.FIRST_PERIOD, :ADV.METHOD, :ADV.NOTE)`. كتلة `ADVS` مرتبطة بـ `v_erp_advance_balance` (استعلام فقط) وزر `BTN_VOID_ADV` يستدعي `erp_hr.void_advance(:ADVS.ADV_ID)` (`ADV_ID` عنصر غير مرئي في الكتلة، والعمود موجود في العرض).
+
+**تبويب التسويات:** كتلة غير مرتبطة `ADJ` (`EMP_CODE`/`EMP_ID`, `PERIOD`, `KIND` قائمة EARNING=استحقاق / DEDUCTION=خصم، `DESCRIPTION`, `AMOUNT`, `ACCOUNT_CODE` افتراضي 5200) وزر يستدعي `erp_hr.add_adjustment(...)`. كتلة `ADJS` مرتبطة بـ `erp_pay_adjustments` (استعلام فقط، `ORDER BY period DESC`) وزر `BTN_VOID_ADJ` يستدعي `erp_hr.void_adjustment(:ADJS.ADJ_ID)` (للمعلّقة فقط).
+
+## الشاشة 11: `FRM_PAYMENT` — سند قبض/صرف (نافذة منبثقة Modal)
 
 كتلة غير مرتبطة `PAY`: `PARTY_ID`, `PARTY_NAME` (عرض)، `INVOICE_ID` (اختياري، عرض)، `PAY_DATE`، `AMOUNT`، `METHOD` (List: CASH=نقدي، BANK=بنكي)، `NOTE`. تُفتح من `FRM_INVOICE` أو `FRM_PARTIES` عبر `CALL_FORM` مع معاملات (Parameter List: `P_PARTY_ID`, `P_INVOICE_ID`, `P_REMAINING`).
 
@@ -494,18 +566,21 @@ END;
 
 > عرّف معاملات النموذج `P_PARTY_ID` و`P_INVOICE_ID` و`P_REMAINING` (CHAR، 30) في وحدة `FRM_PAYMENT`.
 
-## الشاشة 9: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 12: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
 | ملفات | دليل الحسابات | `CALL_FORM('FRM_ACCOUNTS')` |
 | ملفات | العملاء والموردون | `CALL_FORM('FRM_PARTIES')` |
 | ملفات | الأصناف والمخازن | `CALL_FORM('FRM_ITEMS')` |
+| ملفات | الموظفون ومكوّنات الراتب | `CALL_FORM('FRM_EMPLOYEES')` |
 | الحركات | أرصدة المخزون والتسويات والتحويلات | `CALL_FORM('FRM_STOCK')` |
 | الحركات | الأصول الثابتة والإهلاك | `CALL_FORM('FRM_ASSETS')` |
+| الحركات | كشوف الرواتب | `CALL_FORM('FRM_PAYROLL')` |
+| الحركات | السلف والتسويات الشهرية | `CALL_FORM('FRM_HR_ADJUST')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -531,7 +606,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/08_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات التسع بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/10_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات الاثنتي عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

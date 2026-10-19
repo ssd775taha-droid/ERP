@@ -1,6 +1,6 @@
 -- ============================================================================
--- 08: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
--- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @08_selftest.sql
+-- 10: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
+-- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @10_selftest.sql
 -- ============================================================================
 SET SERVEROUTPUT ON
 SET DEFINE OFF
@@ -9,6 +9,9 @@ DECLARE
   v_fail  PLS_INTEGER := 0;
   v_cust  NUMBER; v_sup NUMBER; v_si NUMBER; v_pi NUMBER; v_entry NUMBER; v_tmp NUMBER;
   v_inv   erp_invoices%ROWTYPE;
+  v_st VARCHAR2(20);
+  v_hd NUMBER; v_e1 NUMBER; v_e2 NUMBER; v_e3 NUMBER; v_e4 NUMBER; v_cal NUMBER; v_ctr NUMBER; v_csi NUMBER; v_cse NUMBER;
+  v_hadv NUMBER; v_ra NUMBER; v_rb NUMBER; v_rc NUMBER; v_rd NUMBER; v_re NUMBER; v_n1 NUMBER; v_n2 NUMBER; v_n3 NUMBER;
   v_cat NUMBER; v_fa NUMBER; v_fb NUMBER; v_fc NUMBER; v_fd NUMBER; v_fe NUMBER; v_ff NUMBER; v_finv NUMBER;
   v_wh NUMBER; v_wh2 NUMBER; v_i1 NUMBER; v_i2 NUMBER; v_p1 NUMBER; v_p2 NUMBER; v_s1 NUMBER; v_cogs NUMBER;
 
@@ -22,6 +25,20 @@ DECLARE
   BEGIN SELECT NVL(MAX(qty), 0) INTO v FROM erp_stock WHERE item_id = p_item AND wh_id = p_wh; RETURN v; END;
   FUNCTION stk_val (p_item NUMBER, p_wh NUMBER) RETURN NUMBER IS v NUMBER;
   BEGIN SELECT NVL(MAX(value), 0) INTO v FROM erp_stock WHERE item_id = p_item AND wh_id = p_wh; RETURN v; END;
+
+  FUNCTION line_val (p_run NUMBER, p_emp NUMBER, p_col VARCHAR2) RETURN NUMBER IS v NUMBER;
+  BEGIN
+    SELECT CASE p_col WHEN 'NET' THEN net WHEN 'GROSS' THEN gross WHEN 'ADV' THEN advance_deduction WHEN 'DED' THEN deductions
+                      WHEN 'EMP' THEN employer_cost ELSE basic END INTO v
+      FROM erp_payroll_lines WHERE run_id = p_run AND emp_id = p_emp;
+    RETURN v;
+  END;
+  FUNCTION run_val (p_run NUMBER, p_col VARCHAR2) RETURN NUMBER IS v NUMBER;
+  BEGIN
+    SELECT CASE p_col WHEN 'NET' THEN total_net WHEN 'GROSS' THEN total_gross WHEN 'DED' THEN total_deductions ELSE total_employer END INTO v
+      FROM erp_payroll_runs WHERE run_id = p_run;
+    RETURN v;
+  END;
 
   FUNCTION bal (p_code VARCHAR2, p_side VARCHAR2) RETURN NUMBER IS
     v NUMBER;
@@ -260,6 +277,135 @@ BEGIN
 
   SELECT NVL(SUM(difference), 0) INTO v_tmp FROM v_erp_asset_vs_gl;
   check_true('سجل الأصول يطابق الأستاذ (التكلفة والمجمع)', v_tmp = 0);
+
+
+  -- ================= الموارد البشرية والرواتب =================
+  v_hd := erp_hr.add_department('D1', 'الإدارة');
+  v_e1 := erp_hr.add_employee('E1', 'موظف أ', DATE '2025-01-10', 3000, v_hd);
+  v_e2 := erp_hr.add_employee('E2', 'موظف ب', DATE '2026-03-16', 3100);
+  v_e3 := erp_hr.add_employee('E3', 'موظف ج', DATE '2025-01-01', 2000);
+  v_cal := erp_hr.add_component('ALLW', 'بدل سكن',            'EARNING',   'FIXED');
+  v_ctr := erp_hr.add_component('TRN',  'بدل نقل',            'EARNING',   'PCT', 10);
+  v_csi := erp_hr.add_component('SIN',  'تأمينات الموظف',     'DEDUCTION', 'PCT', 9,  'GROSS', 4000);
+  v_cse := erp_hr.add_component('SIE',  'تأمينات صاحب العمل', 'EMPLOYER',  'PCT', 12, 'GROSS', 4000);
+  FOR emp IN (SELECT v_e1 AS id FROM dual UNION ALL SELECT v_e2 FROM dual) LOOP
+    erp_hr.assign_component(emp.id, v_cal, 500);
+    erp_hr.assign_component(emp.id, v_ctr);
+    erp_hr.assign_component(emp.id, v_csi);
+    erp_hr.assign_component(emp.id, v_cse);
+  END LOOP;
+  erp_hr.terminate(v_e3, DATE '2026-03-10');
+
+  BEGIN erp_hr.assign_component(v_e3, v_cal);
+    check_true('رفض مكوّن ثابت بلا مبلغ (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض مكوّن ثابت بلا مبلغ [' || SQLCODE || ']', SQLCODE = -20503); END;
+  BEGIN erp_hr.terminate(v_e3, DATE '2026-03-11');
+    check_true('رفض إنهاء خدمة موظف منتهٍ (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إنهاء خدمة موظف منتهٍ [' || SQLCODE || ']', SQLCODE = -20505); END;
+
+  v_hadv := erp_hr.grant_advance(v_e1, DATE '2026-02-20', 1000, 3, DATE '2026-03-01', 'CASH');
+  check_true('سلفة 1000: ح/1350 مدين 1000', bal('1350', 'D') = 1000);
+  v_tmp := erp_hr.add_adjustment(v_e1, DATE '2026-03-01', 'EARNING', 'مكافأة', 200);
+  v_tmp := erp_hr.add_adjustment(v_e2, DATE '2026-03-01', 'DEDUCTION', 'جزاء', 50, '5200');
+
+  -- كشف مارس
+  v_ra := erp_payroll.create_run(DATE '2026-03-01');
+  v_n1 := line_val(v_ra, v_e1, 'NET'); v_n2 := line_val(v_ra, v_e2, 'NET'); v_n3 := line_val(v_ra, v_e3, 'NET');
+  check_true('صافي أ = 3000 + 800 + 200 − 342 − 333.33 = 3324.67', v_n1 = 3324.67);
+  check_true('صافي ب (16 يوماً من 31) = 1600 + 418.06 − 181.63 − 50 = 1786.43', v_n2 = 1786.43 AND line_val(v_ra, v_e2, 'BASIC') = 1600);
+  check_true('صافي ج (10 أيام قبل إنهاء الخدمة) = 645.16', v_n3 = 645.16);
+  check_true('إجماليات الكشف: إجمالي 6663.22 · استقطاعات 906.96 · صافي 5756.26 · صاحب العمل 698.17',
+    run_val(v_ra, 'GROSS') = 6663.22 AND run_val(v_ra, 'DED') = 906.96 AND run_val(v_ra, 'NET') = 5756.26 AND run_val(v_ra, 'EMP') = 698.17);
+  check_true('سقف الوعاء: أ تأمين الموظف 342 وحصة صاحب العمل 456', line_val(v_ra, v_e1, 'EMP') = 456);
+  BEGIN v_tmp := erp_payroll.create_run(DATE '2026-03-15');
+    check_true('رفض كشف ثانٍ لنفس الشهر (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض كشف ثانٍ لنفس الشهر [' || SQLCODE || ']', SQLCODE = -20601); END;
+  erp_payroll.calculate_run(v_ra);
+  check_true('إعادة حساب المسودة تعطي النتيجة نفسها', run_val(v_ra, 'NET') = 5756.26);
+
+  v_tmp := erp_payroll.post_run(v_ra);
+  check_true('قيد الكشف: ح/5200 مدين 6613.22 وح/5210 مدين 698.17', bal('5200', 'D') = 6613.22 AND bal('5210', 'D') = 698.17);
+  check_true('ح/2400 دائن 1221.80 (تأمينات 523.63 + حصة 698.17)', bal('2400', 'C') = 1221.80);
+  check_true('ح/2300 دائن 5756.26 وح/1350 مدين 666.67', bal('2300', 'C') = 5756.26 AND bal('1350', 'D') = 666.67);
+  SELECT repaid, installments_done, status INTO v_n1, v_n2, v_st FROM erp_advances WHERE adv_id = v_hadv;
+  check_true('بعد الترحيل: سُدّد 333.33 من السلفة (قسط 1) وهي مفتوحة', v_n1 = 333.33 AND v_n2 = 1 AND v_st = 'OPEN');
+  BEGIN erp_payroll.calculate_run(v_ra);
+    check_true('رفض إعادة حساب كشف مرحَّل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إعادة حساب كشف مرحَّل [' || SQLCODE || ']', SQLCODE = -20603); END;
+  BEGIN DELETE FROM erp_payroll_items;
+    check_true('منع حذف بنود كشف مرحَّل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('منع حذف بنود كشف مرحَّل [' || SQLCODE || ']', SQLCODE = -20910); END;
+
+  -- الصرف والتراجع عنه
+  v_tmp := erp_payroll.pay_run(v_ra, DATE '2026-03-31', 'BANK');
+  check_true('بعد الصرف ح/2300 صفر', bal('2300', 'C') = 0);
+  BEGIN erp_payroll.void_run(v_ra);
+    check_true('رفض إلغاء كشف مصروف (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء كشف مصروف [' || SQLCODE || ']', SQLCODE = -20603); END;
+  erp_payroll.unpay_run(v_ra);
+  check_true('إلغاء الصرف يعيد ح/2300 دائناً 5756.26', bal('2300', 'C') = 5756.26);
+  v_tmp := erp_payroll.pay_run(v_ra, DATE '2026-03-31', 'BANK');
+
+  -- الراتب بأثر رجعي مرفوض، وبأثر مستقبلي يسري من الشهر
+  BEGIN erp_hr.set_salary(v_e1, 3500, DATE '2026-03-01');
+    check_true('رفض تعديل راتب بأثر رجعي على شهر مرحَّل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض تعديل راتب بأثر رجعي على شهر مرحَّل [' || SQLCODE || ']', SQLCODE = -20505); END;
+  erp_hr.set_salary(v_e2, 3500, DATE '2026-04-01');
+
+  -- كشف أبريل: أ قسط سلفة 2، ب راتب جديد وسقف الوعاء
+  v_rb := erp_payroll.create_run(DATE '2026-04-01');
+  check_true('أبريل: صافي أ = 3800 − 342 − 333.33 = 3124.67', line_val(v_rb, v_e1, 'NET') = 3124.67);
+  check_true('أبريل: ب = 3500 + 850 − 360 (سقف 4000 على وعاء 4350) = 3990.00 وحصة صاحب العمل 480',
+    line_val(v_rb, v_e2, 'NET') = 3990 AND line_val(v_rb, v_e2, 'EMP') = 480);
+  SELECT COUNT(*) INTO v_tmp FROM erp_payroll_lines WHERE run_id = v_rb;
+  check_true('ج منتهي الخدمة لا يظهر في أبريل (موظفان فقط)', v_tmp = 2);
+  v_tmp := erp_payroll.post_run(v_rb);
+
+  -- إلغاء كشف مرحَّل يعيد السلفة، ثم يُنشأ من جديد
+  erp_payroll.void_run(v_rb);
+  SELECT repaid, installments_done INTO v_n1, v_n2 FROM erp_advances WHERE adv_id = v_hadv;
+  check_true('إلغاء أبريل يعيد قسط السلفة: المسدد 333.33 (قسط 1)', v_n1 = 333.33 AND v_n2 = 1);
+  v_rc := erp_payroll.create_run(DATE '2026-04-01');
+  check_true('إعادة إنشاء أبريل بعد الإلغاء', line_val(v_rc, v_e1, 'NET') = 3124.67);
+  v_tmp := erp_payroll.post_run(v_rc);
+
+  -- القسط الأخير يأخذ المتبقي بالضبط (333.34)
+  v_rd := erp_payroll.create_run(DATE '2026-05-01');
+  check_true('مايو: القسط الأخير 333.34 (1000 − 666.66)', line_val(v_rd, v_e1, 'ADV') = 333.34);
+  v_tmp := erp_payroll.post_run(v_rd);
+  SELECT repaid, status INTO v_n1, v_st FROM erp_advances WHERE adv_id = v_hadv;
+  check_true('السلفة سُوّيت بالكامل: 1000 وحالة SETTLED', v_n1 = 1000 AND v_st = 'SETTLED');
+  erp_payroll.void_run(v_rd);
+  SELECT repaid, status INTO v_n1, v_st FROM erp_advances WHERE adv_id = v_hadv;
+  check_true('إلغاء مايو يعيد السلفة مفتوحة: 666.66', v_n1 = 666.66 AND v_st = 'OPEN');
+  BEGIN erp_hr.void_advance(v_hadv);
+    check_true('رفض إلغاء سلفة اقتُطع منها (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء سلفة اقتُطع منها [' || SQLCODE || ']', SQLCODE = -20505); END;
+
+  -- إلغاء مسودة
+  v_re := erp_payroll.create_run(DATE '2026-05-01');
+  erp_payroll.cancel_run(v_re);
+  SELECT status INTO v_st FROM erp_payroll_runs WHERE run_id = v_re;
+  check_true('إلغاء مسودة: CANCELLED', v_st = 'CANCELLED');
+
+  -- صافٍ سالب يوقف الكشف ولا يترك أثراً
+  v_e4 := erp_hr.add_employee('E4', 'موظف د', DATE '2026-06-01', 1000);
+  v_tmp := erp_hr.grant_advance(v_e4, DATE '2026-06-01', 1500, 1, DATE '2026-06-01', 'CASH');
+  SELECT COUNT(*) INTO v_n1 FROM erp_payroll_runs;
+  BEGIN v_tmp := erp_payroll.create_run(DATE '2026-06-01');
+    check_true('رفض كشف بصافي سالب (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض كشف بصافي سالب [' || SQLCODE || ']', SQLCODE = -20605); END;
+  SELECT COUNT(*) INTO v_n2 FROM erp_payroll_runs;
+  check_true('فشل الكشف لم يترك كشفاً يتيماً', v_n1 = v_n2);
+
+  -- تعديل تسوية معلّقة
+  v_tmp := erp_hr.add_adjustment(v_e1, DATE '2026-07-01', 'EARNING', 'عمل إضافي', 100);
+  erp_hr.void_adjustment(v_tmp);
+  SELECT status INTO v_st FROM erp_pay_adjustments WHERE adj_id = v_tmp;
+  check_true('إلغاء تسوية معلّقة: VOID', v_st = 'VOID');
+
+  SELECT difference INTO v_tmp FROM v_erp_payroll_vs_gl;
+  check_true('صافي الكشوف المرحَّلة غير المصروفة يطابق ح/2300', v_tmp = 0);
 
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;

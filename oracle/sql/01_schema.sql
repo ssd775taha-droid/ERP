@@ -279,3 +279,179 @@ CREATE UNIQUE INDEX erp_depreciation_uk ON erp_depreciation (
   CASE WHEN status = 'OK' THEN asset_id END,
   CASE WHEN status = 'OK' THEN period END
 );
+
+-- ---------------------------------------------------------------- الموارد البشرية والرواتب
+CREATE TABLE erp_departments (
+  dept_id  NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_departments_pk PRIMARY KEY,
+  code     VARCHAR2(12)  NOT NULL CONSTRAINT erp_departments_code_uk UNIQUE,
+  name     VARCHAR2(120) NOT NULL,
+  active   CHAR(1) DEFAULT 'Y' NOT NULL CONSTRAINT erp_departments_active_ck CHECK (active IN ('Y','N'))
+);
+
+CREATE TABLE erp_employees (
+  emp_id        NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_employees_pk PRIMARY KEY,
+  code          VARCHAR2(20)  NOT NULL CONSTRAINT erp_employees_code_uk UNIQUE,
+  name          VARCHAR2(120) NOT NULL,
+  national_id   VARCHAR2(30),
+  dept_id       NUMBER        CONSTRAINT erp_employees_dept_fk REFERENCES erp_departments (dept_id),
+  job_title     VARCHAR2(80),
+  hire_date     DATE          NOT NULL,
+  term_date     DATE,
+  bank_account  VARCHAR2(60),
+  status        VARCHAR2(10)  DEFAULT 'ACTIVE' NOT NULL CONSTRAINT erp_employees_status_ck CHECK (status IN ('ACTIVE','TERMINATED')),
+  created_at    TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_employees_term_ck CHECK (
+    (status = 'ACTIVE' AND term_date IS NULL) OR (status = 'TERMINATED' AND term_date IS NOT NULL AND term_date >= hire_date))
+);
+
+-- تاريخ الراتب الأساسي: يسري الراتب من أول شهر effective_from
+CREATE TABLE erp_salary_history (
+  sal_id          NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_salary_history_pk PRIMARY KEY,
+  emp_id          NUMBER       NOT NULL CONSTRAINT erp_salary_history_emp_fk REFERENCES erp_employees (emp_id),
+  effective_from  DATE         NOT NULL CONSTRAINT erp_salary_history_eff_ck CHECK (effective_from = TRUNC(effective_from, 'MM')),
+  basic_salary    NUMBER(18,2) NOT NULL CONSTRAINT erp_salary_history_amt_ck CHECK (basic_salary > 0),
+  created_by      VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at      TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_salary_history_uk UNIQUE (emp_id, effective_from)
+);
+
+-- مكوّنات الراتب القابلة للتعريف (بدلات، استقطاعات، حصة صاحب العمل). النسب والسقوف تضبطها أنت وفق نظام بلدك.
+--   EARNING : استحقاق (مصروف)        DEDUCTION: استقطاع من الموظف (التزام لجهة خارجية)
+--   EMPLOYER: تكلفة على صاحب العمل (مصروف مقابل التزام لجهة خارجية)، لا تُخصم من الموظف
+CREATE TABLE erp_pay_components (
+  comp_id           NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pay_components_pk PRIMARY KEY,
+  code              VARCHAR2(20)  NOT NULL CONSTRAINT erp_pay_components_code_uk UNIQUE,
+  name              VARCHAR2(120) NOT NULL,
+  kind              VARCHAR2(9)   NOT NULL CONSTRAINT erp_pay_components_kind_ck CHECK (kind IN ('EARNING','DEDUCTION','EMPLOYER')),
+  calc_type         VARCHAR2(5)   NOT NULL CONSTRAINT erp_pay_components_calc_ck CHECK (calc_type IN ('FIXED','PCT')),
+  pct               NUMBER(7,4)   DEFAULT 0 NOT NULL CONSTRAINT erp_pay_components_pct_ck CHECK (pct BETWEEN 0 AND 100),
+  base_type         VARCHAR2(5)   DEFAULT 'BASIC' NOT NULL CONSTRAINT erp_pay_components_base_ck CHECK (base_type IN ('BASIC','GROSS')),
+  base_cap          NUMBER(18,2)  CONSTRAINT erp_pay_components_cap_ck CHECK (base_cap > 0),   -- سقف وعاء النسبة (شهرياً)
+  expense_account   VARCHAR2(12)  CONSTRAINT erp_pay_components_exp_fk REFERENCES erp_accounts (code),
+  liability_account VARCHAR2(12)  CONSTRAINT erp_pay_components_liab_fk REFERENCES erp_accounts (code),
+  active            CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_pay_components_active_ck CHECK (active IN ('Y','N')),
+  CONSTRAINT erp_pay_components_acct_ck CHECK (
+    (kind = 'EARNING'   AND expense_account IS NOT NULL) OR
+    (kind = 'DEDUCTION' AND liability_account IS NOT NULL) OR
+    (kind = 'EMPLOYER'  AND expense_account IS NOT NULL AND liability_account IS NOT NULL)),
+  -- الاستحقاق النسبي يُحسب من الأساسي فقط (الوعاء الإجمالي يعتمد على الاستحقاقات نفسها)
+  CONSTRAINT erp_pay_components_gross_ck CHECK (kind <> 'EARNING' OR base_type = 'BASIC')
+);
+
+-- ربط المكوّنات بالموظفين (مبلغ للثابت، ونسبة اختيارية تتجاوز نسبة المكوّن)
+CREATE TABLE erp_emp_components (
+  emp_id   NUMBER NOT NULL CONSTRAINT erp_emp_components_emp_fk  REFERENCES erp_employees (emp_id),
+  comp_id  NUMBER NOT NULL CONSTRAINT erp_emp_components_comp_fk REFERENCES erp_pay_components (comp_id),
+  amount   NUMBER(18,2) CONSTRAINT erp_emp_components_amt_ck CHECK (amount >= 0),
+  pct      NUMBER(7,4)  CONSTRAINT erp_emp_components_pct_ck CHECK (pct BETWEEN 0 AND 100),
+  CONSTRAINT erp_emp_components_pk PRIMARY KEY (emp_id, comp_id)
+);
+
+-- كشوف الرواتب: DRAFT (قابل لإعادة الحساب) ← POSTED (رُحّل القيد) ← PAID (صُرفت الرواتب). VOID/CANCELLED نهائيان.
+CREATE TABLE erp_payroll_runs (
+  run_id           NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_payroll_runs_pk PRIMARY KEY,
+  period           DATE         NOT NULL CONSTRAINT erp_payroll_runs_period_ck CHECK (period = TRUNC(period, 'MM')),
+  status           VARCHAR2(9)  DEFAULT 'DRAFT' NOT NULL CONSTRAINT erp_payroll_runs_status_ck CHECK (status IN ('DRAFT','POSTED','PAID','VOID','CANCELLED')),
+  total_gross      NUMBER(18,2) DEFAULT 0 NOT NULL,
+  total_deductions NUMBER(18,2) DEFAULT 0 NOT NULL,    -- استقطاعات + أقساط سلف
+  total_net        NUMBER(18,2) DEFAULT 0 NOT NULL,
+  total_employer   NUMBER(18,2) DEFAULT 0 NOT NULL,
+  entry_id         NUMBER       CONSTRAINT erp_payroll_runs_entry_fk REFERENCES erp_entries (entry_id),
+  pay_entry_id     NUMBER       CONSTRAINT erp_payroll_runs_pay_fk   REFERENCES erp_entries (entry_id),
+  pay_date         DATE,
+  pay_method       VARCHAR2(4)  CONSTRAINT erp_payroll_runs_method_ck CHECK (pay_method IN ('CASH','BANK')),
+  created_by       VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at       TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL
+);
+-- كشف واحد فعّال لكل شهر (الملغى لا يُحتسب)
+CREATE UNIQUE INDEX erp_payroll_runs_active_uk ON erp_payroll_runs (CASE WHEN status IN ('DRAFT','POSTED','PAID') THEN period END);
+
+CREATE TABLE erp_payroll_lines (
+  line_id          NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_payroll_lines_pk PRIMARY KEY,
+  run_id           NUMBER       NOT NULL CONSTRAINT erp_payroll_lines_run_fk REFERENCES erp_payroll_runs (run_id),
+  emp_id           NUMBER       NOT NULL CONSTRAINT erp_payroll_lines_emp_fk REFERENCES erp_employees (emp_id),
+  basic            NUMBER(18,2) DEFAULT 0 NOT NULL,   -- بعد التناسب بالأيام
+  days_worked      NUMBER(3)    NOT NULL,
+  days_in_period   NUMBER(3)    NOT NULL,
+  earnings         NUMBER(18,2) DEFAULT 0 NOT NULL,   -- كل الاستحقاقات غير الأساسي (مكوّنات + تسويات)
+  gross            NUMBER(18,2) DEFAULT 0 NOT NULL,
+  deductions       NUMBER(18,2) DEFAULT 0 NOT NULL,
+  advance_deduction NUMBER(18,2) DEFAULT 0 NOT NULL,
+  net              NUMBER(18,2) DEFAULT 0 NOT NULL,
+  employer_cost    NUMBER(18,2) DEFAULT 0 NOT NULL,
+  CONSTRAINT erp_payroll_lines_uk UNIQUE (run_id, emp_id)
+);
+
+-- أبعاد الكشف: كل بند بحسابه، ومنها يُبنى قيد الترحيل
+CREATE TABLE erp_advances (
+  adv_id            NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_advances_pk PRIMARY KEY,
+  emp_id            NUMBER       NOT NULL CONSTRAINT erp_advances_emp_fk REFERENCES erp_employees (emp_id),
+  grant_date        DATE         NOT NULL,
+  amount            NUMBER(18,2) NOT NULL CONSTRAINT erp_advances_amount_ck CHECK (amount > 0),
+  installments      NUMBER(3)    NOT NULL CONSTRAINT erp_advances_inst_ck CHECK (installments BETWEEN 1 AND 120),
+  first_period      DATE         NOT NULL CONSTRAINT erp_advances_first_ck CHECK (first_period = TRUNC(first_period, 'MM')),
+  repaid            NUMBER(18,2) DEFAULT 0 NOT NULL,
+  installments_done NUMBER(3)    DEFAULT 0 NOT NULL,
+  status            VARCHAR2(7)  DEFAULT 'OPEN' NOT NULL CONSTRAINT erp_advances_status_ck CHECK (status IN ('OPEN','SETTLED','VOID')),
+  entry_id          NUMBER       NOT NULL CONSTRAINT erp_advances_entry_fk REFERENCES erp_entries (entry_id),
+  note              VARCHAR2(300),
+  created_by        VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at        TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_advances_repaid_ck CHECK (repaid >= 0 AND repaid <= amount)
+);
+
+-- تسويات الشهر (مكافأة، عمل إضافي، جزاء...). تبقى PENDING وتنتقل لأول كشف يغطي فترتها أو بعدها.
+CREATE TABLE erp_pay_adjustments (
+  adj_id       NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pay_adjustments_pk PRIMARY KEY,
+  emp_id       NUMBER       NOT NULL CONSTRAINT erp_pay_adjustments_emp_fk REFERENCES erp_employees (emp_id),
+  period       DATE         NOT NULL CONSTRAINT erp_pay_adjustments_period_ck CHECK (period = TRUNC(period, 'MM')),
+  kind         VARCHAR2(9)  NOT NULL CONSTRAINT erp_pay_adjustments_kind_ck CHECK (kind IN ('EARNING','DEDUCTION')),
+  description  VARCHAR2(200) NOT NULL,
+  amount       NUMBER(18,2) NOT NULL CONSTRAINT erp_pay_adjustments_amount_ck CHECK (amount > 0),
+  account_code VARCHAR2(12) NOT NULL CONSTRAINT erp_pay_adjustments_acct_fk REFERENCES erp_accounts (code),
+  status       VARCHAR2(7)  DEFAULT 'PENDING' NOT NULL CONSTRAINT erp_pay_adjustments_status_ck CHECK (status IN ('PENDING','APPLIED','VOID')),
+  run_id       NUMBER       CONSTRAINT erp_pay_adjustments_run_fk REFERENCES erp_payroll_runs (run_id),
+  created_by   VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at   TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL
+);
+CREATE INDEX erp_pay_adjustments_emp_ix ON erp_pay_adjustments (emp_id, status);
+
+CREATE TABLE erp_payroll_items (
+  item_id          NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_payroll_items_pk PRIMARY KEY,
+  line_id          NUMBER       NOT NULL CONSTRAINT erp_payroll_items_line_fk REFERENCES erp_payroll_lines (line_id),
+  kind             VARCHAR2(9)  NOT NULL CONSTRAINT erp_payroll_items_kind_ck CHECK (kind IN ('BASIC','EARNING','DEDUCTION','EMPLOYER','ADVANCE')),
+  comp_id          NUMBER       CONSTRAINT erp_payroll_items_comp_fk REFERENCES erp_pay_components (comp_id),
+  adj_id           NUMBER       CONSTRAINT erp_payroll_items_adj_fk  REFERENCES erp_pay_adjustments (adj_id),
+  adv_id           NUMBER       CONSTRAINT erp_payroll_items_adv_fk  REFERENCES erp_advances (adv_id),
+  description      VARCHAR2(200) NOT NULL,
+  amount           NUMBER(18,2) NOT NULL CONSTRAINT erp_payroll_items_amount_ck CHECK (amount > 0),
+  expense_account  VARCHAR2(12) CONSTRAINT erp_payroll_items_exp_fk  REFERENCES erp_accounts (code),
+  liability_account VARCHAR2(12) CONSTRAINT erp_payroll_items_liab_fk REFERENCES erp_accounts (code)
+);
+CREATE INDEX erp_payroll_items_line_ix ON erp_payroll_items (line_id);
+
+-- بعد الترحيل لا يُعدَّل سطر أو بند في كشف: التصحيح بإلغاء الكشف وإعادة إنشائه
+CREATE OR REPLACE TRIGGER erp_payroll_lines_lock_trg
+  BEFORE UPDATE OR DELETE ON erp_payroll_lines FOR EACH ROW
+DECLARE
+  v_status erp_payroll_runs.status%TYPE;
+BEGIN
+  SELECT status INTO v_status FROM erp_payroll_runs WHERE run_id = :OLD.run_id;
+  IF v_status <> 'DRAFT' THEN
+    RAISE_APPLICATION_ERROR(-20910, 'لا يُعدَّل كشف رواتب بعد ترحيله أو إلغائه');
+  END IF;
+END;
+/
+CREATE OR REPLACE TRIGGER erp_payroll_items_lock_trg
+  BEFORE UPDATE OR DELETE ON erp_payroll_items FOR EACH ROW
+DECLARE
+  v_status erp_payroll_runs.status%TYPE;
+BEGIN
+  SELECT r.status INTO v_status
+    FROM erp_payroll_lines l JOIN erp_payroll_runs r ON r.run_id = l.run_id
+   WHERE l.line_id = :OLD.line_id;
+  IF v_status <> 'DRAFT' THEN
+    RAISE_APPLICATION_ERROR(-20910, 'لا يُعدَّل كشف رواتب بعد ترحيله أو إلغائه');
+  END IF;
+END;
+/
