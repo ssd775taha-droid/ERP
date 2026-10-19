@@ -215,3 +215,57 @@ test('المحاسبة العامة: قيد متوازن، رفض غير الم�
     assert.equal((await t.call('GET', '/api/erp/trial-balance')).body.balanced, true);
   } finally { t.close(); }
 });
+
+test('المبيعات والمشتريات: فواتير بضريبة، قيود تلقائية، مدفوعات، كشف حساب، وإلغاء', async () => {
+  const t = await boot();
+  try {
+    await t.call('POST', '/api/auth/setup', OWNER);
+    const inv0 = { kind: 'sales', date: '2026-03-01', lines: [{ description: 'خدمة', qty: 2, price: 100, vat_rate: 15 }] };
+    assert.equal((await t.call('POST', '/api/erp/parties', { kind: 'customer', name: 'ع' })).status, 200);
+    assert.equal((await t.call('POST', '/api/erp/invoices', { ...inv0, party_id: 1 })).status, 409, 'بلا دليل حسابات');
+    await t.call('POST', '/api/erp/accounts/seed');
+    const sup = (await t.call('POST', '/api/erp/parties', { kind: 'supplier', name: 'م' })).body.party;
+
+    assert.equal((await t.call('POST', '/api/erp/invoices', { ...inv0, party_id: sup.id })).status, 400, 'مبيعات لمورد');
+    assert.equal((await t.call('POST', '/api/erp/invoices', { ...inv0, party_id: 1, lines: [{ qty: 1, price: 5, account: '5100' }] })).status, 400, 'إيراد فقط');
+
+    const si = (await t.call('POST', '/api/erp/invoices', { ...inv0, party_id: 1 })).body.invoice;
+    assert.equal(si.number, 'S-000001');
+    assert.deepEqual([si.subtotal, si.vat, si.total], [20000, 3000, 23000]);
+
+    const pi = await t.call('POST', '/api/erp/invoices', { kind: 'purchase', party_id: sup.id, date: '2026-03-02', lines: [{ description: 'بضاعة', qty: 10, price: 12.5, vat_rate: 15 }] });
+    assert.equal(pi.body.invoice.total, 14375);
+
+    const tb = (await t.call('GET', '/api/erp/trial-balance')).body;
+    const bal = (c) => tb.rows.find((r) => r.code === c);
+    assert.equal(tb.balanced, true);
+    assert.equal(bal('1300').balance_debit, 23000);
+    assert.equal(bal('4100').balance_credit, 20000);
+    assert.equal(bal('2100').balance_credit, 14375);
+    assert.equal(bal('2200').balance_credit, 3000 - 1875, 'ضريبة المخرجات ناقص المدخلات');
+
+    assert.equal((await t.call('POST', '/api/erp/payments', { party_id: 1, invoice_id: si.id, date: '2026-03-05', amount: 300, method: 'bank' })).status, 400, 'أكثر من المتبقي');
+    assert.equal((await t.call('POST', '/api/erp/payments', { party_id: 1, invoice_id: si.id, date: '2026-03-05', amount: 100, method: 'bank' })).status, 200);
+    assert.equal((await t.call('GET', `/api/erp/invoices/${si.id}`)).body.invoice.remaining, 13000);
+    assert.equal((await t.call('POST', `/api/erp/invoices/${si.id}/void`)).status, 409, 'عليها مدفوعات');
+    assert.equal((await t.call('POST', '/api/erp/payments', { party_id: sup.id, date: '2026-03-06', amount: 143.75, method: 'cash', invoice_id: pi.body.invoice.id })).status, 200);
+
+    const st = (await t.call('GET', '/api/erp/parties/1/statement')).body;
+    assert.equal(st.balance, 13000);
+    assert.equal(st.rows.length, 2);
+    const sm = (await t.call('GET', '/api/erp/trade/summary')).body;
+    assert.deepEqual([sm.receivable, sm.payable], [13000, 0]);
+
+    const v = await t.call('POST', `/api/erp/invoices/${pi.body.invoice.id}/void`);
+    assert.equal(v.status, 409);
+    const si2 = (await t.call('POST', '/api/erp/invoices', { ...inv0, party_id: 1 })).body.invoice;
+    assert.equal((await t.call('POST', `/api/erp/invoices/${si2.id}/void`)).body.invoice.status, 'void');
+    assert.equal((await t.call('GET', '/api/erp/trial-balance')).body.balanced, true);
+    assert.equal((await t.call('GET', '/api/erp/parties/1/statement')).body.balance, 13000, 'الملغاة لا تظهر');
+
+    // فشل الترحيل لا يترك فاتورة يتيمة
+    const before = (await t.call('GET', '/api/erp/invoices')).body.invoices.length;
+    assert.equal((await t.call('POST', '/api/erp/invoices', { ...inv0, party_id: 1, date: 'bad' })).status, 400);
+    assert.equal((await t.call('GET', '/api/erp/invoices')).body.invoices.length, before);
+  } finally { t.close(); }
+});

@@ -5,6 +5,7 @@ const { Auth } = require('./auth');
 const { schedule } = require('./backup');
 const { createAi } = require('./ai');
 const { Ledger } = require('./erp');
+const { Trade } = require('./trade');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const OPEN = [/^\/healthz$/, /^\/theme\.css$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//, /^\/brand\//];
@@ -19,6 +20,7 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
   const store = new Store(dbFile);
   const auth = new Auth(store);
   const ledger = new Ledger(store.db);
+  const trade = new Trade(store.db, ledger);
   const app = express();
   const clients = new Set();
   const notify = (p) => { for (const c of clients) c.write(`data: ${JSON.stringify({ path: p })}\n\n`); };
@@ -104,6 +106,18 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
   app.post('/api/erp/entries/:id/reverse', needWriter, (req, res) => res.json({ entry: ledger.reverse(Number(req.params.id), req.user.id, (req.body || {}).date) }));
   app.get('/api/erp/trial-balance', needUser, (req, res) => res.json(ledger.trialBalance(req.query)));
   app.get('/api/erp/ledger/:code', needUser, (req, res) => res.json(ledger.ledger(req.params.code, req.query)));
+
+  // ---- المبيعات والمشتريات ----
+  app.get('/api/erp/parties', needUser, (req, res) => res.json({ parties: trade.parties(req.query.kind) }));
+  app.post('/api/erp/parties', needWriter, (req, res) => res.json({ party: trade.addParty(req.body || {}) }));
+  app.get('/api/erp/parties/:id/statement', needUser, (req, res) => res.json(trade.statement(Number(req.params.id))));
+  app.get('/api/erp/invoices', needUser, (req, res) => res.json({ invoices: trade.invoices(req.query) }));
+  app.post('/api/erp/invoices', needWriter, (req, res) => res.json({ invoice: trade.createInvoice(req.body || {}, req.user.id) }));
+  app.get('/api/erp/invoices/:id', needUser, (req, res) => res.json({ invoice: trade.invoice(Number(req.params.id)) }));
+  app.post('/api/erp/invoices/:id/void', needManager, (req, res) => res.json({ invoice: trade.voidInvoice(Number(req.params.id), req.user.id) }));
+  app.get('/api/erp/payments', needUser, (req, res) => res.json({ payments: trade.payments(req.query) }));
+  app.post('/api/erp/payments', needWriter, (req, res) => res.json({ payment: trade.pay(req.body || {}, req.user.id) }));
+  app.get('/api/erp/trade/summary', needUser, (req, res) => res.json(trade.summary()));
 
   app.post('/api/profiles', needUser, (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.slice(0, 500).map(String) : [];

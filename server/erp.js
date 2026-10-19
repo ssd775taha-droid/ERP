@@ -47,9 +47,12 @@ class Ledger {
     `);
   }
 
+  // معاملة قابلة للتداخل: الداخلية تنضم إلى الخارجية، فتفشل الفاتورة وقيدها أو تنجحان معاً
   tx(fn) {
+    if (this.inTx) return fn();
     this.db.exec('BEGIN');
-    try { const r = fn(); this.db.exec('COMMIT'); return r; } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+    this.inTx = true;
+    try { const r = fn(); this.db.exec('COMMIT'); return r; } catch (e) { this.db.exec('ROLLBACK'); throw e; } finally { this.inTx = false; }
   }
 
   seedDefaults() {
@@ -182,4 +185,4 @@ class Ledger {
   }
 }
 
-module.exports = { Ledger, TYPES };
+module.exports = { Ledger, TYPES, toMinor, isDate };

@@ -41,9 +41,9 @@ button.btn:disabled{opacity:.5;cursor:default}
 (function () {
   'use strict';
   var TYPES = { asset: 'أصول', liability: 'خصوم', equity: 'حقوق ملكية', revenue: 'إيرادات', expense: 'مصروفات' };
-  var TABS = [['accounts', 'دليل الحسابات'], ['entry', 'قيد جديد'], ['journal', 'دفتر اليومية'], ['tb', 'ميزان المراجعة'], ['ledger', 'دفتر الأستاذ']];
+  var TABS = [['trade', 'المبيعات والمشتريات'], ['invoice', 'فاتورة جديدة'], ['parties', 'العملاء والموردون'], ['accounts', 'دليل الحسابات'], ['entry', 'قيد جديد'], ['journal', 'دفتر اليومية'], ['tb', 'ميزان المراجعة'], ['ledger', 'دفتر الأستاذ']];
   var $ = function (id) { return document.getElementById(id); };
-  var view = $('view'), accounts = [], tab = 'accounts', msg = null, canManage = false;
+  var view = $('view'), accounts = [], tab = 'trade', msg = null, canManage = false;
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(m) { return (m / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -188,9 +188,110 @@ button.btn:disabled{opacity:.5;cursor:default}
     }, fail);
   }
 
+
+  /* ---------- المبيعات والمشتريات ---------- */
+  var KIND = { sales: 'مبيعات', purchase: 'مشتريات' };
+  var parties = [], ivf = { kind: '', status: '' };
+  function loadParties() { return api('GET', '/api/erp/parties').then(function (r) { parties = r.parties; }); }
+  function partyOptions(kind, sel) { return parties.filter(function (p) { return p.kind === kind; }).map(function (p) { return '<option value="' + p.id + '"' + (String(p.id) === String(sel) ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join(''); }
+  function payPrompt(party, invoice, remaining) {
+    var a = prompt('المبلغ' + (remaining ? ' (المتبقي ' + money(remaining) + ')' : ''), remaining ? (remaining / 100).toFixed(2) : '');
+    if (!a) return;
+    var m = confirm('موافق = بنكي · إلغاء = نقدي') ? 'bank' : 'cash';
+    api('POST', '/api/erp/payments', { party_id: party, invoice_id: invoice || null, date: today(), amount: a, method: m })
+      .then(function () { flash('ok', 'سُجّلت الدفعة'); render(); }, fail);
+  }
+  function vTrade() {
+    Promise.all([api('GET', '/api/erp/trade/summary'), api('GET', '/api/erp/invoices?' + (ivf.kind ? 'kind=' + ivf.kind + '&' : '') + (ivf.status ? 'status=' + ivf.status : ''))]).then(function (r) {
+      var m = r[0], list = r[1].invoices;
+      var cards = [['مستحق من العملاء', m.receivable], ['مستحق للموردين', m.payable], ['إجمالي المبيعات (قبل الضريبة)', m.sales], ['إجمالي المشتريات (قبل الضريبة)', m.purchases]].map(function (c) {
+        return '<div style="flex:1;min-width:180px;background:#F6F8FB;border:1px solid #E2E9F2;border-radius:10px;padding:12px"><div class="muted" style="font-size:13px">' + c[0] + '</div><div style="font-size:20px;font-weight:700">' + money(c[1]) + '</div></div>';
+      }).join('');
+      var rows = list.map(function (i) {
+        var rem = i.status === 'open' ? i.total - i.paid : 0;
+        return '<tr><td class="n">' + esc(i.number) + '</td><td>' + esc(i.date) + '</td><td>' + esc(i.party_name) + '</td><td class="n">' + money(i.total) + '</td><td class="n">' + money(i.paid) + '</td><td>' +
+          (i.status === 'void' ? '<span class="tag">ملغاة</span>' : rem ? (i.due && i.due < today() ? '<span class="bad">متأخرة</span>' : 'مفتوحة') : '<span class="good">مسددة</span>') + '</td><td>' +
+          (rem ? '<button class="btn alt" data-pay="' + i.id + '" data-rem="' + rem + '">' + (i.kind === 'sales' ? 'قبض' : 'صرف') + '</button> ' : '') +
+          (i.status === 'open' && !i.paid ? '<button class="btn alt" data-void="' + i.id + '">إلغاء</button>' : '') + '</td></tr>';
+      }).join('');
+      view.innerHTML = banner() + '<div class="row">' + cards + '</div>' + (m.overdue ? '<div class="msg err">فواتير متأخرة السداد: ' + m.overdue + '</div>' : '') +
+        '<div class="row"><select id="fk"><option value="">كل الأنواع</option><option value="sales">مبيعات</option><option value="purchase">مشتريات</option></select><select id="fs"><option value="">كل الحالات</option><option value="open">سارية</option><option value="void">ملغاة</option></select></div>' +
+        (list.length ? '<table><thead><tr><th class="n">الرقم</th><th>التاريخ</th><th>الطرف</th><th class="n">الإجمالي</th><th class="n">المسدد</th><th>الحالة</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="muted">لا توجد فواتير. أضف عميلاً أو مورداً ثم أنشئ فاتورة.</p>');
+      $('fk').value = ivf.kind; $('fs').value = ivf.status;
+      view.onchange = function (e) { if (e.target.id === 'fk') ivf.kind = e.target.value; if (e.target.id === 'fs') ivf.status = e.target.value; if (e.target.id === 'fk' || e.target.id === 'fs') vTrade(); };
+      view.onclick = function (e) {
+        var pid = e.target.getAttribute('data-pay'), vid = e.target.getAttribute('data-void');
+        if (pid) api('GET', '/api/erp/invoices/' + pid).then(function (r2) { payPrompt(r2.invoice.party_id, pid, Number(e.target.getAttribute('data-rem'))); }, fail);
+        if (vid && confirm('إلغاء الفاتورة سينشئ قيداً عكسياً. متابعة؟')) api('POST', '/api/erp/invoices/' + vid + '/void').then(function () { flash('ok', 'أُلغيت الفاتورة'); vTrade(); }, fail);
+      };
+    }, fail);
+  }
+
+  var idraft = null;
+  function newInvoice(kind) { idraft = { kind: kind || 'sales', party_id: '', date: today(), due: '', ref: '', lines: [{ description: '', qty: 1, price: '', vat_rate: 15 }] }; }
+  function invTotals() {
+    var sub = 0, vat = 0; idraft.lines.forEach(function (l) { var net = Math.round((Number(l.qty) || 0) * Math.round((Number(l.price) || 0) * 100)); sub += net; vat += Math.round(net * (Number(l.vat_rate) || 0) / 100); }); return { sub: sub, vat: vat, total: sub + vat };
+  }
+  function vInvoice() {
+    if (!accounts.length) { view.innerHTML = '<p>أنشئ دليل الحسابات أولاً من تبويب «دليل الحسابات».</p>'; return; }
+    loadParties().then(function () {
+      if (!idraft) newInvoice();
+      var party = idraft.kind === 'sales' ? 'customer' : 'supplier';
+      var rows = idraft.lines.map(function (l, i) {
+        return '<tr><td><input data-i="' + i + '" data-f="description" value="' + esc(l.description) + '" style="width:100%"></td><td><input data-i="' + i + '" data-f="qty" type="number" min="0" step="any" value="' + esc(l.qty) + '" style="width:80px"></td>' +
+          '<td><input data-i="' + i + '" data-f="price" type="number" min="0" step="0.01" value="' + esc(l.price) + '" style="width:110px"></td><td><input data-i="' + i + '" data-f="vat_rate" type="number" min="0" max="100" step="any" value="' + esc(l.vat_rate) + '" style="width:70px"></td>' +
+          '<td><button class="btn alt" data-rm="' + i + '" ' + (idraft.lines.length <= 1 ? 'disabled' : '') + '>×</button></td></tr>';
+      }).join('');
+      view.innerHTML = banner() + '<div class="row"><select id="ik"><option value="sales">فاتورة مبيعات</option><option value="purchase">فاتورة مشتريات</option></select><select id="ip"><option value="">— اختر ' + (party === 'customer' ? 'العميل' : 'المورد') + ' —</option>' + partyOptions(party, idraft.party_id) + '</select>' +
+        '<label>التاريخ <input id="id" type="date" value="' + esc(idraft.date) + '"></label><label>الاستحقاق <input id="iu" type="date" value="' + esc(idraft.due) + '"></label><input id="ir" placeholder="مرجع (اختياري)" value="' + esc(idraft.ref) + '"></div>' +
+        '<table><thead><tr><th>البيان</th><th>الكمية</th><th>السعر</th><th>الضريبة %</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<div class="row" style="margin-top:12px"><button class="btn alt" id="il">+ بند</button><button class="btn" id="isave">حفظ وترحيل</button><span id="it" class="muted"></span></div>';
+      $('ik').value = idraft.kind;
+      function paint() { var t = invTotals(); $('it').textContent = 'قبل الضريبة ' + money(t.sub) + ' · الضريبة ' + money(t.vat) + ' · الإجمالي ' + money(t.total); }
+      paint();
+      view.onchange = view.oninput = function (e) {
+        var t = e.target, f = t.getAttribute('data-f');
+        if (t.id === 'ik') { idraft.kind = t.value; idraft.party_id = ''; return vInvoice(); }
+        if (t.id === 'ip') idraft.party_id = t.value; else if (t.id === 'id') idraft.date = t.value; else if (t.id === 'iu') idraft.due = t.value; else if (t.id === 'ir') idraft.ref = t.value;
+        else if (f) idraft.lines[Number(t.getAttribute('data-i'))][f] = t.value;
+        paint();
+      };
+      view.onclick = function (e) {
+        var rm = e.target.getAttribute('data-rm');
+        if (rm !== null) { idraft.lines.splice(Number(rm), 1); return vInvoice(); }
+        if (e.target.id === 'il') { idraft.lines.push({ description: '', qty: 1, price: '', vat_rate: idraft.lines[0].vat_rate }); vInvoice(); }
+        if (e.target.id === 'isave') {
+          e.target.disabled = true;
+          api('POST', '/api/erp/invoices', { kind: idraft.kind, party_id: idraft.party_id, date: idraft.date, due: idraft.due || null, ref: idraft.ref, lines: idraft.lines })
+            .then(function (r) { var k = idraft.kind; newInvoice(k); flash('ok', 'رُحّلت الفاتورة ' + r.invoice.number); go('trade'); }, function (er) { flash('err', er.message); vInvoice(); });
+        }
+      };
+    }, fail);
+  }
+
+  function vParties() {
+    loadParties().then(function () {
+      var rows = parties.map(function (p) {
+        return '<tr><td>' + esc(p.name) + '</td><td><span class="tag">' + (p.kind === 'customer' ? 'عميل' : 'مورد') + '</span></td><td>' + esc(p.phone) + '</td><td class="n">' + money(p.balance) + '</td><td><button class="btn alt" data-st="' + p.id + '">كشف حساب</button> <button class="btn alt" data-pp="' + p.id + '">' + (p.kind === 'customer' ? 'قبض' : 'صرف') + ' على الحساب</button></td></tr>';
+      }).join('');
+      view.innerHTML = banner() + '<h3>طرف جديد</h3><div class="row"><select id="pk"><option value="customer">عميل</option><option value="supplier">مورد</option></select><input id="pn" placeholder="الاسم" size="24"><input id="pf" placeholder="الهاتف" size="14"><input id="pt" placeholder="الرقم الضريبي" size="16"><button class="btn" id="padd">إضافة</button></div>' +
+        (parties.length ? '<table><thead><tr><th>الاسم</th><th>النوع</th><th>الهاتف</th><th class="n">الرصيد المستحق</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="muted">لا يوجد عملاء أو موردون بعد.</p>') + '<div id="stm"></div>';
+      view.onchange = null;
+      view.onclick = function (e) {
+        if (e.target.id === 'padd') api('POST', '/api/erp/parties', { kind: $('pk').value, name: $('pn').value, phone: $('pf').value, tax_no: $('pt').value }).then(function () { flash('ok', 'أُضيف الطرف'); vParties(); }, fail);
+        var st = e.target.getAttribute('data-st'), pp = e.target.getAttribute('data-pp');
+        if (pp) payPrompt(Number(pp), null, 0);
+        if (st) api('GET', '/api/erp/parties/' + st + '/statement').then(function (r) {
+          $('stm').innerHTML = '<h3>كشف حساب: ' + esc(r.party.name) + '</h3><table><thead><tr><th>التاريخ</th><th>المستند</th><th class="n">المبلغ</th><th class="n">الرصيد</th></tr></thead><tbody>' +
+            r.rows.map(function (x) { return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.doc) + '</td><td class="n">' + money(x.amount) + '</td><td class="n">' + money(x.balance) + '</td></tr>'; }).join('') + '</tbody><tfoot><tr><td colspan="3">الرصيد المستحق</td><td class="n">' + money(r.balance) + '</td></tr></tfoot></table>';
+        }, fail);
+      };
+    }, fail);
+  }
+
   function render() {
     paintTabs(); view.oninput = view.onchange = view.onclick = null;
-    ({ accounts: vAccounts, entry: vEntry, journal: vJournal, tb: vTb, ledger: vLedger })[tab]();
+    ({ trade: vTrade, invoice: vInvoice, parties: vParties, accounts: vAccounts, entry: vEntry, journal: vJournal, tb: vTb, ledger: vLedger })[tab]();
   }
   load().then(render, function (e) { view.textContent = e.message; });
 })();
