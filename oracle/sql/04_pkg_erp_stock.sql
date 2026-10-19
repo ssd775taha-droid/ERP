@@ -22,7 +22,9 @@ CREATE OR REPLACE PACKAGE erp_stock AS
     p_track_stock  IN VARCHAR2 DEFAULT 'Y',
     p_inv_account  IN VARCHAR2 DEFAULT '1400',
     p_cogs_account IN VARCHAR2 DEFAULT '5100',
-    p_rev_account  IN VARCHAR2 DEFAULT '4100'
+    p_rev_account  IN VARCHAR2 DEFAULT '4100',
+    p_vat_rate     IN NUMBER   DEFAULT 0,       -- نسبة الضريبة الافتراضية عند البيع (نقاط البيع)
+    p_barcode      IN VARCHAR2 DEFAULT NULL
   ) RETURN NUMBER;
 
   FUNCTION on_hand  (p_item_id IN NUMBER, p_wh_id IN NUMBER) RETURN NUMBER;
@@ -150,7 +152,9 @@ CREATE OR REPLACE PACKAGE BODY erp_stock AS
     p_track_stock  IN VARCHAR2 DEFAULT 'Y',
     p_inv_account  IN VARCHAR2 DEFAULT '1400',
     p_cogs_account IN VARCHAR2 DEFAULT '5100',
-    p_rev_account  IN VARCHAR2 DEFAULT '4100'
+    p_rev_account  IN VARCHAR2 DEFAULT '4100',
+    p_vat_rate     IN NUMBER   DEFAULT 0,
+    p_barcode      IN VARCHAR2 DEFAULT NULL
   ) RETURN NUMBER IS
     v_id   erp_items.item_id%TYPE;
     v_type erp_accounts.acc_type%TYPE;
@@ -172,20 +176,23 @@ CREATE OR REPLACE PACKAGE BODY erp_stock AS
     IF NVL(p_sale_price, 0) < 0 OR NVL(p_sale_price, 0) <> ROUND(NVL(p_sale_price, 0), 2) THEN
       RAISE_APPLICATION_ERROR(-20307, 'سعر البيع غير صالح');
     END IF;
+    IF NVL(p_vat_rate, 0) < 0 OR NVL(p_vat_rate, 0) > 100 THEN
+      RAISE_APPLICATION_ERROR(-20307, 'نسبة الضريبة بين 0 و100');
+    END IF;
     IF p_track_stock NOT IN ('Y', 'N') THEN
       RAISE_APPLICATION_ERROR(-20307, 'تتبّع المخزون: Y أو N');
     END IF;
     expect_type(p_inv_account,  'ASSET',   'المخزون');
     expect_type(p_cogs_account, 'EXPENSE', 'تكلفة المبيعات');
     expect_type(p_rev_account,  'REVENUE', 'الإيراد');
-    INSERT INTO erp_items (code, name, unit, sale_price, track_stock, inv_account, cogs_account, rev_account)
+    INSERT INTO erp_items (code, name, unit, sale_price, vat_rate, barcode, track_stock, inv_account, cogs_account, rev_account)
     VALUES (SUBSTR(TRIM(p_code), 1, 30), SUBSTR(TRIM(p_name), 1, 120), NVL(SUBSTR(p_unit, 1, 20), 'قطعة'),
-            NVL(p_sale_price, 0), p_track_stock, p_inv_account, p_cogs_account, p_rev_account)
+            NVL(p_sale_price, 0), NVL(p_vat_rate, 0), SUBSTR(TRIM(p_barcode), 1, 40), p_track_stock, p_inv_account, p_cogs_account, p_rev_account)
     RETURNING item_id INTO v_id;
     RETURN v_id;
   EXCEPTION
     WHEN DUP_VAL_ON_INDEX THEN
-      RAISE_APPLICATION_ERROR(-20307, 'رمز الصنف مستخدم');
+      RAISE_APPLICATION_ERROR(-20307, 'رمز الصنف أو الباركود مستخدم');
   END add_item;
 
   FUNCTION on_hand (p_item_id IN NUMBER, p_wh_id IN NUMBER) RETURN NUMBER IS

@@ -646,7 +646,127 @@ BEGIN
 END;
 ```
 
-## الشاشة 14: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 14: `FRM_POS` — نقطة البيع (شاشة الكاشير)
+
+تعمل على نقطة بيع واحدة (معامل النموذج `P_REG_ID`). تصميم الشاشة للّمس والباركود: **المؤشر دائماً في حقل الباركود**.
+
+**كتل الشاشة:**
+- `SHIFT` (غير مرتبطة): `STATUS`, `CASHIER`, `OPENING_CASH`, `EXPECTED_CASH`، وأزرار فتح وإقفال الوردية. يُحمَّل `SHIFT_ID` عند بدء الشاشة من `SELECT shift_id FROM erp_pos_shifts WHERE reg_id = :PARAMETER.P_REG_ID AND status = 'OPEN'`، ويُمنع البيع (`ENABLED = FALSE` لكتلة السلة) إن لم توجد.
+- `SCAN` (سجل واحد): `BARCODE` (مؤشر البداية). يملأ إدخاله سطراً في `BASKET`.
+- `BASKET` (غير مرتبطة، 12 سجلاً): `ITEM_ID` (مخفي)، `NAME`، `QTY` (افتراضي 1)، `PRICE`، `DISC_PCT`، `VAT_RATE` (مخفي)، `LINE_TOTAL` (عرض).
+- `TOTALS` (عرض): `SUBTOTAL`, `VAT`, `TOTAL`، و`PAY_CASH` و`PAY_CARD` (إدخال) و`CHANGE` (عرض).
+- أزرار: `BTN_PAY` (إتمام البيع)، `BTN_CLEAR` (سلة جديدة)، `BTN_VOID_LAST`، `BTN_RETURN`، `BTN_RECEIPT`.
+
+```plsql
+-- SCAN.BARCODE : WHEN-VALIDATE-ITEM  (مسح باركود أو إدخال رمز صنف)
+DECLARE
+  v_id   NUMBER;
+  v_item erp_items%ROWTYPE;
+BEGIN
+  IF :SCAN.BARCODE IS NULL THEN RETURN; END IF;
+  v_id := erp_pos.find_item(:SCAN.BARCODE);
+  IF v_id IS NULL THEN
+    MESSAGE('صنف غير موجود: ' || :SCAN.BARCODE); :SCAN.BARCODE := NULL; RAISE FORM_TRIGGER_FAILURE;
+  END IF;
+  SELECT * INTO v_item FROM erp_items WHERE item_id = v_id;
+  GO_BLOCK('BASKET');
+  -- نفس الصنف مرة أخرى: زِد الكمية بدل سطر جديد
+  FIRST_RECORD;
+  LOOP
+    IF :BASKET.ITEM_ID = v_id THEN :BASKET.QTY := :BASKET.QTY + 1; recalc_basket; GO_ITEM('SCAN.BARCODE'); :SCAN.BARCODE := NULL; RETURN; END IF;
+    EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE' OR :BASKET.ITEM_ID IS NULL;
+    NEXT_RECORD;
+  END LOOP;
+  IF :BASKET.ITEM_ID IS NOT NULL THEN CREATE_RECORD; END IF;
+  :BASKET.ITEM_ID := v_id; :BASKET.NAME := v_item.name; :BASKET.QTY := 1;
+  :BASKET.PRICE := v_item.sale_price; :BASKET.VAT_RATE := v_item.vat_rate; :BASKET.DISC_PCT := 0;
+  recalc_basket;
+  GO_ITEM('SCAN.BARCODE'); :SCAN.BARCODE := NULL;
+END;
+```
+
+وحدة `recalc_basket` للمعاينة فقط (الحساب الملزم داخل `ERP_POS.SELL`، وبالمعادلات نفسها): لكل سطر `gross := ROUND(QTY * PRICE * (1 - DISC_PCT/100), 2)`؛ ثم إن كانت نقطة البيع بأسعار شاملة (`:SHIFT.PRICES_INCLUDE_VAT = 'Y'`) فالضريبة `ROUND(gross * rate / (100 + rate), 2)` والصافي `gross − vat`، وإلا فالصافي `gross` والضريبة `ROUND(gross * rate / 100, 2)`. تجمع `TOTALS.SUBTOTAL` و`VAT` و`TOTAL`، وتحسب `CHANGE := GREATEST(PAY_CASH + PAY_CARD − TOTAL, 0)`.
+
+```plsql
+-- BTN_PAY : WHEN-BUTTON-PRESSED
+DECLARE
+  v_lines erp_pos_line_tab := erp_pos_line_tab();
+  v_pays  erp_pos_pay_tab  := erp_pos_pay_tab();
+  v_id    NUMBER;
+BEGIN
+  GO_BLOCK('BASKET'); FIRST_RECORD;
+  LOOP
+    IF :BASKET.ITEM_ID IS NOT NULL THEN
+      v_lines.EXTEND;
+      v_lines(v_lines.COUNT) := erp_pos_line_t(:BASKET.ITEM_ID, :BASKET.QTY, :BASKET.PRICE, :BASKET.DISC_PCT, :BASKET.VAT_RATE);
+    END IF;
+    EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';
+    NEXT_RECORD;
+  END LOOP;
+  IF NVL(:TOTALS.PAY_CASH, 0) > 0 THEN v_pays.EXTEND; v_pays(v_pays.COUNT) := erp_pos_pay_t('CASH', :TOTALS.PAY_CASH); END IF;
+  IF NVL(:TOTALS.PAY_CARD, 0) > 0 THEN v_pays.EXTEND; v_pays(v_pays.COUNT) := erp_pos_pay_t('CARD', :TOTALS.PAY_CARD); END IF;
+
+  v_id := erp_pos.sell(:SHIFT.SHIFT_ID, TRUNC(SYSDATE), v_lines, v_pays);
+  commit_db;
+  :SHIFT.LAST_SALE_ID := v_id;                                  -- للإيصال والإلغاء الأخير
+  MESSAGE('تم البيع. الباقي: ' || TO_CHAR(:TOTALS.CHANGE));
+  run_erp_report('RPT_POS_RECEIPT', 'P_SALE=' || v_id);        -- طباعة الإيصال (اختياري بحسب الإعداد)
+  GO_BLOCK('BASKET'); CLEAR_BLOCK(NO_VALIDATE);
+  GO_BLOCK('TOTALS'); CLEAR_RECORD;
+  GO_ITEM('SCAN.BARCODE');
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- BTN_VOID_LAST :  erp_pos.void_sale(:SHIFT.LAST_SALE_ID);  commit_db;   (يعمل داخل الوردية المفتوحة فقط)
+
+-- SHIFT.BTN_OPEN : :SHIFT.SHIFT_ID := erp_pos.open_shift(:PARAMETER.P_REG_ID, :SHIFT.OPENING_CASH);  commit_db;
+-- SHIFT.BTN_CLOSE (نافذة تطلب النقد المعدود COUNTED):
+DECLARE v_var NUMBER;
+BEGIN
+  v_var := erp_pos.close_shift(:SHIFT.SHIFT_ID, :CLOSEW.COUNTED);
+  commit_db;
+  MESSAGE('أُقفلت الوردية. الفرق: ' || TO_CHAR(v_var));
+  run_erp_report('RPT_Z', 'P_SHIFT=' || :SHIFT.SHIFT_ID);       -- تقرير Z
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+**المرتجع:** زر `BTN_RETURN` يفتح نافذة `RET`: حقل `SALE_NO` (يبحث `SELECT sale_id FROM erp_pos_sales WHERE sale_no = :RET.SALE_NO AND kind = 'SALE'`) ثم كتلة `RET_LINES` (استعلام فقط على `erp_pos_sale_lines` للبيع الأصلي، مع عنصر إدخال `RET_QTY` غير مرتبط)، وحقل `METHOD` (CASH/CARD). الزر `RET.BTN_OK`:
+
+```plsql
+DECLARE
+  v_lines erp_pos_ret_tab := erp_pos_ret_tab();
+  v_id    NUMBER;
+BEGIN
+  GO_BLOCK('RET_LINES'); FIRST_RECORD;
+  LOOP
+    IF NVL(:RET_LINES.RET_QTY, 0) > 0 THEN
+      v_lines.EXTEND; v_lines(v_lines.COUNT) := erp_pos_ret_t(:RET_LINES.LINE_ID, :RET_LINES.RET_QTY);
+    END IF;
+    EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';
+    NEXT_RECORD;
+  END LOOP;
+  v_id := erp_pos.return_sale(:SHIFT.SHIFT_ID, TRUNC(SYSDATE), :RET.SALE_ID, v_lines, :RET.METHOD);
+  commit_db;
+  MESSAGE('تم المرتجع'); run_erp_report('RPT_POS_RECEIPT', 'P_SALE=' || v_id);
+  HIDE_WINDOW('WIN_RETURN');
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+> أخطاء الدفع (`-20804`) والمخزون (`-20302`) تظهر برسائلها العربية عبر `show_error`، ولا يترك الفشل أثراً (يتراجع البيع كاملاً). يُوصى بتعطيل أزرار القائمة والاختصارات التي تخرج من الشاشة أثناء الوردية وبضبط `Validation Unit = Item`.
+
+## الشاشة 15: `FRM_POS_ADMIN` — نقاط البيع والورديات
+
+كتلة `REGS` مرتبطة بـ `erp_pos_registers` (`REG_ID` عرض فقط، `CODE`, `NAME`, `WH_ID` من LOV المخازن، `CASH_ACCOUNT` من LOV حسابات النقد (`cash_account = 'Y'`)، `PRICES_INCLUDE_VAT` Check Box، `ACTIVE`، `Delete Allowed = No`). الإنشاء الأسلم بكتلة غير مرتبطة وزر يستدعي `erp_pos.add_register(...)` لأنه يتحقق من نوع حساب الصندوق. كتلة `SHIFTS` مرتبطة بالعرض `v_erp_pos_shift_summary` (استعلام فقط، `ORDER BY opened_at DESC`) وزر لتقرير Z: `run_erp_report('RPT_Z', 'P_SHIFT=' || :SHIFTS.SHIFT_ID)`. وبتبويب المبيعات: كتلة على `erp_pos_sales` (استعلام فقط) تعرض الإيصالات مع زر إعادة الطباعة `RPT_POS_RECEIPT`.
+
+## الشاشة 16: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
@@ -658,11 +778,13 @@ END;
 | الحركات | الأصول الثابتة والإهلاك | `CALL_FORM('FRM_ASSETS')` |
 | الحركات | كشوف الرواتب | `CALL_FORM('FRM_PAYROLL')` |
 | الحركات | السلف والتسويات الشهرية | `CALL_FORM('FRM_HR_ADJUST')` |
+| الحركات | نقطة البيع (الكاشير) | `CALL_FORM('FRM_POS', NO_HIDE, DO_REPLACE, NO_QUERY_ONLY, v_pl)` مع المعامل `P_REG_ID` |
+| ملفات | نقاط البيع والورديات | `CALL_FORM('FRM_POS_ADMIN')` |
 | الإقفال | إقفال الفترات والسنة | `CALL_FORM('FRM_PERIODS')` |
 | التقارير | القوائم المالية | `CALL_FORM('FRM_STATEMENTS')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية / تقرير Z / مبيعات نقاط البيع بالصنف | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -688,7 +810,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/12_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات الأربع عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/13_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات الست عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة، بيع بدفع ناقص أو بأكثر من الرصيد) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

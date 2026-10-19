@@ -1,6 +1,6 @@
 -- ============================================================================
--- 12: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
--- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @12_selftest.sql
+-- 13: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
+-- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @13_selftest.sql
 -- ============================================================================
 SET SERVEROUTPUT ON
 SET DEFINE OFF
@@ -9,6 +9,9 @@ DECLARE
   v_fail  PLS_INTEGER := 0;
   v_cust  NUMBER; v_sup NUMBER; v_si NUMBER; v_pi NUMBER; v_entry NUMBER; v_tmp NUMBER;
   v_inv   erp_invoices%ROWTYPE;
+  q_wh NUMBER; q_i1 NUMBER; q_i2 NUMBER; q_g1 NUMBER; q_g2 NUMBER; q_sh1 NUMBER; q_sh2 NUMBER;
+  q_s1 NUMBER; q_s2 NUMBER; q_s3 NUMBER; q_s4 NUMBER; q_s5 NUMBER; q_rt1 NUMBER; q_rt2 NUMBER; q_x NUMBER;
+  q_t NUMBER; q_v NUMBER; q_c NUMBER; q_d NUMBER; q_st VARCHAR2(20);
   v_st VARCHAR2(20); v_ni NUMBER; v_cl NUMBER; v_iss erp_msg_tab;
   v_hd NUMBER; v_e1 NUMBER; v_e2 NUMBER; v_e3 NUMBER; v_e4 NUMBER; v_cal NUMBER; v_ctr NUMBER; v_csi NUMBER; v_cse NUMBER;
   v_hadv NUMBER; v_ra NUMBER; v_rb NUMBER; v_rc NUMBER; v_rd NUMBER; v_re NUMBER; v_n1 NUMBER; v_n2 NUMBER; v_n3 NUMBER;
@@ -491,6 +494,118 @@ BEGIN
   v_cl := erp_period.close_year(DATE '2026-12-31');
   check_true('إعادة إقفال السنة بعد فتحها', v_cl IS NOT NULL AND erp_fin.unclosed_earnings(DATE '2026-12-31') = 0);
   erp_period.reopen_year(DATE '2026-12-31');
+
+
+  -- ================= نقاط البيع =================
+  q_wh := erp_stock.add_warehouse('WP', 'مخزن نقاط البيع');
+  q_i1 := erp_stock.add_item('PI1', 'صنف نقاط البيع', 'قطعة', 50, 'Y', '1400', '5100', '4100', 15, '6290000000011');
+  q_i2 := erp_stock.add_item('PS1', 'خدمة نقاط البيع', 'ساعة', 10, 'N');
+  check_true('البحث عن الصنف بالباركود وبالرمز', erp_pos.find_item('6290000000011') = q_i1 AND erp_pos.find_item('PS1') = q_i2);
+  check_true('صنف غير موجود يعيد NULL', erp_pos.find_item('غير-موجود') IS NULL);
+  v_tmp := erp_stock.adjust(q_i1, q_wh, DATE '2026-07-01', 20, 20, '3100');
+  q_g1 := erp_pos.add_register('R1', 'صندوق 1', q_wh);
+  q_g2 := erp_pos.add_register('R2', 'صندوق 2 (أسعار شاملة)', q_wh, '1100', 'Y');
+  BEGIN v_tmp := erp_pos.add_register('R3', 'صندوق خطأ', q_wh, '4100');
+    check_true('رفض حساب صندوق ليس حساب نقد (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض حساب صندوق ليس حساب نقد [' || SQLCODE || ']', SQLCODE = -20801); END;
+
+  q_sh1 := erp_pos.open_shift(q_g1, 100, TIMESTAMP '2026-07-10 09:00:00');
+  BEGIN v_tmp := erp_pos.open_shift(q_g1, 0);
+    check_true('رفض وردية ثانية مفتوحة لنفس النقطة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض وردية ثانية مفتوحة لنفس النقطة [' || SQLCODE || ']', SQLCODE = -20802); END;
+
+  -- بيع 1: صنفان بـ 50 + ضريبة 15% = 115، يُدفع 120 نقداً فالباقي 5
+  q_s1 := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i1, 2, NULL, NULL, NULL)),
+                       erp_pos_pay_tab(erp_pos_pay_t('CASH', 120)));
+  SELECT total, vat_amount, subtotal, change_due INTO q_t, q_v, q_c, q_d FROM erp_pos_sales WHERE sale_id = q_s1;
+  check_true('بيع 1: صافي 100 + ضريبة 15 = 115 والباقي 5', q_t = 115 AND q_v = 15 AND q_c = 100 AND q_d = 5);
+  check_true('المخزون بعد البيع: 18 بقيمة 360', stk_qty(q_i1, q_wh) = 18 AND stk_val(q_i1, q_wh) = 360);
+  SELECT NVL(SUM(l.debit), 0) INTO q_t FROM erp_lines l JOIN erp_pos_sales s ON s.cogs_entry_id = l.entry_id WHERE s.sale_id = q_s1;
+  check_true('قيد تكلفة المبيعات 40', q_t = 40);
+
+  -- بيع 2: خدمة 3 × 10 بخصم 10% = 27 ببطاقة (لا تكلفة)
+  q_s2 := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i2, 3, NULL, 10, NULL)),
+                       erp_pos_pay_tab(erp_pos_pay_t('CARD', 27)));
+  SELECT total, cogs_entry_id INTO q_t, q_x FROM erp_pos_sales WHERE sale_id = q_s2;
+  check_true('بيع 2: خدمة بخصم 10% = 27 ولا قيد تكلفة', q_t = 27 AND q_x IS NULL);
+
+  -- بيع 3: دفع مختلط نقد 20 + بطاقة 40 لإجمالي 57.50 فالباقي 2.50 من النقد
+  q_s3 := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i1, 1, NULL, NULL, NULL)),
+                       erp_pos_pay_tab(erp_pos_pay_t('CASH', 20), erp_pos_pay_t('CARD', 40)));
+  SELECT total, change_due INTO q_t, q_d FROM erp_pos_sales WHERE sale_id = q_s3;
+  check_true('بيع 3: دفع مختلط، الإجمالي 57.50 والباقي 2.50', q_t = 57.5 AND q_d = 2.5);
+  check_true('المخزون: 17 بقيمة 340', stk_qty(q_i1, q_wh) = 17 AND stk_val(q_i1, q_wh) = 340);
+
+  -- رفض الدفعات الخاطئة والبيع بأكثر من الرصيد، دون أثر
+  BEGIN v_tmp := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i1, 1, NULL, NULL, NULL)),
+                   erp_pos_pay_tab(erp_pos_pay_t('CASH', 10)));
+    check_true('رفض مدفوع أقل من الإجمالي (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض مدفوع أقل من الإجمالي [' || SQLCODE || ']', SQLCODE = -20804); END;
+  BEGIN v_tmp := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i1, 1, NULL, NULL, NULL)),
+                   erp_pos_pay_tab(erp_pos_pay_t('CARD', 100)));
+    check_true('رفض باقٍ يزيد عن النقد المدفوع (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض باقٍ يزيد عن النقد المدفوع [' || SQLCODE || ']', SQLCODE = -20804); END;
+  BEGIN v_tmp := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i1, 1, NULL, NULL, NULL)),
+                   erp_pos_pay_tab(erp_pos_pay_t('BANK', 100)));
+    check_true('رفض طريقة دفع غير معروفة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض طريقة دفع غير معروفة [' || SQLCODE || ']', SQLCODE = -20804); END;
+  BEGIN v_tmp := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i1, 100, NULL, NULL, NULL)),
+                   erp_pos_pay_tab(erp_pos_pay_t('CASH', 10000)));
+    check_true('رفض بيع أكثر من رصيد المخزن (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض بيع أكثر من رصيد المخزن [' || SQLCODE || ']', SQLCODE = -20302); END;
+  SELECT COUNT(*) INTO q_t FROM erp_pos_sales WHERE shift_id = q_sh1;
+  check_true('الفشل لم يترك بيعاً ولا حركة مخزون (3 عمليات والرصيد 17)', q_t = 3 AND stk_qty(q_i1, q_wh) = 17);
+
+  -- إلغاء البيع 3 داخل الوردية يعيد المخزون بتكلفته
+  erp_pos.void_sale(q_s3);
+  SELECT status INTO q_st FROM erp_pos_sales WHERE sale_id = q_s3;
+  check_true('إلغاء البيع 3: VOID والمخزون 18 بقيمة 360', q_st = 'VOID' AND stk_qty(q_i1, q_wh) = 18 AND stk_val(q_i1, q_wh) = 360);
+
+  -- مرتجعات البيع 1 (كمية 2): مرتجع بوحدة ثم الوحدة الأخيرة تأخذ المتبقي بالضبط
+  SELECT MIN(line_id) INTO q_x FROM erp_pos_sale_lines WHERE sale_id = q_s1;
+  q_rt1 := erp_pos.return_sale(q_sh1, DATE '2026-07-10', q_s1, erp_pos_ret_tab(erp_pos_ret_t(q_x, 1)), 'CASH');
+  SELECT total INTO q_t FROM erp_pos_sales WHERE sale_id = q_rt1;
+  check_true('مرتجع وحدة: 57.50 والمخزون 19 بقيمة 380', q_t = 57.5 AND stk_qty(q_i1, q_wh) = 19 AND stk_val(q_i1, q_wh) = 380);
+  q_rt2 := erp_pos.return_sale(q_sh1, DATE '2026-07-10', q_s1, erp_pos_ret_tab(erp_pos_ret_t(q_x, 1)), 'CASH');
+  SELECT total, subtotal INTO q_t, q_c FROM erp_pos_sales WHERE sale_id = q_rt2;
+  check_true('المرتجع الأخير يأخذ المتبقي بالضبط (57.50 والمخزون 20 بقيمة 400)', q_t = 57.5 AND q_c = 50 AND stk_qty(q_i1, q_wh) = 20 AND stk_val(q_i1, q_wh) = 400);
+  BEGIN v_tmp := erp_pos.return_sale(q_sh1, DATE '2026-07-10', q_s1, erp_pos_ret_tab(erp_pos_ret_t(q_x, 1)), 'CASH');
+    check_true('رفض مرتجع يتجاوز المتاح (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض مرتجع يتجاوز المتاح [' || SQLCODE || ']', SQLCODE = -20805); END;
+  BEGIN erp_pos.void_sale(q_s1);
+    check_true('رفض إلغاء بيع له مرتجعات (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء بيع له مرتجعات [' || SQLCODE || ']', SQLCODE = -20806); END;
+
+  -- الوردية: المتوقع 100 + 115 + 0 − 115 = 100، والمعدود 95 فالعجز 5
+  check_true('النقد المتوقع في الصندوق 100', erp_pos.expected_cash(q_sh1) = 100);
+  SELECT sales_total, returns_total, card_sales INTO q_t, q_v, q_c FROM v_erp_pos_shift_summary WHERE shift_id = q_sh1;
+  check_true('ملخص الوردية: مبيعات 142 ومرتجعات 115 وبطاقة 27', q_t = 142 AND q_v = 115 AND q_c = 27);
+  q_t := erp_pos.close_shift(q_sh1, 95, TIMESTAMP '2026-07-10 20:00:00');
+  SELECT status, variance_entry_id INTO q_st, q_x FROM erp_pos_shifts WHERE shift_id = q_sh1;
+  check_true('إقفال الوردية بعجز 5 وقيد الفرق', q_t = -5 AND q_st = 'CLOSED' AND q_x IS NOT NULL AND bal('5800', 'D') = 5);
+  BEGIN v_tmp := erp_pos.sell(q_sh1, DATE '2026-07-10', erp_pos_line_tab(erp_pos_line_t(q_i2, 1, NULL, NULL, NULL)),
+                   erp_pos_pay_tab(erp_pos_pay_t('CASH', 10)));
+    check_true('رفض بيع على وردية مغلقة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض بيع على وردية مغلقة [' || SQLCODE || ']', SQLCODE = -20803); END;
+  BEGIN erp_pos.void_sale(q_s2);
+    check_true('رفض إلغاء بيع بعد إقفال ورديته (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء بيع بعد إقفال ورديته [' || SQLCODE || ']', SQLCODE = -20807); END;
+  q_sh1 := erp_pos.open_shift(q_g1, 0, TIMESTAMP '2026-07-11 09:00:00');
+  check_true('بعد الإقفال تُفتح وردية جديدة لنفس النقطة', q_sh1 IS NOT NULL);
+
+  -- نقطة بيع بأسعار شاملة الضريبة: 115 → ضريبة 15 وصافي 100، و100 → ضريبة 13.04 وصافي 86.96
+  q_sh2 := erp_pos.open_shift(q_g2, 50, TIMESTAMP '2026-07-11 09:00:00');
+  q_s4 := erp_pos.sell(q_sh2, DATE '2026-07-11', erp_pos_line_tab(erp_pos_line_t(q_i1, 1, 115, NULL, NULL)),
+                       erp_pos_pay_tab(erp_pos_pay_t('CASH', 115)));
+  SELECT total, vat_amount, subtotal INTO q_t, q_v, q_c FROM erp_pos_sales WHERE sale_id = q_s4;
+  check_true('أسعار شاملة: 115 = 100 + ضريبة 15', q_t = 115 AND q_v = 15 AND q_c = 100);
+  q_s5 := erp_pos.sell(q_sh2, DATE '2026-07-11', erp_pos_line_tab(erp_pos_line_t(q_i1, 1, 100, NULL, NULL)),
+                       erp_pos_pay_tab(erp_pos_pay_t('CASH', 100)));
+  SELECT total, vat_amount, subtotal INTO q_t, q_v, q_c FROM erp_pos_sales WHERE sale_id = q_s5;
+  check_true('أسعار شاملة: 100 = 86.96 + ضريبة 13.04 (والإجمالي كما هو)', q_t = 100 AND q_v = 13.04 AND q_c = 86.96);
+
+  SELECT NVL(SUM(difference), 0) INTO q_t FROM v_erp_stock_vs_gl;
+  check_true('بعد كل عمليات نقاط البيع: المخزون يطابق الأستاذ', q_t = 0);
 
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;

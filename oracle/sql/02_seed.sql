@@ -30,6 +30,7 @@ INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5300', 'ا
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5400', 'مصروفات عمومية',       'EXPENSE',   '5000');
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5500', 'فروقات وتسويات المخزون', 'EXPENSE', '5000');
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5600', 'مصروف الإهلاك',        'EXPENSE',   '5000');
+INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5800', 'فروقات الصندوق (عجز وزيادة)', 'EXPENSE', '5000');
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5700', 'خسائر بيع أصول ثابتة', 'EXPENSE',   '5000');
 
 -- تصنيف الحسابات لقائمة التدفقات النقدية: النقد والبنوك، والاستثمارية (الأصول الثابتة ومجمعها)، والتمويلية (حقوق الملكية)
@@ -39,8 +40,11 @@ UPDATE erp_accounts SET cf_category = 'FINANCING' WHERE code IN ('3000', '3100',
 
 INSERT INTO erp_counters (name, last_no) VALUES ('SALES',    0);
 INSERT INTO erp_counters (name, last_no) VALUES ('PURCHASE', 0);
+INSERT INTO erp_counters (name, last_no) VALUES ('POS_SALE', 0);
+INSERT INTO erp_counters (name, last_no) VALUES ('POS_RETURN', 0);
 
 INSERT INTO erp_warehouses (code, name) VALUES ('MAIN', 'المخزن الرئيسي');
+INSERT INTO erp_pos_registers (code, name, wh_id) SELECT 'POS1', 'نقطة بيع 1', wh_id FROM erp_warehouses WHERE code = 'MAIN';
 
 -- فئات أصول افتراضية (الأعمار تقديرية: عدّلها وفق سياستك وأنظمة بلدك الضريبية)
 INSERT INTO erp_asset_categories (code, name, life_months) VALUES ('EQP', 'آلات ومعدات',      60);

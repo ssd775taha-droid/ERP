@@ -31,6 +31,32 @@ CREATE OR REPLACE TYPE erp_inv_line_t AS OBJECT (
 CREATE OR REPLACE TYPE erp_inv_line_tab AS TABLE OF erp_inv_line_t;
 /
 
+-- نقاط البيع: بنود البيع، الدفعات، وبنود المرتجع
+CREATE OR REPLACE TYPE erp_pos_line_t AS OBJECT (
+  item_id       NUMBER,
+  qty           NUMBER,
+  price         NUMBER,     -- اختياري: الافتراضي سعر بيع الصنف
+  discount_pct  NUMBER,     -- اختياري: نسبة خصم % على البند
+  vat_rate      NUMBER      -- اختياري: الافتراضي نسبة ضريبة الصنف
+);
+/
+CREATE OR REPLACE TYPE erp_pos_line_tab AS TABLE OF erp_pos_line_t;
+/
+CREATE OR REPLACE TYPE erp_pos_pay_t AS OBJECT (
+  method  VARCHAR2(4),      -- CASH | CARD
+  amount  NUMBER
+);
+/
+CREATE OR REPLACE TYPE erp_pos_pay_tab AS TABLE OF erp_pos_pay_t;
+/
+CREATE OR REPLACE TYPE erp_pos_ret_t AS OBJECT (
+  orig_line_id  NUMBER,
+  qty           NUMBER
+);
+/
+CREATE OR REPLACE TYPE erp_pos_ret_tab AS TABLE OF erp_pos_ret_t;
+/
+
 -- قائمة رسائل (مشكلات تمنع إقفال فترة)
 CREATE OR REPLACE TYPE erp_msg_tab AS TABLE OF VARCHAR2(300);
 /
@@ -121,6 +147,8 @@ CREATE TABLE erp_items (
   name           VARCHAR2(120) NOT NULL,
   unit           VARCHAR2(20)  DEFAULT 'قطعة' NOT NULL,
   sale_price     NUMBER(18,2)  DEFAULT 0 NOT NULL CONSTRAINT erp_items_price_ck CHECK (sale_price >= 0),
+  vat_rate       NUMBER(5,2)   DEFAULT 0 NOT NULL CONSTRAINT erp_items_vat_ck CHECK (vat_rate BETWEEN 0 AND 100),   -- نسبة الضريبة الافتراضية عند البيع
+  barcode        VARCHAR2(40),
   track_stock    CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_items_track_ck CHECK (track_stock IN ('Y','N')),
   inv_account    VARCHAR2(12)  DEFAULT '1400' NOT NULL CONSTRAINT erp_items_inv_fk  REFERENCES erp_accounts (code),
   cogs_account   VARCHAR2(12)  DEFAULT '5100' NOT NULL CONSTRAINT erp_items_cogs_fk REFERENCES erp_accounts (code),
@@ -128,6 +156,8 @@ CREATE TABLE erp_items (
   active         CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_items_active_ck CHECK (active IN ('Y','N')),
   created_at     TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL
 );
+
+CREATE UNIQUE INDEX erp_items_barcode_uk ON erp_items (barcode);   -- فريد عند وجوده (القيم الفارغة متعددة)
 
 -- الرصيد الحالي لكل صنف في كل مخزن: الكمية والقيمة (التكلفة بالمتوسط المرجّح = القيمة ÷ الكمية)
 CREATE TABLE erp_stock (
@@ -484,3 +514,82 @@ CREATE TABLE erp_year_closings (
   changed_by       VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
   changed_at       TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL
 );
+
+-- ---------------------------------------------------------------- نقاط البيع (POS)
+CREATE TABLE erp_pos_registers (
+  reg_id              NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pos_registers_pk PRIMARY KEY,
+  code                VARCHAR2(12)  NOT NULL CONSTRAINT erp_pos_registers_code_uk UNIQUE,
+  name                VARCHAR2(120) NOT NULL,
+  wh_id               NUMBER        NOT NULL CONSTRAINT erp_pos_registers_wh_fk REFERENCES erp_warehouses (wh_id),
+  cash_account        VARCHAR2(12)  DEFAULT '1100' NOT NULL CONSTRAINT erp_pos_registers_cash_fk REFERENCES erp_accounts (code),
+  prices_include_vat  CHAR(1)       DEFAULT 'N' NOT NULL CONSTRAINT erp_pos_registers_vat_ck CHECK (prices_include_vat IN ('Y','N')),
+  active              CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_pos_registers_active_ck CHECK (active IN ('Y','N'))
+);
+
+-- وردية الصندوق: وردية مفتوحة واحدة لكل نقطة بيع
+CREATE TABLE erp_pos_shifts (
+  shift_id         NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pos_shifts_pk PRIMARY KEY,
+  reg_id           NUMBER        NOT NULL CONSTRAINT erp_pos_shifts_reg_fk REFERENCES erp_pos_registers (reg_id),
+  cashier          VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  opened_at        TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+  opening_cash     NUMBER(18,2)  DEFAULT 0 NOT NULL CONSTRAINT erp_pos_shifts_open_ck CHECK (opening_cash >= 0),
+  status           VARCHAR2(6)   DEFAULT 'OPEN' NOT NULL CONSTRAINT erp_pos_shifts_status_ck CHECK (status IN ('OPEN','CLOSED')),
+  closed_at        TIMESTAMP,
+  expected_cash    NUMBER(18,2),
+  counted_cash     NUMBER(18,2),
+  variance         NUMBER(18,2),
+  variance_entry_id NUMBER       CONSTRAINT erp_pos_shifts_entry_fk REFERENCES erp_entries (entry_id)
+);
+CREATE UNIQUE INDEX erp_pos_shifts_open_uk ON erp_pos_shifts (CASE WHEN status = 'OPEN' THEN reg_id END);
+
+-- بيع (SALE) أو مرتجع (RETURN) مرتبط ببيع أصلي
+CREATE TABLE erp_pos_sales (
+  sale_id        NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pos_sales_pk PRIMARY KEY,
+  sale_no        VARCHAR2(20)  NOT NULL CONSTRAINT erp_pos_sales_no_uk UNIQUE,
+  kind           VARCHAR2(6)   NOT NULL CONSTRAINT erp_pos_sales_kind_ck CHECK (kind IN ('SALE','RETURN')),
+  orig_sale_id   NUMBER        CONSTRAINT erp_pos_sales_orig_fk REFERENCES erp_pos_sales (sale_id),
+  shift_id       NUMBER        NOT NULL CONSTRAINT erp_pos_sales_shift_fk REFERENCES erp_pos_shifts (shift_id),
+  sale_date      DATE          NOT NULL,
+  subtotal       NUMBER(18,2)  NOT NULL,          -- قبل الضريبة
+  vat_amount     NUMBER(18,2)  NOT NULL,
+  total          NUMBER(18,2)  NOT NULL,
+  tendered       NUMBER(18,2)  NOT NULL,          -- مجموع الدفعات المستلمة (للمرتجع: المردود)
+  change_due     NUMBER(18,2)  DEFAULT 0 NOT NULL,
+  status         VARCHAR2(9)   DEFAULT 'COMPLETED' NOT NULL CONSTRAINT erp_pos_sales_status_ck CHECK (status IN ('COMPLETED','VOID')),
+  entry_id       NUMBER        NOT NULL CONSTRAINT erp_pos_sales_entry_fk REFERENCES erp_entries (entry_id),
+  cogs_entry_id  NUMBER        CONSTRAINT erp_pos_sales_cogs_fk REFERENCES erp_entries (entry_id),
+  created_by     VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at     TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_pos_sales_amount_ck CHECK (total > 0 AND total = subtotal + vat_amount AND tendered >= total AND change_due = tendered - total),
+  CONSTRAINT erp_pos_sales_orig_ck CHECK ((kind = 'RETURN' AND orig_sale_id IS NOT NULL) OR (kind = 'SALE' AND orig_sale_id IS NULL))
+);
+CREATE INDEX erp_pos_sales_shift_ix ON erp_pos_sales (shift_id);
+CREATE INDEX erp_pos_sales_orig_ix  ON erp_pos_sales (orig_sale_id);
+
+CREATE TABLE erp_pos_sale_lines (
+  line_id          NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pos_sale_lines_pk PRIMARY KEY,
+  sale_id          NUMBER        NOT NULL CONSTRAINT erp_pos_sale_lines_sale_fk REFERENCES erp_pos_sales (sale_id),
+  item_id          NUMBER        NOT NULL CONSTRAINT erp_pos_sale_lines_item_fk REFERENCES erp_items (item_id),
+  description      VARCHAR2(200) NOT NULL,
+  qty              NUMBER(18,3)  NOT NULL CONSTRAINT erp_pos_sale_lines_qty_ck CHECK (qty > 0),
+  price            NUMBER(18,2)  NOT NULL CONSTRAINT erp_pos_sale_lines_price_ck CHECK (price >= 0),
+  discount_pct     NUMBER(5,2)   DEFAULT 0 NOT NULL CONSTRAINT erp_pos_sale_lines_disc_ck CHECK (discount_pct BETWEEN 0 AND 100),
+  vat_rate         NUMBER(5,2)   DEFAULT 0 NOT NULL CONSTRAINT erp_pos_sale_lines_rate_ck CHECK (vat_rate BETWEEN 0 AND 100),
+  net              NUMBER(18,2)  NOT NULL,
+  vat              NUMBER(18,2)  NOT NULL,
+  cost             NUMBER(18,2),                  -- تكلفة البند المخزني (NULL للخدمات)
+  wh_id            NUMBER        CONSTRAINT erp_pos_sale_lines_wh_fk REFERENCES erp_warehouses (wh_id),
+  revenue_account  VARCHAR2(12)  NOT NULL CONSTRAINT erp_pos_sale_lines_rev_fk REFERENCES erp_accounts (code),
+  orig_line_id     NUMBER        CONSTRAINT erp_pos_sale_lines_orig_fk REFERENCES erp_pos_sale_lines (line_id)
+);
+CREATE INDEX erp_pos_sale_lines_sale_ix ON erp_pos_sale_lines (sale_id);
+CREATE INDEX erp_pos_sale_lines_orig_ix ON erp_pos_sale_lines (orig_line_id);
+
+CREATE TABLE erp_pos_payments (
+  pay_id        NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_pos_payments_pk PRIMARY KEY,
+  sale_id       NUMBER       NOT NULL CONSTRAINT erp_pos_payments_sale_fk REFERENCES erp_pos_sales (sale_id),
+  method        VARCHAR2(4)  NOT NULL CONSTRAINT erp_pos_payments_method_ck CHECK (method IN ('CASH','CARD')),
+  amount        NUMBER(18,2) NOT NULL CONSTRAINT erp_pos_payments_amount_ck CHECK (amount > 0),
+  account_code  VARCHAR2(12) NOT NULL CONSTRAINT erp_pos_payments_acct_fk REFERENCES erp_accounts (code)
+);
+CREATE INDEX erp_pos_payments_sale_ix ON erp_pos_payments (sale_id);

@@ -138,3 +138,23 @@ UNION ALL
 SELECT p.period, p.status, 0
   FROM erp_periods p
  WHERE NOT EXISTS (SELECT 1 FROM erp_entries e WHERE TRUNC(e.entry_date, 'MM') = p.period);
+
+-- ملخص الوردية (تقرير Z): عدد العمليات وإجماليات المبيعات والمرتجعات وتفصيل النقد والبطاقة والنقد المتوقع
+CREATE OR REPLACE VIEW v_erp_pos_shift_summary AS
+SELECT sh.shift_id, r.code AS reg_code, r.name AS reg_name, sh.cashier, sh.opened_at, sh.closed_at, sh.status,
+       sh.opening_cash,
+       (SELECT COUNT(*) FROM erp_pos_sales s WHERE s.shift_id = sh.shift_id AND s.kind = 'SALE' AND s.status = 'COMPLETED') AS sales_count,
+       (SELECT NVL(SUM(s.total), 0) FROM erp_pos_sales s WHERE s.shift_id = sh.shift_id AND s.kind = 'SALE' AND s.status = 'COMPLETED') AS sales_total,
+       (SELECT NVL(SUM(s.vat_amount), 0) FROM erp_pos_sales s WHERE s.shift_id = sh.shift_id AND s.kind = 'SALE' AND s.status = 'COMPLETED') AS sales_vat,
+       (SELECT NVL(SUM(s.total), 0) FROM erp_pos_sales s WHERE s.shift_id = sh.shift_id AND s.kind = 'RETURN' AND s.status = 'COMPLETED') AS returns_total,
+       (SELECT NVL(SUM(p.amount), 0) FROM erp_pos_payments p JOIN erp_pos_sales s ON s.sale_id = p.sale_id
+         WHERE s.shift_id = sh.shift_id AND s.kind = 'SALE' AND s.status = 'COMPLETED' AND p.method = 'CASH')
+       - (SELECT NVL(SUM(s.change_due), 0) FROM erp_pos_sales s WHERE s.shift_id = sh.shift_id AND s.kind = 'SALE' AND s.status = 'COMPLETED') AS cash_sales,
+       (SELECT NVL(SUM(p.amount), 0) FROM erp_pos_payments p JOIN erp_pos_sales s ON s.sale_id = p.sale_id
+         WHERE s.shift_id = sh.shift_id AND s.kind = 'SALE' AND s.status = 'COMPLETED' AND p.method = 'CARD') AS card_sales,
+       (SELECT NVL(SUM(p.amount), 0) FROM erp_pos_payments p JOIN erp_pos_sales s ON s.sale_id = p.sale_id
+         WHERE s.shift_id = sh.shift_id AND s.kind = 'RETURN' AND s.status = 'COMPLETED' AND p.method = 'CASH') AS cash_refunds,
+       (SELECT NVL(SUM(p.amount), 0) FROM erp_pos_payments p JOIN erp_pos_sales s ON s.sale_id = p.sale_id
+         WHERE s.shift_id = sh.shift_id AND s.kind = 'RETURN' AND s.status = 'COMPLETED' AND p.method = 'CARD') AS card_refunds,
+       sh.expected_cash, sh.counted_cash, sh.variance
+  FROM erp_pos_shifts sh JOIN erp_pos_registers r ON r.reg_id = sh.reg_id;
