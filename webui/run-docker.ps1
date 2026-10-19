@@ -40,6 +40,19 @@ if ($real -and $real -ne (Get-EnvVal $envf 'ERP_DB_PASSWORD')) {
   Set-EnvVal $envf 'ERP_DB_PASSWORD' $real
   Write-Host "حُدّثت كلمة سر القاعدة في $envf من الحاوية $dbname"
 }
+# الاتصال بحاوية القاعدة مباشرة عبر شبكة Docker داخلية (لا يمر بمنفذ الجهاز 1521، فقد يشغله مستمع Oracle آخر لا يعرف XEPDB1)
+$net = 'erp-net'
+$useNet = $false
+if ($real) {
+  docker network inspect $net 2>$null | Out-Null
+  if ($LASTEXITCODE -ne 0) { docker network create $net | Out-Null }
+  docker network connect $net $dbname 2>$null | Out-Null   # خطأ «متصل مسبقاً» متوقع ويُتجاهل
+  $useNet = $true
+  Set-EnvVal $envf 'ERP_DB_CONNECT' "${dbname}:1521/XEPDB1"
+} else {
+  Write-Host "تنبيه: لا حاوية $dbname؛ سيتصل بمنفذ الجهاز $dbport (قد يفشل إن شغله برنامج آخر)" -ForegroundColor Yellow
+  Set-EnvVal $envf 'ERP_DB_CONNECT' "host.docker.internal:${dbport}/XEPDB1"
+}
 if (-not (Get-EnvVal $envf 'ERP_DB_PASSWORD')) {
   Write-Host "كلمة سر القاعدة غير معروفة: لا حاوية باسم $dbname ولا كلمة سر في $envf. ثبّت القاعدة أولاً (oracle\local\install-local.ps1) أو ضع ERP_DB_PASSWORD في الملف." -ForegroundColor Red
   exit 1
@@ -48,7 +61,8 @@ if (-not (Get-EnvVal $envf 'ERP_DB_PASSWORD')) {
 docker build -t erp-web .
 if ($LASTEXITCODE -ne 0) { Write-Host 'فشل بناء الصورة'; exit 1 }
 docker rm -f $name 2>$null | Out-Null
-docker run -d --name $name --restart unless-stopped --env-file $envf -e ERP_WEB_HOST=0.0.0.0 -p "127.0.0.1:${port}:3001" erp-web | Out-Null
+$netArg = if ($useNet) { @('--network', $net) } else { @() }
+docker run -d --name $name --restart unless-stopped @netArg --env-file $envf -e ERP_WEB_HOST=0.0.0.0 -p "127.0.0.1:${port}:3001" erp-web | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host 'فشل تشغيل الحاوية'; exit 1 }
 # انتظر جاهزية الواجهة والقاعدة؛ إن فشلت اعرض السبب الحقيقي من سجل الحاوية
 $ok = $false

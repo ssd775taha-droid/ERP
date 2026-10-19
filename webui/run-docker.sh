@@ -29,12 +29,25 @@ if [ -n "$REAL" ] && [ "$REAL" != "$CUR" ]; then
   grep -v '^ERP_DB_PASSWORD=' "$ENVF" > "$ENVF.tmp"; echo "ERP_DB_PASSWORD=$REAL" >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"; chmod 600 "$ENVF"
   CUR="$REAL"; echo "حُدّثت كلمة سر القاعدة في $ENVF من الحاوية $DBNAME"
 fi
+# الاتصال بحاوية القاعدة مباشرة عبر شبكة Docker داخلية (لا يمر بمنفذ الجهاز، فقد يشغله مستمع Oracle آخر لا يعرف XEPDB1)
+NETARG=""
+set_env() { grep -v "^$1=" "$ENVF" > "$ENVF.tmp"; echo "$1=$2" >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"; chmod 600 "$ENVF"; }
+if [ -n "$REAL" ]; then
+  docker network inspect erp-net >/dev/null 2>&1 || docker network create erp-net >/dev/null
+  docker network connect erp-net "$DBNAME" >/dev/null 2>&1 || true
+  NETARG="--network erp-net"
+  set_env ERP_DB_CONNECT "$DBNAME:1521/XEPDB1"
+else
+  echo "تنبيه: لا حاوية $DBNAME؛ سيتصل بمنفذ الجهاز (قد يفشل إن شغله برنامج آخر)"
+  set_env ERP_DB_CONNECT "host.docker.internal:${ERP_ORACLE_PORT:-1521}/XEPDB1"
+fi
 if [ -z "$CUR" ]; then
   echo "كلمة سر القاعدة غير معروفة: لا حاوية باسم $DBNAME ولا كلمة سر في $ENVF"; exit 1
 fi
 
 docker build -t erp-web .
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker run -d --name "$NAME" --restart unless-stopped --add-host host.docker.internal:host-gateway \
+# shellcheck disable=SC2086
+docker run -d --name "$NAME" --restart unless-stopped --add-host host.docker.internal:host-gateway $NETARG \
   --env-file "$ENVF" -e ERP_WEB_HOST=0.0.0.0 -p "127.0.0.1:$PORT:3001" erp-web >/dev/null
 echo "تعمل الواجهة على http://localhost:$PORT  (المستخدم: admin، كلمة السر في $ENVF)"
