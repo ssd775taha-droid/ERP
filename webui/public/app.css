@@ -64,3 +64,4 @@ tr.head td { background: var(--surface2); font-weight: 600; }
 td input, td select { width: 100%; }
 td select.ac { min-width: 220px; }
 td input.dr, td input.cr { min-width: 110px; text-align: left; direction: ltr; }
+td select.it, td select.wh { min-width: 120px; } td input.ds { min-width: 150px; } td input.q { min-width: 60px; }

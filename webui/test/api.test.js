@@ -59,3 +59,21 @@ test('ترحيل قيد ثم عكسه', { skip: !hasDb || !canWrite }, async () 
   assert.strictEqual((await call('POST', `/api/entries/${id}/reverse`, {})).status, 201);
   assert.strictEqual((await call('POST', `/api/entries/${id}/reverse`, {})).status, 400);
 });
+
+test('عميل وفاتورة مبيعات وسداد جزئي ثم رفض إلغاء الفاتورة', { skip: !hasDb || !canWrite }, async () => {
+  const p = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل اختبار آلي' });
+  assert.strictEqual(p.status, 201);
+  const inv = await call('POST', '/api/invoices', { kind: 'SALES', partyId: p.data.id, date: '2026-01-06',
+    lines: [{ description: 'خدمة', qty: 2, price: 100, vatRate: 15, account: '4200' }] });
+  assert.strictEqual(inv.status, 201);
+  assert.strictEqual(inv.data.invoice.total, 230);
+  const id = inv.data.invoice.id;
+  assert.strictEqual((await call('POST', '/api/payments', { partyId: p.data.id, invoiceId: id, date: '2026-01-07', amount: '100', method: 'CASH' })).status, 201);
+  const st = await call('GET', `/api/parties/${p.data.id}/statement`);
+  assert.strictEqual(st.data.party.balance, 130);
+  const bad = await call('POST', `/api/invoices/${id}/void`, {});
+  assert.strictEqual(bad.status, 400);
+  assert.match(bad.data.error, /مدفوعات/);
+  const over = await call('POST', '/api/payments', { partyId: p.data.id, invoiceId: id, date: '2026-01-07', amount: '500', method: 'CASH' });
+  assert.strictEqual(over.status, 400);
+});

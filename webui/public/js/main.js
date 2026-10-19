@@ -7,15 +7,19 @@
     ['', 'الرئيسية'],
     ['المحاسبة'],
     ['accounts', 'دليل الحسابات'], ['entry/new', 'قيد يومية جديد'], ['entries', 'دفتر اليومية'],
+    ['المبيعات والمشتريات'],
+    ['customers', 'العملاء'], ['sales', 'فواتير المبيعات'], ['suppliers', 'الموردون'], ['purchases', 'فواتير المشتريات'], ['payments', 'سندات القبض والصرف'],
     ['التقارير'],
     ['reports/trial-balance', 'ميزان المراجعة'], ['reports/ledger', 'كشف حساب'], ['reports/income-statement', 'قائمة الدخل'],
-    ['reports/balance-sheet', 'الميزانية'], ['reports/cash-flow', 'التدفقات النقدية'],
+    ['reports/aging', 'أعمار الديون'], ['reports/balance-sheet', 'الميزانية'], ['reports/cash-flow', 'التدفقات النقدية'],
     ['الإقفال'],
     ['periods', 'الفترات والإقفال'],
   ];
   const ROUTES = {
     '': 'dashboard', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
     'reports/trial-balance': 'trial-balance', 'reports/ledger': 'ledger', 'reports/income-statement': 'income-statement',
+    customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
+    'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
     'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow',
   };
 
@@ -44,7 +48,7 @@
     const h = location.hash.replace(/^#\/?/, '');
     const parts = h.split('/');
     let key = h, param = null;
-    if (!(key in ROUTES) && parts.length > 2) { key = parts.slice(0, 2).join('/'); param = parts[2]; }
+    if (!(key in ROUTES) && parts.length >= 2) { key = parts.slice(0, 2).join('/'); param = parts[2]; }
     const name = ROUTES[key];
     E.$$('nav.side a').forEach((a) => a.classList.toggle('on', a.dataset.r === key));
     const old = E.$('#main');
