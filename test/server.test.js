@@ -177,3 +177,41 @@ test('وكيل المساعد الذكي: مفتاح مخفي، تحقق، وإ�
     mock.closeAllConnections(); mock.close();
   }
 });
+
+test('المحاسبة العامة: قيد متوازن، رفض غير المتوازن، ميزان مراجعة، دفتر أستاذ، وعكس القيد', async () => {
+  const t = await boot();
+  try {
+    await t.call('POST', '/api/auth/setup', OWNER);
+    assert.equal((await t.call('POST', '/api/erp/accounts/seed')).body.created > 10, true);
+    assert.equal((await t.call('POST', '/api/erp/accounts/seed')).status, 409);
+    const post = (lines, date = '2026-01-10') => t.call('POST', '/api/erp/entries', { date, memo: 'ت', lines });
+
+    assert.equal((await post([{ account: '1100', debit: 100 }, { account: '3100', credit: 90 }])).status, 400);
+    assert.equal((await post([{ account: '1000', debit: 100 }, { account: '3100', credit: 100 }])).status, 400, 'تجميعي');
+    assert.equal((await post([{ account: '1100', debit: 0.1 }, { account: '1200', debit: 0.2 }, { account: '3100', credit: 0.3 }])).status, 200, 'لا أخطاء فاصلة عائمة');
+    assert.equal((await post([{ account: '1100', debit: 100, credit: 5 }, { account: '3100', credit: 95 }])).status, 400);
+
+    const cap = await post([{ account: '1200', debit: 1000 }, { account: '3100', credit: 1000 }]);
+    assert.equal(cap.status, 200);
+    await post([{ account: '1100', debit: 250.5 }, { account: '4100', credit: 250.5 }], '2026-02-01');
+
+    const tb = (await t.call('GET', '/api/erp/trial-balance')).body;
+    assert.equal(tb.balanced, true);
+    assert.equal(tb.totals.debit, tb.totals.credit);
+    assert.equal(tb.rows.find((r) => r.code === '1100').balance_debit, 25050 + 10);
+
+    const early = (await t.call('GET', '/api/erp/trial-balance?to=2026-01-31')).body;
+    assert.equal(early.rows.find((r) => r.code === '4100'), undefined);
+
+    const lg = (await t.call('GET', '/api/erp/ledger/1100')).body;
+    assert.equal(lg.closing, 25060);
+    assert.equal((await t.call('GET', '/api/erp/ledger/4100')).body.closing, 25050, 'الإيراد دائن طبيعياً');
+
+    const rev = await t.call('POST', `/api/erp/entries/${cap.body.entry.id}/reverse`, {});
+    assert.equal(rev.status, 200);
+    assert.equal((await t.call('POST', `/api/erp/entries/${cap.body.entry.id}/reverse`, {})).status, 409);
+    assert.equal((await t.call('POST', `/api/erp/entries/${rev.body.entry.id}/reverse`, {})).status, 400);
+    assert.equal((await t.call('GET', '/api/erp/ledger/3100')).body.closing, 30, 'بعد عكس رأس المال يبقى قيد 0.3');
+    assert.equal((await t.call('GET', '/api/erp/trial-balance')).body.balanced, true);
+  } finally { t.close(); }
+});
