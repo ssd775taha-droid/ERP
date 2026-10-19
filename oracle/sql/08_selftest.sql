@@ -1,6 +1,6 @@
 -- ============================================================================
--- 07: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
--- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @07_selftest.sql
+-- 08: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
+-- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @08_selftest.sql
 -- ============================================================================
 SET SERVEROUTPUT ON
 SET DEFINE OFF
@@ -9,6 +9,7 @@ DECLARE
   v_fail  PLS_INTEGER := 0;
   v_cust  NUMBER; v_sup NUMBER; v_si NUMBER; v_pi NUMBER; v_entry NUMBER; v_tmp NUMBER;
   v_inv   erp_invoices%ROWTYPE;
+  v_cat NUMBER; v_fa NUMBER; v_fb NUMBER; v_fc NUMBER; v_fd NUMBER; v_fe NUMBER; v_ff NUMBER; v_finv NUMBER;
   v_wh NUMBER; v_wh2 NUMBER; v_i1 NUMBER; v_i2 NUMBER; v_p1 NUMBER; v_p2 NUMBER; v_s1 NUMBER; v_cogs NUMBER;
 
   PROCEDURE check_true (p_name VARCHAR2, p_cond BOOLEAN) IS
@@ -183,6 +184,82 @@ BEGIN
   BEGIN DELETE FROM erp_stock_moves;
     check_true('منع حذف حركات المخزون (لم يُرفع خطأ)', FALSE);
   EXCEPTION WHEN OTHERS THEN check_true('منع حذف حركات المخزون [' || SQLCODE || ']', SQLCODE = -20901); END;
+
+
+  -- ================= الأصول الثابتة والإهلاك =================
+  v_cat := erp_asset.add_category('T1', 'فئة اختبار', 12);
+  v_fa  := erp_asset.acquire('A1', 'آلة أ', v_cat, DATE '2026-01-15', 1200, 0, 12, NULL, '1200');
+  check_true('اقتناء أصل: ح/1500 مدين 1200', bal('1500', 'D') = 1200);
+
+  v_tmp := erp_asset.run_depreciation(DATE '2026-03-31');
+  check_true('إهلاك يناير-مارس 300 (100 شهرياً)', v_tmp = 300 AND erp_asset.accumulated(v_fa) = 300 AND erp_asset.book_value(v_fa) = 900);
+  check_true('ح/5600 مدين 300 وح/1510 دائن 300', bal('5600', 'D') = 300 AND bal('1510', 'C') = 300);
+  check_true('إعادة التشغيل لا تهلك مرتين', erp_asset.run_depreciation(DATE '2026-03-31') = 0);
+
+  BEGIN erp_asset.reverse_depreciation(DATE '2026-02-01');
+    check_true('رفض عكس شهر وبعده إهلاك (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض عكس شهر وبعده إهلاك [' || SQLCODE || ']', SQLCODE = -20409); END;
+  erp_asset.reverse_depreciation(DATE '2026-03-15');
+  check_true('عكس إهلاك مارس: المتراكم 200', erp_asset.accumulated(v_fa) = 200);
+  check_true('إعادة إهلاك مارس بعد العكس: 100', erp_asset.run_depreciation(DATE '2026-03-31') = 100 AND erp_asset.accumulated(v_fa) = 300);
+
+  -- أصل بعمر 3 أشهر يبدأ فبراير: التعويض بالترتيب، والشهر الأخير يأخذ فرق التقريب
+  v_fb := erp_asset.acquire('B1', 'آلة ب', v_cat, DATE '2026-02-10', 1000, 0, 3, NULL, '1200');
+  v_tmp := erp_asset.run_depreciation(DATE '2026-04-30');
+  check_true('تعويض الأشهر الفائتة: 100 لـ أ في أبريل + 1000 لـ ب', v_tmp = 1100);
+  check_true('أصل ب مهلك بالكامل بلا فرق تقريب (333.33 + 333.33 + 333.34)', erp_asset.accumulated(v_fb) = 1000 AND erp_asset.book_value(v_fb) = 0);
+  check_true('ح/1510 دائن 1400', bal('1510', 'C') = 1400);
+  check_true('لا يهلك أصل مهلك بالكامل: مايو 100 فقط', erp_asset.run_depreciation(DATE '2026-05-31') = 100);
+
+  -- إهلاك معلّق يمنع البيع
+  v_fc := erp_asset.acquire('C1', 'آلة ج', v_cat, DATE '2026-01-05', 600, 0, 6, NULL, '1200');
+  BEGIN v_tmp := erp_asset.dispose(v_fc, DATE '2026-06-10', 100, '1100');
+    check_true('رفض بيع أصل عليه إهلاك معلّق (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض بيع أصل عليه إهلاك معلّق [' || SQLCODE || ']', SQLCODE = -20404); END;
+
+  -- بيع بربح: التكلفة 1200، المتراكم 500، الدفترية 700، الثمن 800 → ربح 100
+  v_tmp := erp_asset.dispose(v_fa, DATE '2026-06-10', 800, '1100');
+  check_true('بيع أ بربح 100 (ح/4300)', v_tmp IS NOT NULL AND bal('4300', 'C') = 100);
+  check_true('بعد البيع: ح/1510 دائن 1000 وح/1500 مدين 1600', bal('1510', 'C') = 1000 AND bal('1500', 'D') = 1600);
+  BEGIN v_tmp := erp_asset.dispose(v_fa, DATE '2026-06-11', 0);
+    check_true('رفض بيع أصل مباع (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض بيع أصل مباع [' || SQLCODE || ']', SQLCODE = -20406); END;
+
+  -- بيع بخسارة
+  v_fd := erp_asset.acquire('D1', 'آلة د', v_cat, DATE '2026-06-01', 1000, 0, 10, NULL, '1200');
+  v_tmp := erp_asset.dispose(v_fd, DATE '2026-06-20', 0);
+  check_true('بيع د بلا ثمن: خسارة 1000 (ح/5700)', bal('5700', 'D') = 1000);
+
+  -- عكس الإهلاك بعد بيع أصل اعتمد عليه
+  BEGIN erp_asset.reverse_depreciation(DATE '2026-05-01');
+    check_true('رفض عكس إهلاك بعد بيع اعتمد عليه (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض عكس إهلاك بعد بيع اعتمد عليه [' || SQLCODE || ']', SQLCODE = -20409); END;
+
+  -- إلغاء تسجيل الأصل
+  v_fe := erp_asset.acquire('E1', 'آلة هـ', v_cat, DATE '2026-06-02', 500, 0, 12, NULL, '1200');
+  erp_asset.void_asset(v_fe);
+  SELECT status INTO v_inv.status FROM erp_assets WHERE asset_id = v_fe;
+  check_true('إلغاء أصل بلا إهلاك: الحالة VOID', v_inv.status = 'VOID');
+  BEGIN erp_asset.void_asset(v_fb);
+    check_true('رفض إلغاء أصل عليه إهلاك (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء أصل عليه إهلاك [' || SQLCODE || ']', SQLCODE = -20406); END;
+
+  -- اقتناء عبر فاتورة مشتريات: لا قيد ثانٍ، والفاتورة محمية
+  v_finv := erp_trade.create_invoice('PURCHASE', v_sup, DATE '2026-06-03', NULL, NULL, NULL,
+              erp_inv_line_tab(erp_inv_line_t('جهاز', 1, 2000, 0, '1500', NULL, NULL)));
+  v_ff := erp_asset.acquire('F1', 'جهاز', v_cat, DATE '2026-06-03', 2000, 0, 12, NULL, NULL, v_finv);
+  SELECT COUNT(*) INTO v_tmp FROM erp_assets WHERE asset_id = v_ff AND entry_id IS NULL AND invoice_id = v_finv;
+  check_true('أصل من فاتورة: بلا قيد اقتناء ثانٍ ومربوط بالفاتورة', v_tmp = 1);
+  BEGIN erp_trade.void_invoice(v_finv);
+    check_true('رفض إلغاء فاتورة مربوطة بأصل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء فاتورة مربوطة بأصل [' || SQLCODE || ']', SQLCODE = -20215); END;
+  erp_asset.void_asset(v_ff);
+  erp_trade.void_invoice(v_finv);
+  SELECT status INTO v_inv.status FROM erp_invoices WHERE invoice_id = v_finv;
+  check_true('بعد إلغاء تسجيل الأصل تُلغى الفاتورة', v_inv.status = 'VOID');
+
+  SELECT NVL(SUM(difference), 0) INTO v_tmp FROM v_erp_asset_vs_gl;
+  check_true('سجل الأصول يطابق الأستاذ (التكلفة والمجمع)', v_tmp = 0);
 
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;

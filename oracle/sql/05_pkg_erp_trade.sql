@@ -16,6 +16,7 @@
 --   -20205 حساب البند لا يناسب نوع الفاتورة       -20211 طريقة دفع غير صالحة
 --   -20206 إجمالي الفاتورة يجب أن يكون موجباً     -20212 الفاتورة لا تخص الطرف
 --   -20213 لا تُلغى مشتريات بعد حركات لاحقة       -20214 صنف/مخزن البند غير صالح
+--   -20215 فاتورة مرتبطة بأصل ثابت لا تُلغى
 -- ============================================================================
 CREATE OR REPLACE PACKAGE erp_trade AS
   FUNCTION add_party (
@@ -309,6 +310,12 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
     END IF;
     IF v_inv.paid > 0 THEN
       RAISE_APPLICATION_ERROR(-20209, 'لا تُلغى فاتورة عليها مدفوعات');
+    END IF;
+    IF v_inv.kind = 'PURCHASE' THEN
+      SELECT COUNT(*) INTO v_tmp FROM erp_assets WHERE invoice_id = p_invoice_id AND status <> 'VOID';
+      IF v_tmp > 0 THEN
+        RAISE_APPLICATION_ERROR(-20215, 'الفاتورة مرتبطة بأصل ثابت: ألغِ تسجيل الأصل (ERP_ASSET.VOID_ASSET) أولاً');
+      END IF;
     END IF;
     -- إلغاء مشتريات بعد حركات لاحقة على أصنافها يُفسد متوسط التكلفة؛ المسموح تسوية المخزون بدلاً منه
     IF v_inv.kind = 'PURCHASE' AND erp_stock.has_later_moves('INVOICE', p_invoice_id) THEN

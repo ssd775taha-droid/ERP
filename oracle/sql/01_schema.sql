@@ -217,3 +217,65 @@ CREATE TABLE erp_payments (
 );
 CREATE INDEX erp_payments_party_ix ON erp_payments (party_id);
 CREATE INDEX erp_payments_inv_ix   ON erp_payments (invoice_id);
+
+-- ---------------------------------------------------------------- الأصول الثابتة والإهلاك
+-- فئة الأصل: حسابات الأصل ومجمع الإهلاك ومصروفه والعمر الافتراضي
+CREATE TABLE erp_asset_categories (
+  cat_id           NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_asset_cat_pk PRIMARY KEY,
+  code             VARCHAR2(12)  NOT NULL CONSTRAINT erp_asset_cat_code_uk UNIQUE,
+  name             VARCHAR2(120) NOT NULL,
+  asset_account    VARCHAR2(12)  DEFAULT '1500' NOT NULL CONSTRAINT erp_asset_cat_asset_fk REFERENCES erp_accounts (code),
+  accum_account    VARCHAR2(12)  DEFAULT '1510' NOT NULL CONSTRAINT erp_asset_cat_accum_fk REFERENCES erp_accounts (code),
+  expense_account  VARCHAR2(12)  DEFAULT '5600' NOT NULL CONSTRAINT erp_asset_cat_exp_fk   REFERENCES erp_accounts (code),
+  life_months      NUMBER(4)     NOT NULL CONSTRAINT erp_asset_cat_life_ck CHECK (life_months BETWEEN 1 AND 1200),
+  active           CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_asset_cat_active_ck CHECK (active IN ('Y','N'))
+);
+
+CREATE TABLE erp_assets (
+  asset_id          NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_assets_pk PRIMARY KEY,
+  code              VARCHAR2(30)  NOT NULL CONSTRAINT erp_assets_code_uk UNIQUE,
+  name              VARCHAR2(120) NOT NULL,
+  cat_id            NUMBER        NOT NULL CONSTRAINT erp_assets_cat_fk REFERENCES erp_asset_categories (cat_id),
+  acq_date          DATE          NOT NULL,
+  dep_start         DATE          NOT NULL CONSTRAINT erp_assets_start_ck CHECK (dep_start = TRUNC(dep_start, 'MM')),
+  cost              NUMBER(18,2)  NOT NULL,
+  salvage           NUMBER(18,2)  DEFAULT 0 NOT NULL,
+  life_months       NUMBER(4)     NOT NULL CONSTRAINT erp_assets_life_ck CHECK (life_months BETWEEN 1 AND 1200),
+  status            VARCHAR2(8)   DEFAULT 'ACTIVE' NOT NULL CONSTRAINT erp_assets_status_ck CHECK (status IN ('ACTIVE','DISPOSED','VOID')),
+  invoice_id        NUMBER        CONSTRAINT erp_assets_inv_fk REFERENCES erp_invoices (invoice_id),   -- اقتناء عبر فاتورة مشتريات
+  entry_id          NUMBER        CONSTRAINT erp_assets_entry_fk REFERENCES erp_entries (entry_id),     -- قيد الاقتناء (NULL إن كان عبر فاتورة)
+  disposal_date     DATE,
+  proceeds          NUMBER(18,2),
+  disposal_entry_id NUMBER        CONSTRAINT erp_assets_disp_fk REFERENCES erp_entries (entry_id),
+  note              VARCHAR2(300),
+  created_by        VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at        TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_assets_amount_ck CHECK (cost > 0 AND salvage >= 0 AND salvage < cost)
+);
+CREATE INDEX erp_assets_cat_ix ON erp_assets (cat_id);
+
+-- دفعة إهلاك لشهر (قيد واحد مجمَّع). قد يوجد أكثر من دفعة لنفس الشهر (تعويض أصل أُضيف متأخراً).
+CREATE TABLE erp_dep_runs (
+  run_id      NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_dep_runs_pk PRIMARY KEY,
+  period      DATE          NOT NULL CONSTRAINT erp_dep_runs_period_ck CHECK (period = TRUNC(period, 'MM')),
+  entry_id    NUMBER        NOT NULL CONSTRAINT erp_dep_runs_entry_fk REFERENCES erp_entries (entry_id),
+  total       NUMBER(18,2)  NOT NULL,
+  status      VARCHAR2(4)   DEFAULT 'OK' NOT NULL CONSTRAINT erp_dep_runs_status_ck CHECK (status IN ('OK','VOID')),
+  created_by  VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at  TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL
+);
+
+CREATE TABLE erp_depreciation (
+  dep_id    NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_depreciation_pk PRIMARY KEY,
+  run_id    NUMBER       NOT NULL CONSTRAINT erp_depreciation_run_fk   REFERENCES erp_dep_runs (run_id),
+  asset_id  NUMBER       NOT NULL CONSTRAINT erp_depreciation_asset_fk REFERENCES erp_assets (asset_id),
+  period    DATE         NOT NULL,
+  amount    NUMBER(18,2) NOT NULL CONSTRAINT erp_depreciation_amount_ck CHECK (amount > 0),
+  status    VARCHAR2(4)  DEFAULT 'OK' NOT NULL CONSTRAINT erp_depreciation_status_ck CHECK (status IN ('OK','VOID'))
+);
+CREATE INDEX erp_depreciation_asset_ix ON erp_depreciation (asset_id, period);
+-- لا يُهلَك أصل مرتين عن الشهر نفسه (الدفعات الملغاة لا تُحتسب)؛ يحمي أيضاً من التشغيل المتزامن
+CREATE UNIQUE INDEX erp_depreciation_uk ON erp_depreciation (
+  CASE WHEN status = 'OK' THEN asset_id END,
+  CASE WHEN status = 'OK' THEN period END
+);

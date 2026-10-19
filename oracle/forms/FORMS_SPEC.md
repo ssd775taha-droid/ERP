@@ -357,7 +357,101 @@ END;
 
 **بطاقة الصنف:** زر في تبويب الأرصدة يشغّل التقرير `RPT_STOCK_CARD` للسجل الحالي: `run_erp_report('RPT_STOCK_CARD', 'P_ITEM=' || :STOCK.ITEM_ID || ' P_WH=' || :STOCK.WH_ID)`.
 
-## الشاشة 7: `FRM_PAYMENT` — سند قبض/صرف (نافذة منبثقة Modal)
+## الشاشة 7: `FRM_ASSETS` — الأصول الثابتة والإهلاك
+
+ثلاثة تبويبات:
+
+**تبويب الفئات:** كتلة `CATS` مرتبطة بـ `erp_asset_categories` (`CAT_ID` عرض فقط بـ `Insert/Update Allowed = No`، `CODE`, `NAME`, `LIFE_MONTHS`, `ASSET_ACCOUNT`, `ACCUM_ACCOUNT`, `EXPENSE_ACCOUNT`, `ACTIVE`، `Delete Allowed = No`). الحسابات الثلاثة بـ `Update Allowed = No` بعد الحفظ، ومن LOV بحسب النوع (أصل / أصل / مصروف).
+
+**تبويب الأصول:**
+- كتلة `ASSETS` مرتبطة بالعرض `v_erp_asset_register` (استعلام فقط): `CODE`, `NAME`, `CAT_NAME`, `ACQ_DATE`, `COST`, `ACCUMULATED`, `BOOK_VALUE`, `STATUS`, `FULLY_DEPRECIATED`، و`ASSET_ID` غير مرئي.
+- كتلة غير مرتبطة `NEWA` لتسجيل أصل: `CODE`, `NAME`, `CAT_CODE` (LOV الفئات) و`CAT_ID` (غير مرئي)، `ACQ_DATE`, `COST`, `SALVAGE`, `LIFE_MONTHS` (يُملأ من الفئة ويقبل التعديل)، `DEP_START` (شهر، افتراضي شهر الاقتناء)، `OFFSET_ACCOUNT` (افتراضي 1200، بنك/صندوق/رأس مال)، `INVOICE_ID` (اختياري: لأصل اشتُري بفاتورة مشتريات سارية، فلا يُرحَّل قيد ثانٍ)، `NOTE`.
+
+```plsql
+-- NEWA.CAT_CODE : POST-CHANGE
+BEGIN
+  SELECT cat_id, life_months INTO :NEWA.CAT_ID, :NEWA.LIFE_MONTHS FROM erp_asset_categories WHERE code = :NEWA.CAT_CODE AND active = 'Y';
+EXCEPTION WHEN NO_DATA_FOUND THEN
+  MESSAGE('الفئة غير موجودة أو موقوفة'); RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- NEWA.BTN_SAVE : WHEN-BUTTON-PRESSED
+DECLARE v_id NUMBER;
+BEGIN
+  v_id := erp_asset.acquire(:NEWA.CODE, :NEWA.NAME, :NEWA.CAT_ID, :NEWA.ACQ_DATE, :NEWA.COST, NVL(:NEWA.SALVAGE, 0),
+                            :NEWA.LIFE_MONTHS, :NEWA.DEP_START,
+                            CASE WHEN :NEWA.INVOICE_ID IS NULL THEN NVL(:NEWA.OFFSET_ACCOUNT, '1200') END,
+                            :NEWA.INVOICE_ID, :NEWA.NOTE);
+  commit_db;
+  MESSAGE('سُجّل الأصل');
+  GO_BLOCK('NEWA'); CLEAR_BLOCK(NO_VALIDATE);
+  GO_BLOCK('ASSETS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+أزرار كتلة `ASSETS` (على السجل الحالي):
+
+```plsql
+-- BTN_VOID (إلغاء تسجيل أصل لم يُهلَك)
+BEGIN
+  IF SHOW_ALERT('AL_CONFIRM_VOID_ASSET') <> ALERT_BUTTON1 THEN RETURN; END IF;
+  erp_asset.void_asset(:ASSETS.ASSET_ID);
+  commit_db; EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- BTN_DISPOSE : يفتح نافذة صغيرة (كتلة غير مرتبطة DISP: DISP_DATE، PROCEEDS، PROCEEDS_ACCOUNT افتراضي 1200)
+-- DISP.BTN_OK : WHEN-BUTTON-PRESSED
+DECLARE v_entry NUMBER;
+BEGIN
+  v_entry := erp_asset.dispose(:ASSETS.ASSET_ID, :DISP.DISP_DATE, NVL(:DISP.PROCEEDS, 0), NVL(:DISP.PROCEEDS_ACCOUNT, '1200'));
+  commit_db;
+  MESSAGE('سُجّل البيع (قيد رقم ' || v_entry || ')');
+  HIDE_WINDOW('WIN_DISPOSE'); GO_BLOCK('ASSETS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+> رسالة الخطأ `-20404` («إهلاك معلّق… شغّل الإهلاك حتى شهر …») تعني أن على المستخدم تشغيل الإهلاك من التبويب التالي قبل البيع.
+
+**تبويب الإهلاك:** كتلة تحكم `DEP`: `UPTO` (شهر، افتراضي الشهر الحالي)، `LAST_RUN` (عرض: آخر شهر مهلك من `SELECT MAX(period) FROM erp_depreciation WHERE status = 'OK'`)، وأزرار `BTN_RUN` و`BTN_REVERSE`. وكتلة `RUNS` مرتبطة بـ `erp_dep_runs` (استعلام فقط، `ORDER BY period DESC, run_id DESC`).
+
+```plsql
+-- DEP.BTN_RUN : WHEN-BUTTON-PRESSED
+DECLARE v_total NUMBER;
+BEGIN
+  v_total := erp_asset.run_depreciation(:DEP.UPTO);
+  commit_db;
+  MESSAGE(CASE WHEN v_total = 0 THEN 'لا إهلاك مستحق' ELSE 'رُحّل إهلاك بإجمالي ' || TO_CHAR(v_total) END);
+  GO_BLOCK('RUNS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- DEP.BTN_REVERSE : يعكس الشهر المحدّد في UPTO (مرفوض إن وُجد إهلاك لاحق أو بيع بعده)
+BEGIN
+  IF SHOW_ALERT('AL_CONFIRM_REVERSE_DEP') <> ALERT_BUTTON1 THEN RETURN; END IF;
+  erp_asset.reverse_depreciation(:DEP.UPTO);
+  commit_db;
+  MESSAGE('عُكس إهلاك الشهر');
+  GO_BLOCK('RUNS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+زر `BTN_SCHEDULE` على كتلة `ASSETS` يشغّل التقرير `RPT_ASSET_SCHEDULE` للأصل الحالي: `run_erp_report('RPT_ASSET_SCHEDULE', 'P_ASSET=' || :ASSETS.ASSET_ID)`.
+
+## الشاشة 8: `FRM_PAYMENT` — سند قبض/صرف (نافذة منبثقة Modal)
 
 كتلة غير مرتبطة `PAY`: `PARTY_ID`, `PARTY_NAME` (عرض)، `INVOICE_ID` (اختياري، عرض)، `PAY_DATE`، `AMOUNT`، `METHOD` (List: CASH=نقدي، BANK=بنكي)، `NOTE`. تُفتح من `FRM_INVOICE` أو `FRM_PARTIES` عبر `CALL_FORM` مع معاملات (Parameter List: `P_PARTY_ID`, `P_INVOICE_ID`, `P_REMAINING`).
 
@@ -400,7 +494,7 @@ END;
 
 > عرّف معاملات النموذج `P_PARTY_ID` و`P_INVOICE_ID` و`P_REMAINING` (CHAR، 30) في وحدة `FRM_PAYMENT`.
 
-## الشاشة 8: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 9: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
@@ -408,9 +502,10 @@ END;
 | ملفات | العملاء والموردون | `CALL_FORM('FRM_PARTIES')` |
 | ملفات | الأصناف والمخازن | `CALL_FORM('FRM_ITEMS')` |
 | الحركات | أرصدة المخزون والتسويات والتحويلات | `CALL_FORM('FRM_STOCK')` |
+| الحركات | الأصول الثابتة والإهلاك | `CALL_FORM('FRM_ASSETS')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -436,7 +531,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/07_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات الثماني بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/08_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات التسع بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

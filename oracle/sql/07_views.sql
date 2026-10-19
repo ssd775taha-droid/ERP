@@ -62,3 +62,37 @@ SELECT x.inv_account,
           LEFT JOIN erp_stock s ON s.item_id = i.item_id
          WHERE i.track_stock = 'Y'
          GROUP BY i.inv_account) x;
+
+-- سجل الأصول: التكلفة والمجمع والقيمة الدفترية وآخر شهر مهلك
+CREATE OR REPLACE VIEW v_erp_asset_register AS
+SELECT a.asset_id, a.code, a.name, c.code AS cat_code, c.name AS cat_name,
+       a.acq_date, a.dep_start, a.cost, a.salvage, a.life_months, a.status,
+       NVL(d.accumulated, 0) AS accumulated,
+       a.cost - NVL(d.accumulated, 0) AS book_value,
+       d.last_period,
+       CASE WHEN a.status = 'ACTIVE' AND NVL(d.accumulated, 0) >= a.cost - a.salvage THEN 'Y' ELSE 'N' END AS fully_depreciated
+  FROM erp_assets a
+  JOIN erp_asset_categories c ON c.cat_id = a.cat_id
+  LEFT JOIN (SELECT asset_id, SUM(amount) AS accumulated, MAX(period) AS last_period
+               FROM erp_depreciation WHERE status = 'OK' GROUP BY asset_id) d ON d.asset_id = a.asset_id
+ WHERE a.status <> 'VOID';
+
+-- مطابقة سجل الأصول مع الأستاذ لكل حساب أصل ومجمع. الفرق صفر ما لم تُرحَّل قيود يدوية أو فواتير غير مسجَّلة كأصول.
+CREATE OR REPLACE VIEW v_erp_asset_vs_gl AS
+SELECT 'COST' AS kind, x.account_code,
+       x.register_value,
+       NVL((SELECT SUM(l.debit - l.credit) FROM erp_lines l WHERE l.account_code = x.account_code), 0) AS gl_balance,
+       x.register_value - NVL((SELECT SUM(l.debit - l.credit) FROM erp_lines l WHERE l.account_code = x.account_code), 0) AS difference
+  FROM (SELECT c.asset_account AS account_code, NVL(SUM(a.cost), 0) AS register_value
+          FROM erp_asset_categories c LEFT JOIN erp_assets a ON a.cat_id = c.cat_id AND a.status = 'ACTIVE'
+         GROUP BY c.asset_account) x
+UNION ALL
+SELECT 'ACCUM', y.account_code,
+       y.register_value,
+       NVL((SELECT SUM(l.credit - l.debit) FROM erp_lines l WHERE l.account_code = y.account_code), 0),
+       y.register_value - NVL((SELECT SUM(l.credit - l.debit) FROM erp_lines l WHERE l.account_code = y.account_code), 0)
+  FROM (SELECT c.accum_account AS account_code, NVL(SUM(d.amount), 0) AS register_value
+          FROM erp_asset_categories c
+          LEFT JOIN erp_assets a ON a.cat_id = c.cat_id AND a.status = 'ACTIVE'
+          LEFT JOIN erp_depreciation d ON d.asset_id = a.asset_id AND d.status = 'OK'
+         GROUP BY c.accum_account) y;
