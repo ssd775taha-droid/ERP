@@ -13,11 +13,12 @@ NAME="${ERP_ORACLE_NAME:-erp-oracle}"
 PORT="${ERP_ORACLE_PORT:-1521}"
 ENV_FILE="$ORACLE_DIR/local/.env"
 LOG_DIR="$ORACLE_DIR/local/logs"
-REINSTALL=0; RUN_TEST=1
+REINSTALL=0; RUN_TEST=1; FORCE_TEST=0
 for a in "$@"; do
   case "$a" in
     --reinstall) REINSTALL=1 ;;
     --no-test)   RUN_TEST=0 ;;
+    --force-test) FORCE_TEST=1 ;;
     -h|--help)   sed -n '2,8p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "خيار غير معروف: $a" >&2; exit 2 ;;
   esac
@@ -113,6 +114,12 @@ if ! grep -q "لا أخطاء" "$LOG_DIR/check.log"; then
   exit 1
 fi
 
+# الاختبار الذاتي مصمَّم لقاعدة فارغة (يقارن بأرصدة مطلقة) فيفشل زوراً إن وُجدت بيانات؛ يتراجع عن كل شيء فلا يمس بياناتك، لكن نتخطاه عندها
+ENTRIES="$(printf 'SET HEADING OFF FEEDBACK OFF PAGESIZE 0\nSELECT COUNT(*) FROM erp_entries;\n' | sql_erp | tr -d '[:space:]')"
+if [ "$RUN_TEST" -eq 1 ] && [ "$FORCE_TEST" -eq 0 ] && [ "${ENTRIES:-0}" != "0" ]; then
+  echo "تخطّي الاختبار الذاتي: القاعدة تحوي بيانات ($ENTRIES قيداً) والاختبار مصمَّم لقاعدة فارغة. للتشغيل رغم ذلك: --force-test"
+  RUN_TEST=0
+fi
 if [ "$RUN_TEST" -eq 1 ]; then
   echo "الاختبار الذاتي (يتراجع عن كل بياناته)..."
   printf "SET SERVEROUTPUT ON SIZE UNLIMITED\nSET LINESIZE 300\n@sql/15_selftest.sql\n" | sql_erp > "$LOG_DIR/selftest.log" 2>&1 || true

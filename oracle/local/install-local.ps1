@@ -4,7 +4,7 @@
 #   .\local\install-local.ps1 -NoTest      بلا الاختبار الذاتي
 # متغيرات بيئة اختيارية: ERP_ORACLE_IMAGE · ERP_ORACLE_NAME · ERP_ORACLE_PORT (الافتراضي 1521)
 # إن مُنع تنفيذ السكربتات:  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-param([switch]$Reinstall, [switch]$NoTest)
+param([switch]$Reinstall, [switch]$NoTest, [switch]$ForceTest)
 
 # Continue وليس Stop: Windows PowerShell 5.1 يحوّل stderr لأوامر docker إلى أخطاء قاطعة إن استُخدم 2>&1 مع Stop
 $ErrorActionPreference = 'Continue'
@@ -109,6 +109,12 @@ if (-not (Select-String -Path (Join-Path $LogDir 'check.log') -SimpleMatch 'CHEC
   Fail 'توجد كائنات غير صالحة أو أخطاء تجميع أو تعذّر الاتصال بالقاعدة. راجع local\logs\check.log'
 }
 
+# الاختبار الذاتي مصمَّم لقاعدة فارغة (يقارن بأرصدة مطلقة) فيفشل زوراً إن وُجدت بيانات؛ يتراجع عن كل شيء فلا يمس بياناتك، لكن نتخطاه عندها
+$entries = (Sql-Erp "SET HEADING OFF FEEDBACK OFF PAGESIZE 0`nSELECT COUNT(*) FROM erp_entries;" | Out-String).Trim()
+if (-not $NoTest -and -not $ForceTest -and $entries -ne '0') {
+  Write-Host "تخطّي الاختبار الذاتي: القاعدة تحوي بيانات ($entries قيداً) والاختبار مصمَّم لقاعدة فارغة. للتشغيل رغم ذلك: -ForceTest"
+  $NoTest = $true
+}
 if (-not $NoTest) {
   Write-Host 'الاختبار الذاتي (يتراجع عن كل بياناته)...'
   Sql-Erp "SET SERVEROUTPUT ON SIZE UNLIMITED`nSET LINESIZE 300`n@sql/15_selftest.sql" | Out-File -Encoding utf8 (Join-Path $LogDir 'selftest.log')
