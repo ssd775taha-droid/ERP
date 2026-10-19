@@ -20,6 +20,7 @@ BEGIN
   SELECT COUNT(*) INTO v_err FROM user_errors WHERE attribute = 'ERROR';
   SELECT COUNT(*) INTO v_obj FROM user_objects WHERE object_name LIKE 'ERP%' OR object_name LIKE 'V\_ERP%' ESCAPE '\';
   DBMS_OUTPUT.PUT_LINE('كائنات ERP: ' || v_obj || ' · غير صالحة: ' || v_inv || ' · أخطاء تجميع: ' || v_err);
-  IF v_inv = 0 AND v_err = 0 THEN DBMS_OUTPUT.PUT_LINE('لا أخطاء'); END IF;
+  IF v_inv = 0 AND v_err = 0 THEN DBMS_OUTPUT.PUT_LINE('لا أخطاء'); DBMS_OUTPUT.PUT_LINE('CHECK_RESULT=OK');
+  ELSE DBMS_OUTPUT.PUT_LINE('CHECK_RESULT=FAIL'); END IF;
 END;
 /

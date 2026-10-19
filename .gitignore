@@ -3,3 +3,4 @@ data/
 *.sqlite*
 oracle/local/.env
 oracle/local/logs/
+oracle/local/.env-xe

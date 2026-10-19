@@ -866,6 +866,7 @@ BEGIN
   check_true('ميزان المراجعة متوازن', v_tmp = 0);
 
   DBMS_OUTPUT.PUT_LINE('---- نجح ' || v_ok || ' · فشل ' || v_fail);
+  DBMS_OUTPUT.PUT_LINE('RESULT pass=' || v_ok || ' fail=' || v_fail);
   ROLLBACK;
 END;
 /

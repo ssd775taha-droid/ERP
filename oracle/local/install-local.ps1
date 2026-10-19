@@ -86,16 +86,16 @@ if ($installed -ne '0' -and -not $Reinstall) {
 
 Write-Host 'فحص ما بعد التثبيت...'
 Sql-Erp '@check_install.sql' | Out-File -Encoding utf8 (Join-Path $LogDir 'check.log')
-if (-not (Select-String -Path (Join-Path $LogDir 'check.log') -SimpleMatch 'لا أخطاء' -Quiet)) {
+if (-not (Select-String -Path (Join-Path $LogDir 'check.log') -SimpleMatch 'CHECK_RESULT=OK' -Quiet)) {
   Fail 'توجد كائنات غير صالحة أو أخطاء تجميع. راجع local\logs\check.log'
 }
 
 if (-not $NoTest) {
   Write-Host 'الاختبار الذاتي (يتراجع عن كل بياناته)...'
   Sql-Erp "SET SERVEROUTPUT ON SIZE UNLIMITED`nSET LINESIZE 300`n@sql/15_selftest.sql" | Out-File -Encoding utf8 (Join-Path $LogDir 'selftest.log')
-  $summary = Select-String -Path (Join-Path $LogDir 'selftest.log') -Pattern '^---- ' | Select-Object -Last 1
+  $summary = Select-String -Path (Join-Path $LogDir 'selftest.log') -Pattern '^RESULT pass=' | Select-Object -Last 1
   if ($summary) { Write-Host $summary.Line } else { Write-Host 'لم يكتمل الاختبار: راجع local\logs\selftest.log' }
-  if (-not $summary -or $summary.Line -notmatch 'فشل 0') {
+  if (-not $summary -or $summary.Line -notmatch 'fail=0') {
     Select-String -Path (Join-Path $LogDir 'selftest.log') -Pattern '^FAIL|ORA-|PLS-' | Select-Object -First 10 | ForEach-Object { $_.Line }
     Fail 'أرسل لي local\logs\selftest.log لأصلح ما فشل.'
   }
