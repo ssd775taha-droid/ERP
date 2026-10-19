@@ -55,6 +55,13 @@ docker start erp-oracle       # تشغيل
 docker rm -f erp-oracle && docker volume rm erp-oracle-data   # حذف كل شيء نهائياً
 ```
 
+## Docker لا يستجيب (الرسالة «المحرّك لا يستجيب»)
+نافذة Docker Desktop مفتوحة لا تعني أن المحرّك يعمل. افعل بالترتيب:
+1. انظر أسفل يسار نافذة Docker Desktop: يجب أن تقرأ **Engine running** بالأخضر. إن قرأت «starting» فانتظر دقيقة أو اثنتين (التشغيل الأول أبطأ).
+2. إن بقي متوقفاً: أغلق Docker Desktop تماماً (أيقونته في شريط المهام ← Quit) ثم افتحه من جديد.
+3. في ويندوز يحتاج Docker Desktop خاصية WSL 2 والمحاكاة الافتراضية: افتح PowerShell بصلاحية المدير ونفّذ `wsl --update` ثم أعد تشغيل الجهاز. وتأكد أن **Virtualization** مفعّلة في Task Manager ← Performance ← CPU.
+4. اختبر بنفسك: `docker version` ثم `docker run --rm hello-world`. يجب أن يطبع القسمين Client وServer بلا أخطاء. إن ظهر خطأ فأرسله لي كما هو.
+
 ## إن فشل شيء
 السكربت يطبع أول الأخطاء ويحفظ السجلات في `oracle/local/logs/` (`install.log` و`check.log` و`selftest.log`). **أرسل لي الملف المعنيّ** لأصلحه.
 

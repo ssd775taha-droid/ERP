@@ -24,7 +24,11 @@ for a in "$@"; do
 done
 
 command -v docker >/dev/null 2>&1 || { echo "Docker غير مثبّت. ثبّته أولاً (Docker Desktop على ويندوز وماك)." >&2; exit 1; }
-docker info >/dev/null 2>&1 || { echo "Docker مثبّت لكن الخدمة لا تعمل. شغّل Docker Desktop ثم أعد المحاولة." >&2; exit 1; }
+if ! SERVER_VER="$(docker version --format '{{.Server.Version}}' 2>&1)"; then
+  echo "رسالة Docker: $SERVER_VER" >&2
+  echo "المحرّك (Engine) لا يستجيب. شغّل Docker Desktop وانتظر حتى يكتمل تشغيله ثم أعد المحاولة." >&2
+  exit 1
+fi
 mkdir -p "$LOG_DIR"
 
 # كلمة السر: تُولَّد مرة واحدة وتُحفظ (أحرف وأرقام فقط لتجنب مشاكل الاقتباس)

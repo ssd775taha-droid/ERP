@@ -19,8 +19,12 @@ $Svc = 'XEPDB1'
 function Fail($msg) { Write-Host $msg -ForegroundColor Red; exit 1 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Fail 'Docker غير مثبّت. ثبّت Docker Desktop أولاً.' }
-docker info *> $null
-if ($LASTEXITCODE -ne 0) { Fail 'Docker مثبّت لكن الخدمة لا تعمل. شغّل Docker Desktop ثم أعد المحاولة.' }
+# docker version يفشل فقط إن لم يستجب المحرّك، ونطبع رسالته الحقيقية لنعرف السبب
+$serverVer = (docker version --format '{{.Server.Version}}' 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $serverVer) {
+  Write-Host "رسالة Docker:`n$serverVer" -ForegroundColor Yellow
+  Fail 'المحرّك (Engine) في Docker Desktop لا يستجيب. انتظر حتى يظهر في أسفل يسار نافذته «Engine running» باللون الأخضر ثم أعد المحاولة. راجع قسم «Docker لا يستجيب» في local\README_LOCAL.md'
+}
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 # كلمة السر: تُولَّد مرة واحدة وتُحفظ (أحرف وأرقام فقط)
