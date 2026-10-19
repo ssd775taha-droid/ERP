@@ -131,7 +131,8 @@
       const { sale: s } = await api('GET', '/pos/sales/' + encodeURIComponent(id));
       const { shifts } = await api('GET', '/pos/shifts?status=OPEN');
       const canReturn = s.kind === 'SALE' && s.status === 'COMPLETED' && s.lines.some((l) => l.returnable > 0);
-      el.innerHTML = E.head('إيصال ' + s.no, SK[s.kind] + ' — ' + s.date) + '<p>' + stTag(s) + ' <span class="muted">قيد ' + s.entryId + (s.cogsEntryId ? ' · قيد التكلفة ' + s.cogsEntryId : '') + (s.origSaleId ? ' · مرتجع على <a href="#/pos/sale/' + s.origSaleId + '">عملية ' + s.origSaleId + '</a>' : '') + '</span></p>' +
+      el.innerHTML = E.head('إيصال ' + s.no, SK[s.kind] + ' — ' + s.date) + E.taxHeader(s.kind === 'SALE' ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)', null, null, s.date, s.total, s.vat, s.kind === 'SALE' && s.status === 'COMPLETED') +
+        '<p>' + stTag(s) + ' <span class="muted">قيد ' + s.entryId + (s.cogsEntryId ? ' · قيد التكلفة ' + s.cogsEntryId : '') + (s.origSaleId ? ' · مرتجع على <a href="#/pos/sale/' + s.origSaleId + '">عملية ' + s.origSaleId + '</a>' : '') + '</span></p>' +
         '<table><thead><tr><th>الصنف</th><th class="n">الكمية</th><th class="n">السعر</th><th>خصم %</th><th class="n">الصافي</th><th class="n">الضريبة</th>' + (canReturn ? '<th class="noprint">إرجاع</th>' : '') + '</tr></thead><tbody>' +
         s.lines.map((l) => '<tr><td>' + esc(l.description) + '</td><td class="n">' + q3(l.qty) + '</td><td class="n">' + money(l.price) + '</td><td>' + l.discountPct + '</td><td class="n">' + money(l.net) + '</td><td class="n">' + money(l.vat) + '</td>' +
           (canReturn ? '<td class="noprint">' + (l.returnable > 0 ? '<input class="rq" data-l="' + l.id + '" size="4" inputmode="decimal" placeholder="0" title="المتاح ' + q3(l.returnable) + '"> <span class="muted">/' + q3(l.returnable) + '</span>' : '<span class="muted">—</span>') + '</td>' : '') + '</tr>').join('') +

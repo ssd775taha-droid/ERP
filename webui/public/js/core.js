@@ -23,6 +23,26 @@ window.ERP = (function () {
     if (!res.ok) throw new Error((data && data.error) || 'خطأ غير متوقع (' + res.status + ')');
     return data;
   };
+  // إعدادات الضريبة السعودية (النسبة الافتراضية وبيانات المنشأة)
+  E.tax = { vatRate: 15, sellerName: '', sellerVatNo: '', sellerAddress: '' };
+  E.loadTax = async () => { try { Object.assign(E.tax, await E.api('GET', '/tax/settings')); } catch (e) { /* تبقى الافتراضيات */ } };
+  // رمز QR للفاتورة الضريبية المبسطة (TLV/Base64) كـ SVG، أو '' إن لم تُضبط بيانات البائع
+  E.zatcaQr = (date, total, vat) => {
+    if (!E.tax.sellerName || !ZATCA.validVatNo(E.tax.sellerVatNo) || typeof qrcode === 'undefined') return '';
+    const qr = qrcode(0, 'M');
+    qr.addData(ZATCA.payload(E.tax.sellerName, E.tax.sellerVatNo, date + 'T00:00:00Z', total, vat));
+    qr.make();
+    return qr.createSvgTag({ cellSize: 3, margin: 2 });
+  };
+  // ترويسة الفاتورة الضريبية: بيانات البائع والمشتري ورمز QR
+  E.taxHeader = (title, buyerName, buyerTaxNo, date, total, vat, withQr) => {
+    const t = E.tax, ok = t.sellerName && ZATCA.validVatNo(t.sellerVatNo);
+    return '<div class="card taxhead"><div class="row" style="margin:0;align-items:flex-start"><div style="flex:1"><strong style="font-size:17px">' + E.esc(title) + '</strong><br>' +
+      (ok ? E.esc(t.sellerName) + '<br>الرقم الضريبي: <span dir="ltr">' + E.esc(t.sellerVatNo) + '</span>' + (t.sellerAddress ? '<br>' + E.esc(t.sellerAddress) : '')
+          : '<span class="bad">لم تُضبط بيانات المنشأة والرقم الضريبي — <a href="#/tax/settings">اضبطها</a> لتصدر فاتورة ضريبية صحيحة</span>') +
+      (buyerName ? '<br>العميل: ' + E.esc(buyerName) + (buyerTaxNo ? ' — الرقم الضريبي: <span dir="ltr">' + E.esc(buyerTaxNo) + '</span>' : '') : '') +
+      '</div><div>' + (withQr ? E.zatcaQr(date, total, vat) : '') + '</div></div></div>';
+  };
   E.qs = (o) => Object.keys(o).filter((k) => o[k] !== '' && o[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o[k])).join('&');
 
   E.toast = function (msg, bad) {

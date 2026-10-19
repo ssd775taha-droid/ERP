@@ -7,7 +7,7 @@
   "scripts": {
     "init": "node scripts/init-env.js",
     "start": "node server/index.js",
-    "test": "node --test test/api.test.js"
+    "test": "node --test test/api.test.js test/zatca.test.js"
   },
   "engines": { "node": ">=18" },
   "license": "UNLICENSED",

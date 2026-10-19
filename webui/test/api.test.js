@@ -170,3 +170,16 @@ test('عرض سعر: إرسال وقبول وتحويل إلى فاتورة ثم
   assert.strictEqual(inv.data.invoice.total, 207);
   assert.strictEqual((await call('POST', `/api/quotes/${id}/unconvert`, {})).data.quote.status, 'ACCEPTED');
 });
+
+test('الضريبة السعودية: رفض رقم ضريبي خاطئ، وإقرار الضريبة يطابق ح/2200', { skip: !hasDb || !canWrite }, async () => {
+  const bad = await call('POST', '/api/tax/settings', { vatRate: '15', sellerName: 'x', sellerVatNo: '123' });
+  assert.strictEqual(bad.status, 400);
+  assert.strictEqual((await call('POST', '/api/tax/settings', { vatRate: '120' })).status, 400);
+  const ok = await call('POST', '/api/tax/settings', { vatRate: '15', sellerName: 'منشأة اختبار', sellerVatNo: '310122393500003' });
+  assert.strictEqual(ok.status, 200);
+  assert.strictEqual(ok.data.vatRate, 15);
+  // الإقرار عن كل الفترات يجب أن يساوي رصيد ح/2200 (دائن − مدين) ما لم تُرحَّل قيود يدوية عليه
+  const vr = await call('GET', '/api/reports/vat-return?from=2000-01-01&to=2099-12-31');
+  const tb = (await call('GET', '/api/reports/trial-balance')).data.rows.find((x) => x.code === '2200');
+  assert.strictEqual(Math.round(vr.data.totals.netPayable * 100), Math.round((tb.credit - tb.debit) * 100));
+});

@@ -73,7 +73,7 @@
     const wopts = warehouses.map((w) => '<option value="' + w.id + '">' + esc(w.name) + '</option>').join('');
     const aopts = '<option value="">الافتراضي</option>' + accts.filter((a) => a.active === 'Y' && !a.children).map((a) => '<option value="' + esc(a.code) + '">' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('');
     const line = () => '<tr class="ln"><td><select class="it">' + iopts + '</select></td><td><input class="ds" maxlength="200" placeholder="الوصف"></td><td><select class="wh" disabled>' + wopts + '</select></td>' +
-      '<td><select class="ac">' + aopts + '</select></td><td><input class="q" inputmode="decimal" value="1" size="6"></td><td><input class="pr" inputmode="decimal" size="10"></td><td><input class="vt" inputmode="decimal" value="0" size="5"></td>' +
+      '<td><select class="ac">' + aopts + '</select></td><td><input class="q" inputmode="decimal" value="1" size="6"></td><td><input class="pr" inputmode="decimal" size="10"></td><td><input class="vt" inputmode="decimal" value="' + E.tax.vatRate + '" size="5"></td>' +
       '<td class="n tot">0.00</td><td><button type="button" class="btn alt sm" data-act="rm">✕</button></td></tr>';
     el.innerHTML = E.head('فاتورة ' + KIND[kind] + ' جديدة', 'الأصناف المخزنية تحرّك المخزون وتُرحَّل تكلفتها تلقائياً') + '<div class="card"><div class="row">' +
       '<label>' + PKIND[pk] + '<select id="pt">' + parties.map((p) => '<option value="' + p.id + '">' + esc(p.name) + '</option>').join('') + '</select></label>' +
@@ -126,6 +126,7 @@
       const { invoice: i } = await api('GET', '/invoices/' + encodeURIComponent(id));
       const sales = i.kind === 'SALES';
       el.innerHTML = E.head('فاتورة ' + KIND[i.kind] + ' ' + i.no, i.partyName + ' — ' + i.date) +
+        (sales ? E.taxHeader(i.partyTaxNo ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة', i.partyName, i.partyTaxNo, i.date, i.total, i.vat, i.status === 'OPEN') : '') +
         '<p>' + stTag(i) + ' <span class="muted">القيد ' + i.entryId + (i.cogsEntryId ? ' · قيد التكلفة ' + i.cogsEntryId : '') + (i.voidEntryId ? ' · القيد العكسي ' + i.voidEntryId : '') + '</span></p>' +
         '<table><thead><tr><th>الوصف</th><th class="n">الكمية</th><th class="n">السعر</th><th>ضريبة %</th><th class="n">الصافي</th><th class="n">الضريبة</th></tr></thead><tbody>' +
         i.lines.map((l) => '<tr><td>' + esc(l.description) + '</td><td class="n">' + l.qty + '</td><td class="n">' + money(l.price) + '</td><td>' + l.vatRate + '</td><td class="n">' + money(l.net) + '</td><td class="n">' + money(l.vat) + '</td></tr>').join('') +

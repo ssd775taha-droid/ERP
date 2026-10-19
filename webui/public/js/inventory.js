@@ -11,7 +11,7 @@
     const ao = (def) => accts.filter((a) => a.active === 'Y' && !a.children).map((a) => '<option value="' + esc(a.code) + '"' + (a.code === def ? ' selected' : '') + '>' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('');
     el.innerHTML = E.head('الأصناف', 'الصنف الذي عليه حركة لا تتغير حساباته؛ يمكن تعديل السعر والضريبة وإيقافه') +
       '<div class="card"><h3>صنف جديد</h3><form id="f" class="row"><label>الرمز<input name="code" required maxlength="30" size="10"></label><label>الاسم<input name="name" required maxlength="120" size="22"></label>' +
-      '<label>الوحدة<input name="unit" maxlength="20" size="8" placeholder="قطعة"></label><label>سعر البيع<input name="price" inputmode="decimal" size="9" value="0"></label><label>ضريبة %<input name="vat" inputmode="decimal" size="5" value="0"></label>' +
+      '<label>الوحدة<input name="unit" maxlength="20" size="8" placeholder="قطعة"></label><label>سعر البيع<input name="price" inputmode="decimal" size="9" value="0"></label><label>ضريبة %<input name="vat" inputmode="decimal" size="5" value="' + E.tax.vatRate + '"></label>' +
       '<label>الباركود<input name="barcode" maxlength="40" size="12"></label><label>مخزني؟<select name="track"><option value="Y">نعم</option><option value="N">خدمة (بلا مخزون)</option></select></label>' +
       '<label>حساب المخزون<select name="inv">' + ao('1400') + '</select></label><label>حساب التكلفة<select name="cogs">' + ao('5100') + '</select></label><label>حساب الإيراد<select name="rev">' + ao('4100') + '</select></label>' +
       '<button class="btn">إضافة</button></form></div>' +

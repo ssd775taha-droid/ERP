@@ -86,7 +86,7 @@ module.exports = function tradeRoutes() {
     SELECT i.invoice_id AS "id", i.kind AS "kind", i.invoice_no AS "no", i.ref AS "ref", i.party_id AS "partyId", p.name AS "partyName",
            TO_CHAR(i.invoice_date, 'YYYY-MM-DD') AS "date", TO_CHAR(i.due_date, 'YYYY-MM-DD') AS "due",
            i.subtotal AS "subtotal", i.vat_amount AS "vat", i.total AS "total", i.paid AS "paid", i.total - i.paid AS "remaining",
-           i.status AS "status", i.note AS "note", i.entry_id AS "entryId", i.cogs_entry_id AS "cogsEntryId", i.void_entry_id AS "voidEntryId"
+           i.status AS "status", p.tax_no AS "partyTaxNo", i.note AS "note", i.entry_id AS "entryId", i.cogs_entry_id AS "cogsEntryId", i.void_entry_id AS "voidEntryId"
       FROM erp_invoices i JOIN erp_parties p ON p.party_id = i.party_id`;
 
   r.get('/invoices', wrap(async (req, res) => {

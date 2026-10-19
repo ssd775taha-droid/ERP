@@ -18,10 +18,10 @@
     ['نقاط البيع'],
     ['pos/sell', 'شاشة البيع'], ['pos/sales', 'العمليات'], ['pos/shifts', 'الورديات'], ['pos/registers', 'النقاط'],
     ['الطلبات والعروض'],
-    ['po', 'أوامر الشراء'], ['po/new', 'أمر شراء جديد'], ['quotes', 'عروض الأسعار'], ['quote/new', 'عرض سعر جديد'], ['settings', 'إعدادات الضوابط'],
+    ['po', 'أوامر الشراء'], ['po/new', 'أمر شراء جديد'], ['quotes', 'عروض الأسعار'], ['quote/new', 'عرض سعر جديد'], ['settings', 'إعدادات الضوابط'], ['tax/settings', 'الضريبة السعودية'],
     ['التقارير'],
     ['reports/trial-balance', 'ميزان المراجعة'], ['reports/ledger', 'كشف حساب'], ['reports/income-statement', 'قائمة الدخل'],
-    ['reports/aging', 'أعمار الديون'], ['reports/balance-sheet', 'الميزانية'], ['reports/cash-flow', 'التدفقات النقدية'],
+    ['reports/aging', 'أعمار الديون'], ['reports/vat', 'إقرار الضريبة'], ['reports/balance-sheet', 'الميزانية'], ['reports/cash-flow', 'التدفقات النقدية'],
     ['الإقفال'],
     ['periods', 'الفترات والإقفال'],
   ];
@@ -34,6 +34,7 @@
     payroll: 'payroll', 'payroll/view': 'payrollView',
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters',
     po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
+    'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
     'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow',
@@ -47,7 +48,7 @@
     E.$('#lf').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);
-      try { const r = await E.api('POST', '/login', { username: f.get('username'), password: f.get('password') }); me = r.user || f.get('username'); layout(); route(); }
+      try { const r = await E.api('POST', '/login', { username: f.get('username'), password: f.get('password') }); me = r.user || f.get('username'); await E.loadTax(); layout(); route(); }
       catch (e) { loginView(e.message); }
     });
   }
@@ -78,7 +79,7 @@
   E.onUnauth = () => loginView('انتهت الجلسة، سجّل الدخول من جديد');
   window.addEventListener('hashchange', route);
   (async function init() {
-    try { const r = await E.api('GET', '/me'); if (r.user) { me = r.user; layout(); route(); } else loginView(); }
+    try { const r = await E.api('GET', '/me'); if (r.user) { me = r.user; await E.loadTax(); layout(); route(); } else loginView(); }
     catch (e) { loginView(); }
   })();
 })(window.ERP);
