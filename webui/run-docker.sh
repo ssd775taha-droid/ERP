@@ -24,14 +24,13 @@ fi
 # كلمة سر القاعدة الحقيقية تُؤخذ من حاوية Oracle نفسها (قد تكون ثُبّتت من مجلد آخر بكلمة سر مختلفة)
 DBNAME="${ERP_ORACLE_NAME:-erp-oracle}"
 REAL="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$DBNAME" 2>/dev/null | sed -n 's/^APP_USER_PASSWORD=//p' | head -1)"
-if [ -n "$REAL" ]; then
-  CUR="$(sed -n 's/^ERP_DB_PASSWORD=//p' "$ENVF" | head -1)"
-  if [ "$REAL" != "$CUR" ]; then
-    sed -i "s|^ERP_DB_PASSWORD=.*|ERP_DB_PASSWORD=$REAL|" "$ENVF"
-    echo "حُدّثت كلمة سر القاعدة في $ENVF من الحاوية $DBNAME"
-  fi
-else
-  echo "تنبيه: لم أجد الحاوية $DBNAME لقراءة كلمة سر القاعدة؛ أُستخدم ما في الملف"
+CUR="$(sed -n 's/^ERP_DB_PASSWORD=//p' "$ENVF" | head -1)"
+if [ -n "$REAL" ] && [ "$REAL" != "$CUR" ]; then
+  grep -v '^ERP_DB_PASSWORD=' "$ENVF" > "$ENVF.tmp"; echo "ERP_DB_PASSWORD=$REAL" >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"; chmod 600 "$ENVF"
+  CUR="$REAL"; echo "حُدّثت كلمة سر القاعدة في $ENVF من الحاوية $DBNAME"
+fi
+if [ -z "$CUR" ]; then
+  echo "كلمة سر القاعدة غير معروفة: لا حاوية باسم $DBNAME ولا كلمة سر في $ENVF"; exit 1
 fi
 
 docker build -t erp-web .

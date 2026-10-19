@@ -20,18 +20,25 @@ if (-not (Test-Path $envf)) {
   Write-Host "أُنشئ $envf — كلمة سر الدخول: $webpw"
 }
 
-# كلمة سر القاعدة الحقيقية تُؤخذ من حاوية Oracle نفسها (قد تكون ثُبّتت من مجلد آخر بكلمة سر مختلفة)، وتُحدَّث في ملف الإعداد كل تشغيل
+# كلمة سر القاعدة الحقيقية تُؤخذ من حاوية Oracle نفسها (قد تكون ثُبّتت من مجلد آخر بكلمة سر مختلفة)، وتُكتب في ملف الإعداد كل تشغيل
+function Set-EnvVal($file, $name, $value) {
+  $lines = @(Get-Content $file | Where-Object { $_ -and ($_ -notlike "$name=*") })
+  $lines += "$name=$value"
+  [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot $file), (($lines -join "`n") + "`n"))
+}
+function Get-EnvVal($file, $name) { ((Get-Content $file | Where-Object { $_ -like "$name=*" } | Select-Object -First 1) -replace "^$name=", '').Trim() }
+
 $dbname = if ($env:ERP_ORACLE_NAME) { $env:ERP_ORACLE_NAME } else { 'erp-oracle' }
 $real = (docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $dbname 2>$null | Where-Object { $_ -like 'APP_USER_PASSWORD=*' } | Select-Object -First 1)
-if ($real) {
-  $real = $real.Substring('APP_USER_PASSWORD='.Length).Trim()
-  $cur = ((Get-Content $envf | Where-Object { $_ -like 'ERP_DB_PASSWORD=*' } | Select-Object -First 1) -replace '^ERP_DB_PASSWORD=', '').Trim()
-  if ($real -and $real -ne $cur) {
-    $new = (Get-Content $envf) | ForEach-Object { if ($_ -like 'ERP_DB_PASSWORD=*') { "ERP_DB_PASSWORD=$real" } else { $_ } }
-    [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot $envf), (($new -join "`n") + "`n"))
-    Write-Host "حُدّثت كلمة سر القاعدة في $envf من الحاوية $dbname"
-  }
-} else { Write-Host "تنبيه: لم أجد الحاوية $dbname لقراءة كلمة سر القاعدة؛ أُستخدم ما في الملف" -ForegroundColor Yellow }
+if ($real) { $real = $real.Substring('APP_USER_PASSWORD='.Length).Trim() }
+if ($real -and $real -ne (Get-EnvVal $envf 'ERP_DB_PASSWORD')) {
+  Set-EnvVal $envf 'ERP_DB_PASSWORD' $real
+  Write-Host "حُدّثت كلمة سر القاعدة في $envf من الحاوية $dbname"
+}
+if (-not (Get-EnvVal $envf 'ERP_DB_PASSWORD')) {
+  Write-Host "كلمة سر القاعدة غير معروفة: لا حاوية باسم $dbname ولا كلمة سر في $envf. ثبّت القاعدة أولاً (oracle\local\install-local.ps1) أو ضع ERP_DB_PASSWORD في الملف." -ForegroundColor Red
+  exit 1
+}
 
 docker build -t erp-web .
 if ($LASTEXITCODE -ne 0) { Write-Host 'فشل بناء الصورة'; exit 1 }
