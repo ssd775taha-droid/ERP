@@ -39,7 +39,25 @@ $Pw = ((Get-Content $EnvFile | Where-Object { $_ -like 'ERP_DB_PASSWORD=*' }) -s
 # --- الحاوية ---
 $exists = docker ps -a --format '{{.Names}}' | Where-Object { $_ -eq $Name }
 if ($exists) {
+  # حاوية من تثبيت سابق (ربما من مجلد آخر): كلمة سر قاعدتها مخزَّنة في إعداداتها، فنستعيدها بدل الاعتماد على ملف .env جديد
+  $cpw = (docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $Name | Where-Object { $_ -like 'APP_USER_PASSWORD=*' } | Select-Object -First 1)
+  if ($cpw) { $cpw = $cpw.Substring('APP_USER_PASSWORD='.Length).Trim() }
+  if ($cpw -and $cpw -ne $Pw) {
+    Set-Content -Path $EnvFile -Value "ERP_DB_PASSWORD=$cpw" -Encoding ascii
+    $Pw = $cpw
+    Write-Host 'استُعيدت كلمة سر القاعدة من الحاوية الموجودة إلى local\.env'
+  }
   docker start $Name | Out-Null
+  # إن كان مجلد التثبيت السابق (المربوط بالحاوية) قد حُذف فنعيد إنشاء الحاوية على المجلد الحالي، والبيانات في وحدة التخزين تبقى
+  docker exec $Name test -f /erp/check_install.sql 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host 'مجلد التثبيت السابق غير موجود: إعادة إنشاء الحاوية (البيانات محفوظة)'
+    docker stop $Name | Out-Null
+    docker rm $Name | Out-Null
+    $exists = $null
+  }
+}
+if ($exists) {
   Write-Host "تشغيل الحاوية الموجودة: $Name"
 } else {
   Write-Host "سحب الصورة وتشغيل الحاوية (أول مرة قد تستغرق عدة دقائق): $Image"
@@ -87,7 +105,8 @@ if ($installed -ne '0' -and -not $Reinstall) {
 Write-Host 'فحص ما بعد التثبيت...'
 Sql-Erp '@check_install.sql' | Out-File -Encoding utf8 (Join-Path $LogDir 'check.log')
 if (-not (Select-String -Path (Join-Path $LogDir 'check.log') -SimpleMatch 'CHECK_RESULT=OK' -Quiet)) {
-  Fail 'توجد كائنات غير صالحة أو أخطاء تجميع. راجع local\logs\check.log'
+  Select-String -Path (Join-Path $LogDir 'check.log') -Pattern 'ORA-|SP2-|PLS-|INVALID' | Select-Object -First 8 | ForEach-Object { Write-Host $_.Line -ForegroundColor Yellow }
+  Fail 'توجد كائنات غير صالحة أو أخطاء تجميع أو تعذّر الاتصال بالقاعدة. راجع local\logs\check.log'
 }
 
 if (-not $NoTest) {

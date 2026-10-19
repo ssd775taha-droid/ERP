@@ -45,8 +45,25 @@ PW="$ERP_DB_PASSWORD"
 SVC="XEPDB1"
 
 # --- الحاوية ---
+EXISTS=0
 if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
+  EXISTS=1
+  # حاوية من تثبيت سابق (ربما من مجلد آخر): نستعيد كلمة سر قاعدتها من إعداداتها بدل الاعتماد على .env جديد
+  CPW="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$NAME" | sed -n 's/^APP_USER_PASSWORD=//p' | head -1)"
+  if [ -n "$CPW" ] && [ "$CPW" != "$PW" ]; then
+    printf 'ERP_DB_PASSWORD=%s\n' "$CPW" > "$ENV_FILE"
+    PW="$CPW"
+    echo "استُعيدت كلمة سر القاعدة من الحاوية الموجودة إلى local/.env"
+  fi
   docker start "$NAME" >/dev/null
+  # إن حُذف مجلد التثبيت السابق (المربوط بالحاوية) نعيد إنشاء الحاوية على المجلد الحالي؛ البيانات في وحدة التخزين تبقى
+  if ! docker exec "$NAME" test -f /erp/check_install.sql; then
+    echo "مجلد التثبيت السابق غير موجود: إعادة إنشاء الحاوية (البيانات محفوظة)"
+    docker stop "$NAME" >/dev/null; docker rm "$NAME" >/dev/null
+    EXISTS=0
+  fi
+fi
+if [ "$EXISTS" = 1 ]; then
   echo "تشغيل الحاوية الموجودة: $NAME"
 else
   echo "سحب الصورة وتشغيل الحاوية (أول مرة قد تستغرق عدة دقائق): $IMAGE"

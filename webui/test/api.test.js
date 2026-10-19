@@ -90,3 +90,15 @@ test('صنف جديد ثم رصيد افتتاحي وتحويل ورفض نقص 
   assert.strictEqual((await call('POST', '/api/inventory/adjust', { itemId: it.data.id, whId: 1, date: '2026-01-08', qtyDelta: '-10' })).status, 400);
   assert.strictEqual((await call('GET', '/api/inventory/check')).data.ok, true);
 });
+
+test('أصل ثابت: رفض خردة ≥ التكلفة، تسجيل ثم إلغاء، ومطابقة الأستاذ', { skip: !hasDb || !canWrite }, async () => {
+  const cats = (await call('GET', '/api/assets/categories')).data.categories;
+  const base = { name: 'أصل اختبار', catId: cats[0].id, acqDate: '2026-01-10', cost: '600', offsetAccount: '3100' };
+  const code = 'T' + Date.now().toString(36).toUpperCase();
+  assert.strictEqual((await call('POST', '/api/assets', { ...base, code, salvage: '600' })).status, 400);
+  const a = await call('POST', '/api/assets', { ...base, code, salvage: '0' });
+  assert.strictEqual(a.status, 201);
+  assert.strictEqual((await call('GET', `/api/assets/${a.data.id}`)).data.asset.cost, 600);
+  assert.strictEqual((await call('POST', `/api/assets/${a.data.id}/void`, {})).status, 200);
+  assert.strictEqual((await call('GET', '/api/assets/check')).data.ok, true);
+});
