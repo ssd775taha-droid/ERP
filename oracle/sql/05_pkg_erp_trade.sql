@@ -1,11 +1,13 @@
 -- ============================================================================
--- 04: حزمة المبيعات والمشتريات ERP_TRADE (تعتمد على ERP_GL)
+-- 05: حزمة المبيعات والمشتريات ERP_TRADE (تعتمد على ERP_GL وERP_STOCK)
 -- كل فاتورة أو سند يُرحَّل إلى قيد في المعاملة نفسها؛ لا COMMIT داخل الحزمة.
 --
 -- الترحيل:
 --   مبيعات : مدين 1300 العملاء (الإجمالي) / دائن الإيراد (الصافي) + دائن 2200 الضريبة
 --   مشتريات: مدين المصروف أو الأصل (الصافي) + مدين 2200 الضريبة / دائن 2100 الموردين (الإجمالي)
 --   قبض    : مدين 1100 أو 1200 / دائن 1300      صرف: مدين 2100 / دائن 1100 أو 1200
+--   بند مخزني في المشتريات: المدين يذهب إلى حساب مخزون الصنف ويدخل المخزن بصافي البند (دون الضريبة).
+--   بند مخزني في المبيعات: قيد ثانٍ لتكلفة المبيعات بمتوسط التكلفة: مدين حساب تكلفة الصنف / دائن حساب مخزونه.
 --
 -- رموز الأخطاء: -20201 نوع طرف/فاتورة غير صالح   -20207 مبلغ أكبر من المتبقي
 --   -20202 طرف غير موجود أو لا يطابق النوع       -20208 فاتورة ملغاة
@@ -13,6 +15,7 @@
 --   -20204 بنود الفاتورة غير صالحة                -20210 فاتورة غير موجودة
 --   -20205 حساب البند لا يناسب نوع الفاتورة       -20211 طريقة دفع غير صالحة
 --   -20206 إجمالي الفاتورة يجب أن يكون موجباً     -20212 الفاتورة لا تخص الطرف
+--   -20213 لا تُلغى مشتريات بعد حركات لاحقة       -20214 صنف/مخزن البند غير صالح
 -- ============================================================================
 CREATE OR REPLACE PACKAGE erp_trade AS
   FUNCTION add_party (
@@ -104,10 +107,15 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
     TYPE t_strs IS TABLE OF VARCHAR2(12) INDEX BY PLS_INTEGER;
 
     v_party    erp_parties%ROWTYPE;
-    v_by_acct  t_amt;                 -- صافي كل حساب (لاختصار القيد)
+    v_item     erp_items%ROWTYPE;
+    v_by_acct  t_amt;                 -- صافي كل حساب (لاختصار قيد الفاتورة)
+    v_cogs_dr  t_amt;                 -- تكلفة المبيعات بحسب حساب التكلفة
+    v_inv_cr   t_amt;                 -- مقابلها بحسب حساب المخزون
     v_net      t_nums;
     v_vat      t_nums;
+    v_cost     t_nums;
     v_acct     t_strs;
+    v_stocked  t_strs;                -- 'Y' للبند الذي يحرّك المخزون
     v_code     VARCHAR2(12);
     v_type     erp_accounts.acc_type%TYPE;
     v_price    NUMBER;
@@ -115,10 +123,12 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
     v_subtotal NUMBER := 0;
     v_vat_sum  NUMBER := 0;
     v_total    NUMBER;
+    v_cogs_sum NUMBER := 0;
     v_gl       erp_line_tab := erp_line_tab();
     v_no       NUMBER;
     v_number   erp_invoices.invoice_no%TYPE;
     v_entry    NUMBER;
+    v_cogs_ent NUMBER;
     v_id       erp_invoices.invoice_id%TYPE;
 
     PROCEDURE add_gl (p_account IN VARCHAR2, p_debit IN NUMBER, p_credit IN NUMBER) IS
@@ -126,6 +136,11 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       v_gl.EXTEND;
       v_gl(v_gl.COUNT) := erp_line_t(p_account, p_debit, p_credit, NULL);
     END add_gl;
+
+    PROCEDURE bump (p_map IN OUT NOCOPY t_amt, p_key IN VARCHAR2, p_amount IN NUMBER) IS
+    BEGIN
+      IF p_map.EXISTS(p_key) THEN p_map(p_key) := p_map(p_key) + p_amount; ELSE p_map(p_key) := p_amount; END IF;
+    END bump;
   BEGIN
     SAVEPOINT erp_trade_invoice;
 
@@ -143,14 +158,42 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       RAISE_APPLICATION_ERROR(-20204, 'الفاتورة تحتاج بنداً واحداً على الأقل');
     END IF;
 
-    -- حساب البنود والتحقق منها
+    -- حساب البنود والتحقق منها (بلا أي أثر على المخزون بعد)
     FOR i IN 1 .. p_lines.COUNT LOOP
       v_price := NVL(p_lines(i).price, -1);
       v_rate  := NVL(p_lines(i).vat_rate, 0);
       IF NVL(p_lines(i).qty, 0) <= 0 OR v_price < 0 OR v_price <> ROUND(v_price, 2) OR v_rate < 0 OR v_rate > 100 THEN
         RAISE_APPLICATION_ERROR(-20204, 'البند ' || i || ': كمية أو سعر أو نسبة ضريبة غير صالحة');
       END IF;
-      v_code := NVL(p_lines(i).account_code, CASE p_kind WHEN 'SALES' THEN c_sales ELSE c_cogs END);
+
+      v_stocked(i) := 'N';
+      v_code := p_lines(i).account_code;
+      IF p_lines(i).item_id IS NOT NULL THEN
+        BEGIN
+          SELECT * INTO v_item FROM erp_items WHERE item_id = p_lines(i).item_id;
+        EXCEPTION
+          WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20214, 'البند ' || i || ': الصنف غير موجود');
+        END;
+        IF v_item.active <> 'Y' THEN
+          RAISE_APPLICATION_ERROR(-20214, 'البند ' || i || ': الصنف ' || v_item.code || ' موقوف');
+        END IF;
+        IF v_item.track_stock = 'Y' THEN
+          IF p_lines(i).wh_id IS NULL THEN
+            RAISE_APPLICATION_ERROR(-20214, 'البند ' || i || ': المخزن مطلوب للصنف ' || v_item.code);
+          END IF;
+          IF p_lines(i).qty <> ROUND(p_lines(i).qty, 3) THEN
+            RAISE_APPLICATION_ERROR(-20204, 'البند ' || i || ': كمية الصنف المخزني بثلاث منازل عشرية كحد أقصى');
+          END IF;
+          v_stocked(i) := 'Y';
+          -- المشتريات المخزنية تُرحَّل دائماً إلى حساب مخزون الصنف؛ المبيعات إلى إيراده ما لم يُحدَّد غيره
+          IF p_kind = 'PURCHASE' THEN v_code := v_item.inv_account; ELSIF v_code IS NULL THEN v_code := v_item.rev_account; END IF;
+        ELSIF v_code IS NULL AND p_kind = 'SALES' THEN
+          v_code := v_item.rev_account;
+        END IF;
+      END IF;
+      v_code := NVL(v_code, CASE p_kind WHEN 'SALES' THEN c_sales ELSE c_cogs END);
+
       BEGIN
         SELECT acc_type INTO v_type FROM erp_accounts WHERE code = v_code;
       EXCEPTION
@@ -165,18 +208,14 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       v_vat(i)  := ROUND(v_net(i) * v_rate / 100, 2);
       v_subtotal := v_subtotal + v_net(i);
       v_vat_sum  := v_vat_sum + v_vat(i);
-      IF v_by_acct.EXISTS(v_code) THEN
-        v_by_acct(v_code) := v_by_acct(v_code) + v_net(i);
-      ELSE
-        v_by_acct(v_code) := v_net(i);
-      END IF;
+      bump(v_by_acct, v_code, v_net(i));
     END LOOP;
     v_total := v_subtotal + v_vat_sum;
     IF v_total <= 0 THEN
       RAISE_APPLICATION_ERROR(-20206, 'إجمالي الفاتورة يجب أن يكون أكبر من صفر');
     END IF;
 
-    -- أسطر القيد
+    -- أسطر قيد الفاتورة
     IF p_kind = 'SALES' THEN
       add_gl(c_ar, v_total, 0);
     END IF;
@@ -207,11 +246,44 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
             SUBSTR(p_note, 1, 300), v_entry)
     RETURNING invoice_id INTO v_id;
 
+    -- حركات المخزون: المشتريات تُدخل بصافي البند (دون الضريبة)، والمبيعات تُخرج بتكلفة المتوسط
     FOR i IN 1 .. p_lines.COUNT LOOP
-      INSERT INTO erp_invoice_lines (invoice_id, description, qty, price, vat_rate, account_code, net, vat)
+      v_cost(i) := NULL;
+      IF v_stocked(i) = 'Y' THEN
+        IF p_kind = 'PURCHASE' THEN
+          erp_stock.stock_in(p_lines(i).item_id, p_lines(i).wh_id, p_date, p_lines(i).qty, v_net(i), 'PURCHASE', 'INVOICE', v_id);
+          v_cost(i) := v_net(i);
+        ELSE
+          v_cost(i) := erp_stock.stock_out(p_lines(i).item_id, p_lines(i).wh_id, p_date, p_lines(i).qty, 'SALE', 'INVOICE', v_id);
+          SELECT * INTO v_item FROM erp_items WHERE item_id = p_lines(i).item_id;
+          bump(v_cogs_dr, v_item.cogs_account, v_cost(i));
+          bump(v_inv_cr,  v_item.inv_account,  v_cost(i));
+          v_cogs_sum := v_cogs_sum + v_cost(i);
+        END IF;
+      END IF;
+
+      INSERT INTO erp_invoice_lines (invoice_id, description, qty, price, vat_rate, account_code, net, vat, item_id, wh_id, cost)
       VALUES (v_id, NVL(SUBSTR(TRIM(p_lines(i).description), 1, 200), '—'), p_lines(i).qty, p_lines(i).price,
-              NVL(p_lines(i).vat_rate, 0), v_acct(i), v_net(i), v_vat(i));
+              NVL(p_lines(i).vat_rate, 0), v_acct(i), v_net(i), v_vat(i),
+              CASE WHEN v_stocked(i) = 'Y' THEN p_lines(i).item_id END, CASE WHEN v_stocked(i) = 'Y' THEN p_lines(i).wh_id END, v_cost(i));
     END LOOP;
+
+    -- قيد تكلفة البضاعة المباعة: مدين حساب التكلفة / دائن حساب المخزون
+    IF v_cogs_sum > 0 THEN
+      v_gl := erp_line_tab();
+      v_code := v_cogs_dr.FIRST;
+      WHILE v_code IS NOT NULL LOOP
+        IF v_cogs_dr(v_code) > 0 THEN add_gl(v_code, v_cogs_dr(v_code), 0); END IF;
+        v_code := v_cogs_dr.NEXT(v_code);
+      END LOOP;
+      v_code := v_inv_cr.FIRST;
+      WHILE v_code IS NOT NULL LOOP
+        IF v_inv_cr(v_code) > 0 THEN add_gl(v_code, 0, v_inv_cr(v_code)); END IF;
+        v_code := v_inv_cr.NEXT(v_code);
+      END LOOP;
+      v_cogs_ent := erp_gl.post_entry(p_date, 'تكلفة مبيعات فاتورة ' || v_number, v_number, v_gl);
+      UPDATE erp_invoices SET cogs_entry_id = v_cogs_ent WHERE invoice_id = v_id;
+    END IF;
 
     RETURN v_id;
   EXCEPTION
@@ -223,6 +295,7 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
   PROCEDURE void_invoice (p_invoice_id IN NUMBER) IS
     v_inv erp_invoices%ROWTYPE;
     v_rev NUMBER;
+    v_tmp NUMBER;
   BEGIN
     SAVEPOINT erp_trade_void;
     BEGIN
@@ -237,7 +310,15 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
     IF v_inv.paid > 0 THEN
       RAISE_APPLICATION_ERROR(-20209, 'لا تُلغى فاتورة عليها مدفوعات');
     END IF;
+    -- إلغاء مشتريات بعد حركات لاحقة على أصنافها يُفسد متوسط التكلفة؛ المسموح تسوية المخزون بدلاً منه
+    IF v_inv.kind = 'PURCHASE' AND erp_stock.has_later_moves('INVOICE', p_invoice_id) THEN
+      RAISE_APPLICATION_ERROR(-20213, 'لا تُلغى فاتورة مشتريات جرت بعدها حركات على أصنافها: استخدم تسوية المخزون');
+    END IF;
     v_rev := erp_gl.reverse_entry(v_inv.entry_id);
+    IF v_inv.cogs_entry_id IS NOT NULL THEN
+      v_tmp := erp_gl.reverse_entry(v_inv.cogs_entry_id);
+    END IF;
+    erp_stock.reverse_doc('INVOICE', p_invoice_id);
     UPDATE erp_invoices SET status = 'VOID', void_entry_id = v_rev WHERE invoice_id = p_invoice_id;
   EXCEPTION
     WHEN OTHERS THEN

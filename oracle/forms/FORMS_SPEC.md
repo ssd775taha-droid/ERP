@@ -59,6 +59,8 @@ END;
 | `LOV_POSTABLE_ACCOUNTS` | `SELECT code, name FROM erp_accounts a WHERE active = 'Y' AND NOT EXISTS (SELECT 1 FROM erp_accounts c WHERE c.parent_code = a.code) ORDER BY code` | code → عنصر الحساب |
 | `LOV_ALL_ACCOUNTS` | `SELECT code, name FROM erp_accounts ORDER BY code` | code |
 | `LOV_CUSTOMERS` | `SELECT party_id, name FROM erp_parties WHERE kind = 'CUSTOMER' ORDER BY name` | party_id، name |
+| `LOV_ITEMS` | `SELECT code, name, item_id, sale_price, rev_account FROM erp_items WHERE active = 'Y' ORDER BY code` | code، name، item_id، sale_price |
+| `LOV_WAREHOUSES` | `SELECT code, name, wh_id FROM erp_warehouses WHERE active = 'Y' ORDER BY code` | code، wh_id |
 | `LOV_SUPPLIERS` | `SELECT party_id, name FROM erp_parties WHERE kind = 'SUPPLIER' ORDER BY name` | party_id، name |
 
 ---
@@ -198,7 +200,8 @@ END;
 ## الشاشة 4: `FRM_INVOICE` — الفواتير
 
 - **`HDR`** (غير مرتبطة): `KIND` (List: SALES=مبيعات، PURCHASE=مشتريات)، `PARTY_ID` (يُخفى)، `PARTY_NAME` (LOV ديناميكي حسب النوع)، `INVOICE_DATE`، `DUE_DATE`، `REF`، `NOTE`، و`SUBTOTAL`/`VAT_AMOUNT`/`TOTAL` (عرض فقط).
-- **`LINES`** (غير مرتبطة، 10 سجلات): `DESCRIPTION`، `QTY`، `PRICE`، `VAT_RATE` (افتراضي 15)، `ACCOUNT_CODE` (اختياري، LOV_ALL_ACCOUNTS)، `NET`، `VAT` (عرض).
+- **`LINES`** (غير مرتبطة، 10 سجلات): `ITEM_CODE` (LOV_ITEMS، اختياري)، `ITEM_ID` و`WH_ID` (غير مرئيين)، `WH_CODE` (LOV_WAREHOUSES، يلزم للصنف المخزني)، `DESCRIPTION`، `QTY`، `PRICE`، `VAT_RATE` (افتراضي 15)، `ACCOUNT_CODE` (اختياري، LOV_ALL_ACCOUNTS)، `NET`، `VAT` (عرض).
+- اختيار صنف يملأ الوصف وسعر البيع (للمبيعات فقط) ويضبط المخزن الافتراضي `MAIN`. الصنف المخزني يحرّك المخزون ويرحّل التكلفة تلقائياً؛ حساب البند يُهمل في المشتريات المخزنية (يذهب إلى حساب مخزون الصنف).
 - LOV الطرف: اربطه بمجموعة سجلات يُبدَّل استعلامها عند تغيير `KIND`:
 
 ```plsql
@@ -212,6 +215,30 @@ BEGIN
       CASE :HDR.KIND WHEN 'SALES' THEN 'CUSTOMER' ELSE 'SUPPLIER' END || ''' ORDER BY name');
   END IF;
   :HDR.PARTY_ID := NULL; :HDR.PARTY_NAME := NULL;
+END;
+```
+
+```plsql
+-- LINES.ITEM_CODE : POST-CHANGE  (يملأ البيانات من الصنف؛ LOV_ITEMS يعيد item_id وsale_price أيضاً)
+DECLARE
+  v_item erp_items%ROWTYPE;
+BEGIN
+  IF :LINES.ITEM_CODE IS NULL THEN :LINES.ITEM_ID := NULL; RETURN; END IF;
+  SELECT * INTO v_item FROM erp_items WHERE code = :LINES.ITEM_CODE AND active = 'Y';
+  :LINES.ITEM_ID := v_item.item_id;
+  IF :LINES.DESCRIPTION IS NULL THEN :LINES.DESCRIPTION := v_item.name; END IF;
+  IF :HDR.KIND = 'SALES' AND :LINES.PRICE IS NULL THEN :LINES.PRICE := v_item.sale_price; END IF;
+  IF v_item.track_stock = 'Y' AND :LINES.WH_ID IS NULL THEN
+    SELECT wh_id, code INTO :LINES.WH_ID, :LINES.WH_CODE FROM erp_warehouses WHERE code = 'MAIN';
+  END IF;
+EXCEPTION WHEN NO_DATA_FOUND THEN
+  MESSAGE('الصنف غير موجود أو موقوف'); RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- LINES.WH_CODE : POST-CHANGE
+BEGIN
+  SELECT wh_id INTO :LINES.WH_ID FROM erp_warehouses WHERE code = :LINES.WH_CODE AND active = 'Y';
+EXCEPTION WHEN NO_DATA_FOUND THEN :LINES.WH_ID := NULL;
 END;
 ```
 
@@ -230,7 +257,7 @@ BEGIN
   LOOP
     IF :LINES.DESCRIPTION IS NOT NULL OR :LINES.PRICE IS NOT NULL THEN
       v_lines.EXTEND;
-      v_lines(v_lines.COUNT) := erp_inv_line_t(:LINES.DESCRIPTION, :LINES.QTY, :LINES.PRICE, :LINES.VAT_RATE, :LINES.ACCOUNT_CODE);
+      v_lines(v_lines.COUNT) := erp_inv_line_t(:LINES.DESCRIPTION, :LINES.QTY, :LINES.PRICE, :LINES.VAT_RATE, :LINES.ACCOUNT_CODE, :LINES.ITEM_ID, :LINES.WH_ID);
     END IF;
     EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';
     NEXT_RECORD;
@@ -267,7 +294,70 @@ END;
 
 > ملاحظة: أضف `INVOICE_ID` و`PARTY_ID` عنصرين غير مرئيين (Visible = No) في الكتلة `INV_LIST` لتستخدمهما الأزرار؛ العمودان موجودان في العرض `v_erp_invoice_status`.
 
-## الشاشة 5: `FRM_PAYMENT` — سند قبض/صرف (نافذة منبثقة Modal)
+## الشاشة 5: `FRM_ITEMS` — الأصناف والمخازن
+
+نافذة بتبويبين (Tabbed Canvas):
+
+**تبويب الأصناف:** كتلة `ITEMS` مرتبطة بـ `erp_items` (سجلات متعددة، `ORDER BY code`).
+- العناصر: `ITEM_ID` (عرض فقط)، `CODE`، `NAME`، `UNIT`، `SALE_PRICE`، `TRACK_STOCK` (Check Box: Y/N، افتراضي Y)، `INV_ACCOUNT` (افتراضي 1400)، `COGS_ACCOUNT` (5100)، `REV_ACCOUNT` (4100)، `ACTIVE`.
+- اجعل `ITEM_ID` و`CREATED_AT` بـ `Insert Allowed = No` و`Update Allowed = No` (هوية/افتراضي)، و`CODE` و`TRACK_STOCK` و`INV_ACCOUNT` و`COGS_ACCOUNT` بـ `Update Allowed = No` بعد الحفظ (تغييرها بعد وجود حركات يُفسد التقييم). `Delete Allowed = No` (التعطيل بـ `ACTIVE = N`).
+- `INV_ACCOUNT` من LOV يعرض حسابات الأصول الطرفية فقط، و`COGS_ACCOUNT` للمصروفات، و`REV_ACCOUNT` للإيرادات (ثلاث مجموعات سجلات بحسب `acc_type`). الحزمة `ERP_STOCK.ADD_ITEM` تتحقق من الأنواع نفسها؛ إن فضّلت إدخال الأصناف عبرها اجعل الكتلة غير مرتبطة واستدعِ الدالة من زر «حفظ».
+
+**تبويب المخازن:** كتلة `WAREHOUSES` مرتبطة بـ `erp_warehouses` (`WH_ID` عرض فقط بـ `Insert/Update Allowed = No`، `CODE`، `NAME`، `ACTIVE`، `Delete Allowed = No`).
+
+## الشاشة 6: `FRM_STOCK` — أرصدة المخزون والتسويات والتحويلات
+
+**تبويب الأرصدة:** كتلة `STOCK` مرتبطة بالعرض `v_erp_stock` (استعلام فقط): `ITEM_CODE`, `ITEM_NAME`, `WH_CODE`, `QTY`, `AVG_COST`, `VALUE`، مع `ITEM_ID` و`WH_ID` غير مرئيين. كتلة تحكم بحقول التصفية (`CTRL.F_ITEM`, `CTRL.F_WH`) تضبط `DEFAULT_WHERE` ثم `EXECUTE_QUERY`. حقل `CTRL.TOTAL_VALUE` يعرض مجموع القيمة، وحقل `CTRL.GL_BALANCE` يعرض رصيد حساب المخزون من `v_erp_stock_vs_gl` مع تنبيه لوني إن اختلف المجموعان.
+
+```plsql
+-- CTRL.BTN_REFRESH : WHEN-BUTTON-PRESSED
+DECLARE v_diff NUMBER;
+BEGIN
+  SET_BLOCK_PROPERTY('STOCK', DEFAULT_WHERE,
+    '(' || NVL(TO_CHAR(:CTRL.F_ITEM_ID), 'NULL') || ' IS NULL OR item_id = ' || NVL(TO_CHAR(:CTRL.F_ITEM_ID), '0') || ') AND ' ||
+    '(' || NVL(TO_CHAR(:CTRL.F_WH_ID),   'NULL') || ' IS NULL OR wh_id = '   || NVL(TO_CHAR(:CTRL.F_WH_ID),   '0') || ')');
+  GO_BLOCK('STOCK'); EXECUTE_QUERY;
+  SELECT NVL(SUM(stock_value), 0), NVL(SUM(difference), 0) INTO :CTRL.TOTAL_VALUE, v_diff FROM v_erp_stock_vs_gl;
+  :CTRL.GL_NOTE := CASE WHEN v_diff = 0 THEN 'مطابق لحساب المخزون' ELSE 'فرق عن الأستاذ: ' || TO_CHAR(v_diff) END;
+END;
+```
+
+**تبويب التسوية:** كتلة غير مرتبطة `ADJ`: `ITEM_CODE` (LOV_ITEMS)، `ITEM_ID` (غير مرئي)، `WH_CODE` (LOV_WAREHOUSES)، `WH_ID`، `ADJ_DATE` (افتراضي اليوم)، `QTY_DELTA` (موجب زيادة، سالب نقص)، `UNIT_COST` (يلزم للزيادة إن لم يوجد متوسط)، `OFFSET_ACCOUNT` (افتراضي 5500؛ للرصيد الافتتاحي اختر 3100)، `NOTE`.
+
+```plsql
+-- ADJ.BTN_POST : WHEN-BUTTON-PRESSED
+DECLARE v_entry NUMBER;
+BEGIN
+  v_entry := erp_stock.adjust(:ADJ.ITEM_ID, :ADJ.WH_ID, :ADJ.ADJ_DATE, :ADJ.QTY_DELTA, :ADJ.UNIT_COST,
+                              NVL(:ADJ.OFFSET_ACCOUNT, '5500'), :ADJ.NOTE);
+  commit_db;
+  MESSAGE('رُحّلت التسوية' || CASE WHEN v_entry IS NOT NULL THEN ' (قيد رقم ' || v_entry || ')' END);
+  CLEAR_BLOCK(NO_VALIDATE);
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+**تبويب التحويل:** كتلة غير مرتبطة `TRF`: `ITEM_CODE`/`ITEM_ID`، `FROM_WH_CODE`/`FROM_WH_ID`، `TO_WH_CODE`/`TO_WH_ID`، `TRF_DATE`، `QTY`، وعرض `ON_HAND` (يُحسب بـ `erp_stock.on_hand` عند اختيار الصنف والمخزن المصدر).
+
+```plsql
+-- TRF.BTN_POST : WHEN-BUTTON-PRESSED
+DECLARE v_val NUMBER;
+BEGIN
+  v_val := erp_stock.transfer(:TRF.ITEM_ID, :TRF.FROM_WH_ID, :TRF.TO_WH_ID, :TRF.TRF_DATE, :TRF.QTY);
+  commit_db;
+  MESSAGE('حُوّلت البضاعة بقيمة ' || TO_CHAR(v_val));
+  CLEAR_BLOCK(NO_VALIDATE);
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+**بطاقة الصنف:** زر في تبويب الأرصدة يشغّل التقرير `RPT_STOCK_CARD` للسجل الحالي: `run_erp_report('RPT_STOCK_CARD', 'P_ITEM=' || :STOCK.ITEM_ID || ' P_WH=' || :STOCK.WH_ID)`.
+
+## الشاشة 7: `FRM_PAYMENT` — سند قبض/صرف (نافذة منبثقة Modal)
 
 كتلة غير مرتبطة `PAY`: `PARTY_ID`, `PARTY_NAME` (عرض)، `INVOICE_ID` (اختياري، عرض)، `PAY_DATE`، `AMOUNT`، `METHOD` (List: CASH=نقدي، BANK=بنكي)، `NOTE`. تُفتح من `FRM_INVOICE` أو `FRM_PARTIES` عبر `CALL_FORM` مع معاملات (Parameter List: `P_PARTY_ID`, `P_INVOICE_ID`, `P_REMAINING`).
 
@@ -310,15 +400,17 @@ END;
 
 > عرّف معاملات النموذج `P_PARTY_ID` و`P_INVOICE_ID` و`P_REMAINING` (CHAR، 30) في وحدة `FRM_PAYMENT`.
 
-## الشاشة 6: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 8: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
 | ملفات | دليل الحسابات | `CALL_FORM('FRM_ACCOUNTS')` |
 | ملفات | العملاء والموردون | `CALL_FORM('FRM_PARTIES')` |
+| ملفات | الأصناف والمخازن | `CALL_FORM('FRM_ITEMS')` |
+| الحركات | أرصدة المخزون والتسويات والتحويلات | `CALL_FORM('FRM_STOCK')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -344,7 +436,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/06_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات الست بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/07_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات الثماني بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

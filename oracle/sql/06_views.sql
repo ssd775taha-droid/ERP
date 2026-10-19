@@ -39,3 +39,26 @@ SELECT e.entry_id, SUM(l.debit) AS total_debit, SUM(l.credit) AS total_credit
   JOIN erp_lines l ON l.entry_id = e.entry_id
  GROUP BY e.entry_id
 HAVING SUM(l.debit) <> SUM(l.credit);
+
+-- أرصدة المخزون بالكمية والقيمة ومتوسط التكلفة لكل صنف ومخزن
+CREATE OR REPLACE VIEW v_erp_stock AS
+SELECT i.item_id, i.code AS item_code, i.name AS item_name, i.unit,
+       w.wh_id, w.code AS wh_code, w.name AS wh_name,
+       s.qty, s.value,
+       CASE WHEN s.qty > 0 THEN ROUND(s.value / s.qty, 4) END AS avg_cost
+  FROM erp_stock s
+  JOIN erp_items i      ON i.item_id = s.item_id
+  JOIN erp_warehouses w ON w.wh_id   = s.wh_id
+ WHERE s.qty > 0;
+
+-- مطابقة قيمة المخزون مع حساب المخزون في الأستاذ. الفرق يجب أن يكون صفراً ما لم تُرحَّل قيود يدوية على حساب المخزون.
+CREATE OR REPLACE VIEW v_erp_stock_vs_gl AS
+SELECT x.inv_account,
+       x.stock_value,
+       NVL((SELECT SUM(l.debit - l.credit) FROM erp_lines l WHERE l.account_code = x.inv_account), 0) AS gl_balance,
+       x.stock_value - NVL((SELECT SUM(l.debit - l.credit) FROM erp_lines l WHERE l.account_code = x.inv_account), 0) AS difference
+  FROM (SELECT i.inv_account, NVL(SUM(s.value), 0) AS stock_value
+          FROM erp_items i
+          LEFT JOIN erp_stock s ON s.item_id = i.item_id
+         WHERE i.track_stock = 'Y'
+         GROUP BY i.inv_account) x;

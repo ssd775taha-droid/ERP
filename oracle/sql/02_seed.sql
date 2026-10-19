@@ -1,4 +1,4 @@
--- 02: دليل الحسابات الافتراضي وعدّادات الفواتير. الآباء قبل الأبناء بسبب المفتاح الأجنبي.
+-- 02: دليل الحسابات الافتراضي وعدّادات الفواتير والمخزن الرئيسي. الآباء قبل الأبناء بسبب المفتاح الأجنبي.
 SET DEFINE OFF
 
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('1000', 'الأصول',               'ASSET',     NULL);
@@ -22,8 +22,11 @@ INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5100', 'ت
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5200', 'الرواتب والأجور',      'EXPENSE',   '5000');
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5300', 'الإيجار',              'EXPENSE',   '5000');
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5400', 'مصروفات عمومية',       'EXPENSE',   '5000');
+INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5500', 'فروقات وتسويات المخزون', 'EXPENSE', '5000');
 
 INSERT INTO erp_counters (name, last_no) VALUES ('SALES',    0);
 INSERT INTO erp_counters (name, last_no) VALUES ('PURCHASE', 0);
+
+INSERT INTO erp_warehouses (code, name) VALUES ('MAIN', 'المخزن الرئيسي');
 
 COMMIT;

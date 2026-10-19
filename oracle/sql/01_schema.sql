@@ -23,7 +23,9 @@ CREATE OR REPLACE TYPE erp_inv_line_t AS OBJECT (
   qty          NUMBER,
   price        NUMBER,
   vat_rate     NUMBER,
-  account_code VARCHAR2(12)      -- اختياري: الافتراضي 4100 للمبيعات و5100 للمشتريات
+  account_code VARCHAR2(12),     -- اختياري: الافتراضي 4100 للمبيعات و5100 للمشتريات (أو حسابات الصنف)
+  item_id      NUMBER,           -- اختياري: صنف مخزني (يحرّك المخزون ويرحّل التكلفة)
+  wh_id        NUMBER            -- المخزن (إلزامي لو حُدِّد صنف مخزني)
 );
 /
 CREATE OR REPLACE TYPE erp_inv_line_tab AS TABLE OF erp_inv_line_t;
@@ -96,6 +98,68 @@ CREATE TABLE erp_counters (
   last_no  NUMBER       DEFAULT 0 NOT NULL
 );
 
+-- ---------------------------------------------------------------- المخازن والأصناف
+CREATE TABLE erp_warehouses (
+  wh_id   NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_warehouses_pk PRIMARY KEY,
+  code    VARCHAR2(12)  NOT NULL CONSTRAINT erp_warehouses_code_uk UNIQUE,
+  name    VARCHAR2(120) NOT NULL,
+  active  CHAR(1) DEFAULT 'Y' NOT NULL CONSTRAINT erp_warehouses_active_ck CHECK (active IN ('Y','N'))
+);
+
+CREATE TABLE erp_items (
+  item_id        NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_items_pk PRIMARY KEY,
+  code           VARCHAR2(30)  NOT NULL CONSTRAINT erp_items_code_uk UNIQUE,
+  name           VARCHAR2(120) NOT NULL,
+  unit           VARCHAR2(20)  DEFAULT 'قطعة' NOT NULL,
+  sale_price     NUMBER(18,2)  DEFAULT 0 NOT NULL CONSTRAINT erp_items_price_ck CHECK (sale_price >= 0),
+  track_stock    CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_items_track_ck CHECK (track_stock IN ('Y','N')),
+  inv_account    VARCHAR2(12)  DEFAULT '1400' NOT NULL CONSTRAINT erp_items_inv_fk  REFERENCES erp_accounts (code),
+  cogs_account   VARCHAR2(12)  DEFAULT '5100' NOT NULL CONSTRAINT erp_items_cogs_fk REFERENCES erp_accounts (code),
+  rev_account    VARCHAR2(12)  DEFAULT '4100' NOT NULL CONSTRAINT erp_items_rev_fk  REFERENCES erp_accounts (code),
+  active         CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_items_active_ck CHECK (active IN ('Y','N')),
+  created_at     TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL
+);
+
+-- الرصيد الحالي لكل صنف في كل مخزن: الكمية والقيمة (التكلفة بالمتوسط المرجّح = القيمة ÷ الكمية)
+CREATE TABLE erp_stock (
+  item_id  NUMBER       NOT NULL CONSTRAINT erp_stock_item_fk REFERENCES erp_items (item_id),
+  wh_id    NUMBER       NOT NULL CONSTRAINT erp_stock_wh_fk   REFERENCES erp_warehouses (wh_id),
+  qty      NUMBER(18,3) DEFAULT 0 NOT NULL CONSTRAINT erp_stock_qty_ck CHECK (qty >= 0),
+  value    NUMBER(18,2) DEFAULT 0 NOT NULL CONSTRAINT erp_stock_value_ck CHECK (value >= 0),
+  CONSTRAINT erp_stock_pk PRIMARY KEY (item_id, wh_id),
+  CONSTRAINT erp_stock_zero_ck CHECK (qty > 0 OR value = 0)     -- لا قيمة بلا كمية
+);
+
+-- سجل حركات المخزون (لا يُعدَّل ولا يُحذف). الكمية بإشارة: موجب وارد، سالب صادر. القيمة بإشارة الكمية نفسها.
+CREATE TABLE erp_stock_moves (
+  move_id    NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_stock_moves_pk PRIMARY KEY,
+  move_date  DATE         NOT NULL,
+  item_id    NUMBER       NOT NULL CONSTRAINT erp_stock_moves_item_fk REFERENCES erp_items (item_id),
+  wh_id      NUMBER       NOT NULL CONSTRAINT erp_stock_moves_wh_fk   REFERENCES erp_warehouses (wh_id),
+  move_type  VARCHAR2(10) NOT NULL CONSTRAINT erp_stock_moves_type_ck CHECK (move_type IN ('PURCHASE','SALE','ADJUST','TRANSFER','REVERSAL')),
+  qty        NUMBER(18,3) NOT NULL CONSTRAINT erp_stock_moves_qty_ck CHECK (qty <> 0),
+  value      NUMBER(18,2) NOT NULL,
+  ref_type   VARCHAR2(10) NOT NULL,                -- INVOICE | ADJUST | TRANSFER
+  ref_id     NUMBER       NOT NULL,
+  reverses   NUMBER       CONSTRAINT erp_stock_moves_rev_fk REFERENCES erp_stock_moves (move_id),
+  created_by VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_stock_moves_rev_uk UNIQUE (reverses),
+  CONSTRAINT erp_stock_moves_sign_ck CHECK ((qty > 0 AND value >= 0) OR (qty < 0 AND value <= 0))
+);
+CREATE INDEX erp_stock_moves_item_ix ON erp_stock_moves (item_id, wh_id, move_id);
+CREATE INDEX erp_stock_moves_ref_ix  ON erp_stock_moves (ref_type, ref_id);
+
+CREATE OR REPLACE TRIGGER erp_stock_moves_immutable_trg
+  BEFORE UPDATE OR DELETE ON erp_stock_moves
+BEGIN
+  RAISE_APPLICATION_ERROR(-20901, 'حركات المخزون لا تُعدَّل ولا تُحذف: استخدم التسوية أو الإلغاء');
+END;
+/
+
+-- أرقام مستندات المخزون الداخلية (تسوية/تحويل). الفجوات مقبولة هنا.
+CREATE SEQUENCE erp_stock_doc_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+
 -- ---------------------------------------------------------------- الفواتير
 CREATE TABLE erp_invoices (
   invoice_id     NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_invoices_pk PRIMARY KEY,
@@ -112,6 +176,7 @@ CREATE TABLE erp_invoices (
   status         VARCHAR2(4)  DEFAULT 'OPEN' NOT NULL CONSTRAINT erp_invoices_status_ck CHECK (status IN ('OPEN','VOID')),
   note           VARCHAR2(300),
   entry_id       NUMBER       NOT NULL CONSTRAINT erp_invoices_entry_fk REFERENCES erp_entries (entry_id),
+  cogs_entry_id  NUMBER       CONSTRAINT erp_invoices_cogs_fk REFERENCES erp_entries (entry_id),   -- قيد تكلفة البضاعة المباعة (مبيعات بأصناف مخزنية)
   void_entry_id  NUMBER       CONSTRAINT erp_invoices_void_fk REFERENCES erp_entries (entry_id),
   created_by     VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
   created_at     TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL,
@@ -129,7 +194,10 @@ CREATE TABLE erp_invoice_lines (
   vat_rate      NUMBER(5,2)   NOT NULL CONSTRAINT erp_invoice_lines_rate_ck CHECK (vat_rate BETWEEN 0 AND 100),
   account_code  VARCHAR2(12)  NOT NULL CONSTRAINT erp_invoice_lines_acct_fk REFERENCES erp_accounts (code),
   net           NUMBER(18,2)  NOT NULL,
-  vat           NUMBER(18,2)  NOT NULL
+  vat           NUMBER(18,2)  NOT NULL,
+  item_id       NUMBER        CONSTRAINT erp_invoice_lines_item_fk REFERENCES erp_items (item_id),
+  wh_id         NUMBER        CONSTRAINT erp_invoice_lines_wh_fk   REFERENCES erp_warehouses (wh_id),
+  cost          NUMBER(18,2)  -- تكلفة البند المخزني: داخل للمخزون في المشتريات، وتكلفة مبيعات في المبيعات
 );
 CREATE INDEX erp_invoice_lines_inv_ix ON erp_invoice_lines (invoice_id);
 

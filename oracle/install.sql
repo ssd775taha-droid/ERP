@@ -5,6 +5,7 @@ SET DEFINE OFF
 @sql/01_schema.sql
 @sql/02_seed.sql
 @sql/03_pkg_erp_gl.sql
-@sql/04_pkg_erp_trade.sql
-@sql/05_views.sql
-PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/06_selftest.sql
+@sql/04_pkg_erp_stock.sql
+@sql/05_pkg_erp_trade.sql
+@sql/06_views.sql
+PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/07_selftest.sql
