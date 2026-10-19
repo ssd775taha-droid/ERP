@@ -157,7 +157,7 @@ test('أمر شراء: اعتماد واستلام جزئي وفاتورة، ث�
 
 test('عرض سعر: إرسال وقبول وتحويل إلى فاتورة ثم إلغاء التحويل', { skip: !hasDb || !canWrite }, async () => {
   const c = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل عرض اختبار' });
-  const q = await call('POST', '/api/quotes', { partyId: c.data.id, date: '2026-01-12', validUntil: '2026-02-12', lines: [{ description: 'خدمة', qty: 2, price: 100, discountPct: 10, vatRate: 15, account: '4200' }] });
+  const q = await call('POST', '/api/quotes', { partyId: c.data.id, date: '2026-01-12', validUntil: '2099-12-31', lines: [{ description: 'خدمة', qty: 2, price: 100, discountPct: 10, vatRate: 15, account: '4200' }] });
   assert.strictEqual(q.status, 201);
   assert.strictEqual(q.data.quote.total, 207);   // 2 × 90 = 180 + 15%
   const id = q.data.quote.id;
