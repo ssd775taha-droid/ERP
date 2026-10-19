@@ -46,6 +46,7 @@ function createApp(cfg) {
   app.use('/api', require('./routes/trade')());
   app.use('/api', require('./routes/inventory')());
   app.use('/api', require('./routes/assets')());
+  app.use('/api', require('./routes/hr')());
   app.use('/api', (req, res, next) => next(new db.HttpError(404, 'غير موجود')));
 
   app.use(express.static(path.join(__dirname, '..', 'public')));

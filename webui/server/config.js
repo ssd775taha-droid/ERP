@@ -23,7 +23,7 @@ function load(envFile = path.join(__dirname, '..', '.env')) {
     dbUser: e.ERP_DB_USER || 'erp_owner',
     dbPassword: e.ERP_DB_PASSWORD || '',
     dbConnect: e.ERP_DB_CONNECT || 'localhost:1521/XEPDB1',
-    port: Number(e.ERP_WEB_PORT) || 3000,
+    port: Number(e.ERP_WEB_PORT) || 3001,
     host: e.ERP_WEB_HOST || '127.0.0.1',
     webUser: e.ERP_WEB_USER || 'admin',
     webPassword: e.ERP_WEB_PASSWORD || '',

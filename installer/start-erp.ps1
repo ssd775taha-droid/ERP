@@ -7,6 +7,6 @@ docker start erp-web | Out-Null
 Write-Host 'بانتظار جاهزية القاعدة...'
 for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Seconds 3
-  try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 4 http://localhost:3000/healthz; if ($r.StatusCode -eq 200) { break } } catch { }
+  try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 4 http://localhost:3001/healthz; if ($r.StatusCode -eq 200) { break } } catch { }
 }
-Start-Process 'http://localhost:3000'
+Start-Process 'http://localhost:3001'

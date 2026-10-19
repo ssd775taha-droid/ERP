@@ -32,7 +32,7 @@ const lines = [
   'ERP_DB_USER=erp_owner',
   `ERP_DB_PASSWORD=${dbPassword}`,
   `ERP_DB_CONNECT=${connect}`,
-  'ERP_WEB_PORT=3000',
+  'ERP_WEB_PORT=3001',
   'ERP_WEB_USER=admin',
   `ERP_WEB_PASSWORD=${webPassword}`,
   `ERP_WEB_SECRET=${secret}`,
@@ -40,7 +40,7 @@ const lines = [
 ];
 fs.writeFileSync(envFile, lines.join('\n'), { mode: 0o600 });
 console.log('أُنشئ الملف webui/.env');
-console.log(`  رابط الواجهة : http://localhost:3000`);
+console.log(`  رابط الواجهة : http://localhost:3001`);
 console.log(`  المستخدم     : admin`);
 console.log(`  كلمة السر    : ${webPassword}`);
 if (!dbPassword) {

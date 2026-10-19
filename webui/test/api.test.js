@@ -102,3 +102,16 @@ test('أصل ثابت: رفض خردة ≥ التكلفة، تسجيل ثم إل
   assert.strictEqual((await call('POST', `/api/assets/${a.data.id}/void`, {})).status, 200);
   assert.strictEqual((await call('GET', '/api/assets/check')).data.ok, true);
 });
+
+test('موظف وتسوية وكشف رواتب مسودة ثم إلغاؤه، وبيانات غير صالحة تُرفض', { skip: !hasDb || !canWrite }, async () => {
+  const code = 'T' + Date.now().toString(36).toUpperCase();
+  assert.strictEqual((await call('POST', '/api/hr/employees', { code, name: 'x', hireDate: '2026-01-01', basic: '0' })).status, 400);
+  const e = await call('POST', '/api/hr/employees', { code, name: 'موظف اختبار', hireDate: '2026-01-01', basic: '1000' });
+  assert.strictEqual(e.status, 201);
+  assert.strictEqual((await call('POST', '/api/hr/adjustments', { empId: e.data.id, period: '2026-12-15', kind: 'EARNING', description: 'x', amount: '5' })).status, 400); // ليس أول الشهر
+  const run = await call('POST', '/api/payroll/runs', { period: '2026-12-01' });
+  assert.strictEqual(run.status, 201);
+  assert.ok(run.data.run.lines.some((l) => l.empCode === code && l.net === 1000));
+  assert.strictEqual((await call('POST', '/api/payroll/runs', { period: '2026-12-01' })).status, 400); // كشف فعّال موجود
+  assert.strictEqual((await call('POST', `/api/payroll/runs/${run.data.run.id}/cancel`, {})).status, 200);
+});

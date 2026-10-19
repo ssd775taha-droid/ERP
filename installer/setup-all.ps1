@@ -17,7 +17,7 @@ Write-Host '== 2/2 تشغيل واجهة الويب ==' -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { Stop-Msg 'فشل تشغيل واجهة الويب.' }
 
 Start-Sleep -Seconds 3
-Start-Process 'http://localhost:3000'
+Start-Process 'http://localhost:3001'
 Write-Host ''
 Write-Host 'تم. المستخدم: admin، وكلمة السر في الملف:' (Join-Path $root 'webui\.env-docker') -ForegroundColor Green
 Read-Host 'اضغط Enter للإغلاق'
