@@ -1,7 +1,7 @@
 ﻿# يعرض بيانات الدخول إلى واجهة الويب، وينسخ كلمة السر إلى الحافظة، ويتيح توليد كلمة سر جديدة.
 $ErrorActionPreference = 'Continue'
 $envf = Join-Path $PSScriptRoot 'webui\.env-docker'
-function Get-Val($name) { ((Get-Content $envf | Where-Object { $_ -like "$name=*" } | Select-Object -First 1) -replace "^$name=", '').Trim() }
+function Get-Val($name) { $l = Get-Content $envf | Where-Object { $_ -like "$name=*" } | Select-Object -First 1; if ($null -eq $l) { '' } else { ($l -replace "^$name=", '').Trim() } }
 
 if (-not (Test-Path $envf)) {
   Write-Host 'لا يوجد ملف كلمة السر بعد: لم يكتمل تثبيت واجهة الويب. شغّل "ERP Setup (reinstall)" من قائمة ابدأ.' -ForegroundColor Red
