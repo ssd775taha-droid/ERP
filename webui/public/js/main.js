@@ -9,6 +9,8 @@
     ['accounts', 'دليل الحسابات'], ['entry/new', 'قيد يومية جديد'], ['entries', 'دفتر اليومية'],
     ['المبيعات والمشتريات'],
     ['customers', 'العملاء'], ['sales', 'فواتير المبيعات'], ['suppliers', 'الموردون'], ['purchases', 'فواتير المشتريات'], ['payments', 'سندات القبض والصرف'],
+    ['المخزون'],
+    ['inventory/items', 'الأصناف'], ['inventory/warehouses', 'المخازن'], ['inventory/stock', 'أرصدة المخزون'], ['inventory/moves', 'حركات المخزون'], ['inventory/adjust', 'تسوية وتحويل'],
     ['التقارير'],
     ['reports/trial-balance', 'ميزان المراجعة'], ['reports/ledger', 'كشف حساب'], ['reports/income-statement', 'قائمة الدخل'],
     ['reports/aging', 'أعمار الديون'], ['reports/balance-sheet', 'الميزانية'], ['reports/cash-flow', 'التدفقات النقدية'],
@@ -18,6 +20,7 @@
   const ROUTES = {
     '': 'dashboard', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
     'reports/trial-balance': 'trial-balance', 'reports/ledger': 'ledger', 'reports/income-statement': 'income-statement',
+    'inventory/items': 'invItems', 'inventory/warehouses': 'invWarehouses', 'inventory/stock': 'invStock', 'inventory/moves': 'invMoves', 'inventory/adjust': 'invAdjust',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
     'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow',

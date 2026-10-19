@@ -77,3 +77,16 @@ test('عميل وفاتورة مبيعات وسداد جزئي ثم رفض إل�
   const over = await call('POST', '/api/payments', { partyId: p.data.id, invoiceId: id, date: '2026-01-07', amount: '500', method: 'CASH' });
   assert.strictEqual(over.status, 400);
 });
+
+test('صنف جديد ثم رصيد افتتاحي وتحويل ورفض نقص يتجاوز الرصيد', { skip: !hasDb || !canWrite }, async () => {
+  const code = 'T' + Date.now().toString(36).toUpperCase();
+  const it = await call('POST', '/api/inventory/items', { code, name: 'صنف اختبار', price: '10' });
+  assert.strictEqual(it.status, 201);
+  const wh = await call('POST', '/api/inventory/warehouses', { code: 'W' + code.slice(-6), name: 'مخزن اختبار' });
+  assert.strictEqual(wh.status, 201);
+  const adj = await call('POST', '/api/inventory/adjust', { itemId: it.data.id, whId: 1, date: '2026-01-08', qtyDelta: '4', unitCost: '5', offsetAccount: '3100' });
+  assert.strictEqual(adj.status, 201);
+  assert.strictEqual((await call('POST', '/api/inventory/transfer', { itemId: it.data.id, fromWh: 1, toWh: wh.data.id, date: '2026-01-08', qty: '1' })).data.value, 5);
+  assert.strictEqual((await call('POST', '/api/inventory/adjust', { itemId: it.data.id, whId: 1, date: '2026-01-08', qtyDelta: '-10' })).status, 400);
+  assert.strictEqual((await call('GET', '/api/inventory/check')).data.ok, true);
+});
