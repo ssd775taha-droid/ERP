@@ -4,3 +4,6 @@ data/
 oracle/local/.env
 oracle/local/logs/
 oracle/local/.env-xe
+webui/.env
+webui/node_modules/
+.env-docker

@@ -1,0 +1,61 @@
+// اختبار تكاملي على قاعدة بيانات حقيقية. يُتخطى ما لم يُضبط ERP_DB_PASSWORD (أو webui/.env)،
+// وتُتخطى الاختبارات الكاتبة ما لم يُضبط ERP_TEST_WRITE=1 (لأنها ترحّل قيوداً فعلية لا تُحذف).
+const test = require('node:test');
+const assert = require('node:assert');
+const config = require('../server/config');
+
+const cfg = config.load();
+const hasDb = !!cfg.dbPassword;
+const canWrite = process.env.ERP_TEST_WRITE === '1';
+
+let server, base, cookie = '';
+async function call(method, url, body) {
+  const res = await fetch(base + url, {
+    method, headers: { 'Content-Type': 'application/json', cookie },
+    body: method === 'GET' ? undefined : JSON.stringify(body || {}),
+  });
+  const sc = res.headers.get('set-cookie');
+  if (sc) cookie = sc.split(';')[0];
+  return { status: res.status, data: await res.json().catch(() => null) };
+}
+
+test.before(async () => {
+  if (!hasDb) return;
+  await require('../server/db').init(cfg);
+  const { createApp } = require('../server/index');
+  server = createApp(cfg).listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  base = 'http://127.0.0.1:' + server.address().port;
+});
+test.after(async () => { if (server) server.close(); try { await require("../server/db").close(); } catch { /* لم يُفتح */ } });
+
+test('الواجهات المحمية ترفض بلا جلسة', { skip: !hasDb }, async () => {
+  assert.strictEqual((await call('GET', '/api/accounts')).status, 401);
+});
+test('كلمة سر خاطئة', { skip: !hasDb }, async () => {
+  assert.strictEqual((await call('POST', '/api/login', { username: cfg.webUser, password: 'x-wrong' })).status, 401);
+});
+test('دخول ثم دليل الحسابات', { skip: !hasDb }, async () => {
+  assert.strictEqual((await call('POST', '/api/login', { username: cfg.webUser, password: cfg.webPassword })).status, 200);
+  const r = await call('GET', '/api/accounts');
+  assert.ok(r.data.accounts.length > 0);
+  assert.ok('code' in r.data.accounts[0]);
+});
+test('ميزان المراجعة متوازن', { skip: !hasDb }, async () => {
+  const r = await call('GET', '/api/reports/trial-balance');
+  assert.strictEqual(r.data.balanced, true);
+});
+test('قيد غير متوازن يُرفض برسالة عربية', { skip: !hasDb || !canWrite }, async () => {
+  const r = await call('POST', '/api/entries', { date: '2026-01-05', memo: 't', lines: [
+    { account: '1100', debit: '10', credit: '0' }, { account: '3100', debit: '0', credit: '9' }] });
+  assert.strictEqual(r.status, 400);
+  assert.match(r.data.error, /غير متوازن/);
+});
+test('ترحيل قيد ثم عكسه', { skip: !hasDb || !canWrite }, async () => {
+  const r = await call('POST', '/api/entries', { date: '2026-01-05', memo: 'اختبار آلي', lines: [
+    { account: '1100', debit: '10', credit: '0' }, { account: '3100', debit: '0', credit: '10' }] });
+  assert.strictEqual(r.status, 201);
+  const id = r.data.entry.id;
+  assert.strictEqual((await call('POST', `/api/entries/${id}/reverse`, {})).status, 201);
+  assert.strictEqual((await call('POST', `/api/entries/${id}/reverse`, {})).status, 400);
+});

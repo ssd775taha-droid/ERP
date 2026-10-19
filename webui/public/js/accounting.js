@@ -1,0 +1,146 @@
+'use strict';
+(function (E) {
+  const { esc, money, api } = E;
+
+  // ---------- لوحة المعلومات ----------
+  E.pages.dashboard = async function (el) {
+    el.innerHTML = E.head('لوحة المعلومات', 'نظرة سريعة على الحالة المحاسبية');
+    const s = await api('GET', '/summary');
+    el.innerHTML = E.head('لوحة المعلومات', 'نظرة سريعة على الحالة المحاسبية') +
+      (s.unbalanced > 0 ? '<div class="msg bad">يوجد ' + s.unbalanced + ' قيد غير متوازن! راجع المحاسب فوراً.</div>' : '') +
+      '<div class="cards">' +
+      stat('الحسابات', s.accounts) + stat('القيود', s.entries) + stat('رصيد النقدية والبنوك', money(s.cash)) +
+      stat('أرباح لم تُقفل', money(s.unclosedEarnings)) + stat('أشهر مقفلة', s.closedMonths) + '</div>' +
+      '<div class="card"><a href="#/entry/new">+ قيد يومية جديد</a> · <a href="#/reports/trial-balance">ميزان المراجعة</a> · <a href="#/reports/balance-sheet">الميزانية</a></div>';
+    function stat(k, v) { return '<div class="stat"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div></div>'; }
+  };
+
+  // ---------- دليل الحسابات ----------
+  E.pages.accounts = async function (el) {
+    const accts = await E.loadAccounts(true);
+    const depth = (a) => { let d = 0, p = a.parent; while (p) { d++; const x = accts.find((y) => y.code === p); p = x && x.parent; } return d; };
+    const rows = accts.map((a) => '<tr' + (a.children ? ' class="head"' : '') + '><td class="indent' + Math.min(depth(a), 3) + '">' + esc(a.code) + '</td><td>' + esc(a.name) +
+      '</td><td>' + esc(E.typeName[a.type] || a.type) + '</td><td>' + (a.active === 'Y' ? '<span class="tag good">فعّال</span>' : '<span class="tag bad">موقوف</span>') +
+      '</td><td class="noprint"><button class="btn alt sm" data-act="rename" data-code="' + esc(a.code) + '" data-name="' + esc(a.name) + '">تعديل الاسم</button> ' +
+      '<button class="btn alt sm" data-act="toggle" data-code="' + esc(a.code) + '" data-active="' + esc(a.active) + '">' + (a.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button></td></tr>').join('');
+    el.innerHTML = E.head('دليل الحسابات', 'الحسابات التجميعية لا تقبل الترحيل؛ الحساب الذي عليه حركة لا يصبح أباً لحساب جديد') +
+      '<div class="card"><h3>حساب جديد</h3><form id="f-acc" class="row">' +
+      '<label>الرمز<input name="code" required maxlength="12" size="8"></label>' +
+      '<label>الاسم<input name="name" required maxlength="120" size="26"></label>' +
+      '<label>النوع<select name="type">' + Object.keys(E.typeName).map((k) => '<option value="' + k + '">' + E.typeName[k] + '</option>').join('') + '</select></label>' +
+      '<label>الحساب الأب<select name="parent"><option value="">— بلا —</option>' + accts.map((a) => '<option value="' + esc(a.code) + '">' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('') + '</select></label>' +
+      '<button class="btn">إضافة</button></form></div>' +
+      '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>النوع</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' + rows + '</tbody></table>';
+    E.$('#f-acc', el).addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      try {
+        await api('POST', '/accounts', { code: f.get('code').trim(), name: f.get('name').trim(), type: f.get('type'), parent: f.get('parent') || null });
+        E.toast('أُضيف الحساب'); E.pages.accounts(el);
+      } catch (e) { E.toast(e.message, true); }
+    });
+    if (!el._bound) {
+      el._bound = true;
+      E.bind(el, {
+        rename: async (b) => {
+          const n = prompt('الاسم الجديد للحساب ' + b.dataset.code, b.dataset.name);
+          if (n && n.trim()) { await api('PATCH', '/accounts/' + encodeURIComponent(b.dataset.code), { name: n.trim() }); E.toast('تم التعديل'); E.pages.accounts(el); }
+        },
+        toggle: async (b) => {
+          await api('PATCH', '/accounts/' + encodeURIComponent(b.dataset.code), { active: b.dataset.active !== 'Y' });
+          E.toast('تم التحديث'); E.pages.accounts(el);
+        },
+      });
+    }
+  };
+
+  // ---------- قيد يومية جديد ----------
+  E.pages.entryNew = async function (el) {
+    const accts = await E.loadAccounts();
+    const opts = E.accountOptions(accts);
+    const line = () => '<tr class="ln"><td><select class="ac">' + opts + '</select></td><td><input class="dr" inputmode="decimal" size="12"></td>' +
+      '<td><input class="cr" inputmode="decimal" size="12"></td><td><input class="nt" maxlength="200"></td><td><button type="button" class="btn alt sm" data-act="rm">✕</button></td></tr>';
+    el.innerHTML = E.head('قيد يومية جديد', 'يجب أن يتساوى مجموع المدين والدائن') +
+      '<div id="out"></div><div class="card"><div class="row">' +
+      '<label>التاريخ<input type="date" id="e-date" value="' + E.today() + '"></label>' +
+      '<label>المرجع<input id="e-ref" maxlength="60"></label>' +
+      '<label style="flex:1">البيان<input id="e-memo" maxlength="300"></label></div>' +
+      '<table><thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>ملاحظة</th><th></th></tr></thead><tbody id="lines">' + line() + line() + '</tbody>' +
+      '<tfoot><tr><td>الإجمالي <span id="bal"></span></td><td class="n" id="t-dr">0.00</td><td class="n" id="t-cr">0.00</td><td colspan="2"></td></tr></tfoot></table>' +
+      '<p><button type="button" class="btn alt" data-act="add">+ سطر</button> <button type="button" class="btn" id="save" data-act="save">ترحيل القيد</button></p></div>';
+    const tb = E.$('#lines', el);
+    const num = (s) => { const n = parseFloat(String(s).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+    function recalc() {
+      let d = 0, c = 0;
+      E.$$('.ln', tb).forEach((r) => { d += num(E.$('.dr', r).value); c += num(E.$('.cr', r).value); });
+      d = Math.round(d * 100); c = Math.round(c * 100);
+      E.$('#t-dr', el).textContent = money(d / 100); E.$('#t-cr', el).textContent = money(c / 100);
+      const b = E.$('#bal', el);
+      if (d === 0 && c === 0) b.innerHTML = '';
+      else if (d === c) b.innerHTML = '<span class="tag good">متوازن</span>';
+      else b.innerHTML = '<span class="tag bad">الفرق ' + money(Math.abs(d - c) / 100) + '</span>';
+    }
+    tb.addEventListener('input', (ev) => {
+      // سطر إما مدين وإما دائن: عند الكتابة في أحدهما يُفرَّغ الآخر
+      const r = ev.target.closest('.ln');
+      if (r && ev.target.classList.contains('dr') && ev.target.value) E.$('.cr', r).value = '';
+      if (r && ev.target.classList.contains('cr') && ev.target.value) E.$('.dr', r).value = '';
+      recalc();
+    });
+    E.bind(el, {
+      add: () => tb.insertAdjacentHTML('beforeend', line()),
+      rm: (b) => { if (E.$$('.ln', tb).length > 2) { b.closest('tr').remove(); recalc(); } },
+      save: (b) => E.busy(b, async () => {
+        const lines = E.$$('.ln', tb).map((r) => ({ account: E.$('.ac', r).value, debit: E.$('.dr', r).value.replace(/,/g, '').trim() || '0', credit: E.$('.cr', r).value.replace(/,/g, '').trim() || '0', note: E.$('.nt', r).value.trim() }))
+          .filter((l) => l.account || num(l.debit) || num(l.credit));
+        const r = await api('POST', '/entries', { date: E.$('#e-date', el).value, memo: E.$('#e-memo', el).value.trim(), ref: E.$('#e-ref', el).value.trim(), lines });
+        E.toast('رُحّل القيد رقم ' + r.entry.id);
+        location.hash = '#/entries';
+      }),
+    });
+  };
+
+  // ---------- دفتر اليومية ----------
+  E.pages.entries = async function (el) {
+    const accts = await E.loadAccounts();
+    const q = { from: E.monthStart(), to: E.today(), account: '' };
+    el.innerHTML = E.head('دفتر اليومية', 'القيد المرحَّل لا يُعدَّل ولا يُحذف؛ التصحيح بقيد عكسي') +
+      '<form id="f" class="row noprint"><label>من<input type="date" name="from" value="' + q.from + '"></label><label>إلى<input type="date" name="to" value="' + q.to + '"></label>' +
+      '<label>الحساب<select name="account"><option value="">الكل</option>' + accts.map((a) => '<option value="' + esc(a.code) + '">' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('') + '</select></label>' +
+      '<button class="btn">عرض</button> <button type="button" class="btn alt" data-act="print">طباعة</button> <a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/entry/new">+ قيد جديد</a></form><div id="list"></div>';
+    async function load() {
+      const f = new FormData(E.$('#f', el));
+      const box = E.$('#list', el);
+      box.innerHTML = '<p class="muted">جارٍ التحميل…</p>';
+      try {
+        const { entries } = await api('GET', '/entries?' + E.qs({ from: f.get('from'), to: f.get('to'), account: f.get('account'), limit: 200 }));
+        if (!entries.length) { box.innerHTML = '<div class="msg warn">لا قيود في هذه الفترة</div>'; return; }
+        box.innerHTML = entries.map((e) => {
+          let tag = '';
+          if (e.voidOf) tag += ' <span class="tag warn">عكس القيد ' + e.voidOf + '</span>';
+          if (e.reversedBy) tag += ' <span class="tag bad">معكوس بالقيد ' + e.reversedBy + '</span>';
+          if (e.kind === 'CLOSING') tag += ' <span class="tag">إقفال سنة</span>';
+          const td = e.lines.reduce((s, l) => s + l.debit, 0);
+          return '<div class="card"><div class="row" style="margin:0 0 8px"><strong>قيد ' + e.id + '</strong><span>' + esc(e.date) + '</span><span class="muted">' + esc(e.ref || '') + '</span>' + tag +
+            '<span style="flex:1">' + esc(e.memo || '') + '</span>' +
+            (!e.voidOf && !e.reversedBy ? '<button class="btn alt sm noprint" data-act="reverse" data-id="' + e.id + '">عكس</button>' : '') + '</div>' +
+            '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
+            e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
+            '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(td) + '</td><td></td></tr></tfoot></table></div>';
+        }).join('');
+      } catch (e) { box.innerHTML = E.err(e.message); }
+    }
+    E.$('#f', el).addEventListener('submit', (ev) => { ev.preventDefault(); load(); });
+    E.bind(el, {
+      print: () => window.print(),
+      reverse: async (b) => {
+        const d = prompt('تاريخ القيد العكسي (YYYY-MM-DD) — اتركه فارغاً لتاريخ القيد الأصلي', '');
+        if (d === null) return;
+        if (!confirm('عكس القيد رقم ' + b.dataset.id + '؟ سيُنشأ قيد عكسي ولا يُحذف الأصلي.')) return;
+        const r = await api('POST', '/entries/' + b.dataset.id + '/reverse', d.trim() ? { date: d.trim() } : {});
+        E.toast('أُنشئ القيد العكسي رقم ' + r.entryId); load();
+      },
+    });
+    load();
+  };
+})(window.ERP);

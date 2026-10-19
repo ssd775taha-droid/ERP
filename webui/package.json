@@ -1,0 +1,18 @@
+{
+  "name": "erp-webui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "واجهة ويب عربية لنظام ERP على Oracle: تستدعي حزم PL/SQL ولا تكرر منطقها",
+  "main": "server/index.js",
+  "scripts": {
+    "init": "node scripts/init-env.js",
+    "start": "node server/index.js",
+    "test": "node --test test/api.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^4.21.2",
+    "oracledb": "^6.8.0"
+  }
+}
