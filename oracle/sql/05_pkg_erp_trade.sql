@@ -1,5 +1,5 @@
 -- ============================================================================
--- 05: حزمة المبيعات والمشتريات ERP_TRADE (تعتمد على ERP_GL وERP_STOCK)
+-- 05: حزمة المبيعات والمشتريات ERP_TRADE (تعتمد على ERP_GL وERP_INVENTORY)
 -- كل فاتورة أو سند يُرحَّل إلى قيد في المعاملة نفسها؛ لا COMMIT داخل الحزمة.
 --
 -- الترحيل:
@@ -253,10 +253,10 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       v_cost(i) := NULL;
       IF v_stocked(i) = 'Y' THEN
         IF p_kind = 'PURCHASE' THEN
-          erp_stock.stock_in(p_lines(i).item_id, p_lines(i).wh_id, p_date, p_lines(i).qty, v_net(i), 'PURCHASE', 'INVOICE', v_id);
+          erp_inventory.stock_in(p_lines(i).item_id, p_lines(i).wh_id, p_date, p_lines(i).qty, v_net(i), 'PURCHASE', 'INVOICE', v_id);
           v_cost(i) := v_net(i);
         ELSE
-          v_cost(i) := erp_stock.stock_out(p_lines(i).item_id, p_lines(i).wh_id, p_date, p_lines(i).qty, 'SALE', 'INVOICE', v_id);
+          v_cost(i) := erp_inventory.stock_out(p_lines(i).item_id, p_lines(i).wh_id, p_date, p_lines(i).qty, 'SALE', 'INVOICE', v_id);
           SELECT * INTO v_item FROM erp_items WHERE item_id = p_lines(i).item_id;
           bump(v_cogs_dr, v_item.cogs_account, v_cost(i));
           bump(v_inv_cr,  v_item.inv_account,  v_cost(i));
@@ -329,14 +329,14 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       END IF;
     END IF;
     -- إلغاء مشتريات بعد حركات لاحقة على أصنافها يُفسد متوسط التكلفة؛ المسموح تسوية المخزون بدلاً منه
-    IF v_inv.kind = 'PURCHASE' AND erp_stock.has_later_moves('INVOICE', p_invoice_id) THEN
+    IF v_inv.kind = 'PURCHASE' AND erp_inventory.has_later_moves('INVOICE', p_invoice_id) THEN
       RAISE_APPLICATION_ERROR(-20213, 'لا تُلغى فاتورة مشتريات جرت بعدها حركات على أصنافها: استخدم تسوية المخزون');
     END IF;
     v_rev := erp_gl.reverse_entry(v_inv.entry_id);
     IF v_inv.cogs_entry_id IS NOT NULL THEN
       v_tmp := erp_gl.reverse_entry(v_inv.cogs_entry_id);
     END IF;
-    erp_stock.reverse_doc('INVOICE', p_invoice_id);
+    erp_inventory.reverse_doc('INVOICE', p_invoice_id);
     UPDATE erp_invoices SET status = 'VOID', void_entry_id = v_rev WHERE invoice_id = p_invoice_id;
   EXCEPTION
     WHEN OTHERS THEN

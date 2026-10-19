@@ -16,6 +16,7 @@ DECLARE
   r_inv1 NUMBER; r_st VARCHAR2(20); r_t NUMBER;
   u_wh NUMBER; u_i1 NUMBER; u_i2 NUMBER; u_q1 NUMBER; u_q2 NUMBER; u_q2b NUMBER; u_q3 NUMBER; u_q4 NUMBER; u_q5 NUMBER;
   u_inv NUMBER; u_inv2 NUMBER; u_t NUMBER; u_s NUMBER; u_v NUMBER; u_st VARCHAR2(20);
+  v_b5100 NUMBER;
   v_st VARCHAR2(20); v_ni NUMBER; v_cl NUMBER; v_iss erp_msg_tab;
   v_hd NUMBER; v_e1 NUMBER; v_e2 NUMBER; v_e3 NUMBER; v_e4 NUMBER; v_cal NUMBER; v_ctr NUMBER; v_csi NUMBER; v_cse NUMBER;
   v_hadv NUMBER; v_ra NUMBER; v_rb NUMBER; v_rc NUMBER; v_rd NUMBER; v_re NUMBER; v_n1 NUMBER; v_n2 NUMBER; v_n3 NUMBER;
@@ -140,9 +141,9 @@ BEGIN
 
   -- ================= المخازن والأصناف =================
   SELECT wh_id INTO v_wh FROM erp_warehouses WHERE code = 'MAIN';
-  v_wh2 := erp_stock.add_warehouse('W2', 'مخزن فرعي');
-  v_i1  := erp_stock.add_item('I1', 'صنف تجريبي', 'قطعة', 30);
-  v_i2  := erp_stock.add_item('I2', 'صنف ثانٍ');
+  v_wh2 := erp_inventory.add_warehouse('W2', 'مخزن فرعي');
+  v_i1  := erp_inventory.add_item('I1', 'صنف تجريبي', 'قطعة', 30);
+  v_i2  := erp_inventory.add_item('I2', 'صنف ثانٍ');
 
   v_p1 := erp_trade.create_invoice('PURCHASE', v_sup, DATE '2026-04-01', NULL, NULL, NULL,
             erp_inv_line_tab(erp_inv_line_t('صنف', 10, 12.5, 15, NULL, v_i1, v_wh)));
@@ -150,13 +151,14 @@ BEGIN
   check_true('ح/1400 مدين 125', bal('1400', 'D') = 125);
   v_p2 := erp_trade.create_invoice('PURCHASE', v_sup, DATE '2026-04-02', NULL, NULL, NULL,
             erp_inv_line_tab(erp_inv_line_t('صنف', 10, 20, 15, NULL, v_i1, v_wh)));
-  check_true('المتوسط المرجّح: 20 بقيمة 325 (16.25)', stk_qty(v_i1, v_wh) = 20 AND stk_val(v_i1, v_wh) = 325 AND erp_stock.avg_cost(v_i1, v_wh) = 16.25);
+  check_true('المتوسط المرجّح: 20 بقيمة 325 (16.25)', stk_qty(v_i1, v_wh) = 20 AND stk_val(v_i1, v_wh) = 325 AND erp_inventory.avg_cost(v_i1, v_wh) = 16.25);
 
+  v_b5100 := bal('5100', 'D');   -- رصيد 5100 قبل البيع (اختبار سابق رحّل إليه 125)
   v_s1 := erp_trade.create_invoice('SALES', v_cust, DATE '2026-04-03', NULL, NULL, NULL,
             erp_inv_line_tab(erp_inv_line_t('صنف', 5, 30, 15, NULL, v_i1, v_wh)));
   SELECT cogs_entry_id INTO v_cogs FROM erp_invoices WHERE invoice_id = v_s1;
   check_true('البيع يُخرج بتكلفة المتوسط: 15 بقيمة 243.75', stk_qty(v_i1, v_wh) = 15 AND stk_val(v_i1, v_wh) = 243.75);
-  check_true('قيد تكلفة المبيعات 81.25 (ح/5100)', v_cogs IS NOT NULL AND bal('5100', 'D') = 81.25);
+  check_true('قيد تكلفة المبيعات 81.25 (ح/5100)', v_cogs IS NOT NULL AND bal('5100', 'D') = v_b5100 + 81.25);
   check_true('ح/1400 = 243.75 بعد البيع', bal('1400', 'D') = 243.75);
 
   BEGIN v_tmp := erp_trade.create_invoice('SALES', v_cust, DATE '2026-04-03', NULL, NULL, NULL,
@@ -171,7 +173,7 @@ BEGIN
 
   erp_trade.void_invoice(v_s1);
   check_true('إلغاء البيع يعيد المخزون: 20 بقيمة 325', stk_qty(v_i1, v_wh) = 20 AND stk_val(v_i1, v_wh) = 325);
-  check_true('إلغاء البيع يعكس التكلفة: ح/5100 صفر وح/1400 = 325', bal('5100', 'D') = 0 AND bal('1400', 'D') = 325);
+  check_true('إلغاء البيع يعكس التكلفة: ح/5100 يعود لرصيده السابق وح/1400 = 325', bal('5100', 'D') = v_b5100 AND bal('1400', 'D') = 325);
   BEGIN erp_trade.void_invoice(v_p1);
     check_true('رفض إلغاء مشتريات بعد حركات لاحقة (لم يُرفع خطأ)', FALSE);
   EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء مشتريات بعد حركات لاحقة [' || SQLCODE || ']', SQLCODE = -20213); END;
@@ -182,23 +184,23 @@ BEGIN
   check_true('إلغاء مشتريات بلا حركات لاحقة يصفّر المخزون', stk_qty(v_i2, v_wh) = 0 AND stk_val(v_i2, v_wh) = 0);
 
   -- التسويات
-  v_tmp := erp_stock.adjust(v_i1, v_wh, DATE '2026-04-05', 3, 10);
+  v_tmp := erp_inventory.adjust(v_i1, v_wh, DATE '2026-04-05', 3, 10);
   check_true('تسوية زيادة 3 بتكلفة 10: 23 بقيمة 355', stk_qty(v_i1, v_wh) = 23 AND stk_val(v_i1, v_wh) = 355 AND v_tmp IS NOT NULL);
-  v_tmp := erp_stock.adjust(v_i1, v_wh, DATE '2026-04-05', -2);
+  v_tmp := erp_inventory.adjust(v_i1, v_wh, DATE '2026-04-05', -2);
   check_true('تسوية نقص 2 بالمتوسط: 21 بقيمة 324.13', stk_qty(v_i1, v_wh) = 21 AND stk_val(v_i1, v_wh) = 324.13);
-  BEGIN v_tmp := erp_stock.adjust(v_i2, v_wh, DATE '2026-04-05', 5);
+  BEGIN v_tmp := erp_inventory.adjust(v_i2, v_wh, DATE '2026-04-05', 5);
     check_true('رفض زيادة بلا تكلفة ولا متوسط (لم يُرفع خطأ)', FALSE);
   EXCEPTION WHEN OTHERS THEN check_true('رفض زيادة بلا تكلفة ولا متوسط [' || SQLCODE || ']', SQLCODE = -20303); END;
 
   -- التحويل بين المخازن
-  v_tmp := erp_stock.transfer(v_i1, v_wh, v_wh2, DATE '2026-04-06', 6);
+  v_tmp := erp_inventory.transfer(v_i1, v_wh, v_wh2, DATE '2026-04-06', 6);
   check_true('تحويل 6 بتكلفة 92.61', v_tmp = 92.61);
   check_true('المصدر 15 بقيمة 231.52 والوجهة 6 بقيمة 92.61',
     stk_qty(v_i1, v_wh) = 15 AND stk_val(v_i1, v_wh) = 231.52 AND stk_qty(v_i1, v_wh2) = 6 AND stk_val(v_i1, v_wh2) = 92.61);
-  BEGIN v_tmp := erp_stock.transfer(v_i1, v_wh, v_wh, DATE '2026-04-06', 1);
+  BEGIN v_tmp := erp_inventory.transfer(v_i1, v_wh, v_wh, DATE '2026-04-06', 1);
     check_true('رفض التحويل لنفس المخزن (لم يُرفع خطأ)', FALSE);
   EXCEPTION WHEN OTHERS THEN check_true('رفض التحويل لنفس المخزن [' || SQLCODE || ']', SQLCODE = -20304); END;
-  BEGIN v_tmp := erp_stock.transfer(v_i1, v_wh, v_wh2, DATE '2026-04-06', 100);
+  BEGIN v_tmp := erp_inventory.transfer(v_i1, v_wh, v_wh2, DATE '2026-04-06', 100);
     check_true('رفض تحويل أكثر من الرصيد (لم يُرفع خطأ)', FALSE);
   EXCEPTION WHEN OTHERS THEN check_true('رفض تحويل أكثر من الرصيد [' || SQLCODE || ']', SQLCODE = -20302); END;
 
@@ -501,12 +503,12 @@ BEGIN
 
 
   -- ================= نقاط البيع =================
-  q_wh := erp_stock.add_warehouse('WP', 'مخزن نقاط البيع');
-  q_i1 := erp_stock.add_item('PI1', 'صنف نقاط البيع', 'قطعة', 50, 'Y', '1400', '5100', '4100', 15, '6290000000011');
-  q_i2 := erp_stock.add_item('PS1', 'خدمة نقاط البيع', 'ساعة', 10, 'N');
+  q_wh := erp_inventory.add_warehouse('WP', 'مخزن نقاط البيع');
+  q_i1 := erp_inventory.add_item('PI1', 'صنف نقاط البيع', 'قطعة', 50, 'Y', '1400', '5100', '4100', 15, '6290000000011');
+  q_i2 := erp_inventory.add_item('PS1', 'خدمة نقاط البيع', 'ساعة', 10, 'N');
   check_true('البحث عن الصنف بالباركود وبالرمز', erp_pos.find_item('6290000000011') = q_i1 AND erp_pos.find_item('PS1') = q_i2);
   check_true('صنف غير موجود يعيد NULL', erp_pos.find_item('غير-موجود') IS NULL);
-  v_tmp := erp_stock.adjust(q_i1, q_wh, DATE '2026-07-01', 20, 20, '3100');
+  v_tmp := erp_inventory.adjust(q_i1, q_wh, DATE '2026-07-01', 20, 20, '3100');
   q_g1 := erp_pos.add_register('R1', 'صندوق 1', q_wh);
   q_g2 := erp_pos.add_register('R2', 'صندوق 2 (أسعار شاملة)', q_wh, '1100', 'Y');
   BEGIN v_tmp := erp_pos.add_register('R3', 'صندوق خطأ', q_wh, '4100');
@@ -613,8 +615,8 @@ BEGIN
 
 
   -- ================= أوامر الشراء =================
-  r_wh := erp_stock.add_warehouse('WPO', 'مخزن المشتريات');
-  r_i1 := erp_stock.add_item('BO1', 'صنف أمر شراء', 'قطعة', 0, 'Y');
+  r_wh := erp_inventory.add_warehouse('WPO', 'مخزن المشتريات');
+  r_i1 := erp_inventory.add_item('BO1', 'صنف أمر شراء', 'قطعة', 0, 'Y');
 
   BEGIN v_tmp := erp_po.create_po(v_cust, DATE '2026-08-01', NULL, NULL,
                    erp_po_line_tab(erp_po_line_t(r_i1, r_wh, NULL, 1, 10, NULL, NULL)));
@@ -728,10 +730,10 @@ BEGIN
 
 
   -- ================= عروض الأسعار =================
-  u_wh := erp_stock.add_warehouse('WQ', 'مخزن العروض');
-  u_i1 := erp_stock.add_item('QI1', 'صنف عرض', 'قطعة', 100, 'Y', '1400', '5100', '4100', 15);
-  u_i2 := erp_stock.add_item('QS1', 'خدمة عرض', 'ساعة', 50, 'N');
-  v_tmp := erp_stock.adjust(u_i1, u_wh, DATE '2026-09-01', 10, 40, '3100');
+  u_wh := erp_inventory.add_warehouse('WQ', 'مخزن العروض');
+  u_i1 := erp_inventory.add_item('QI1', 'صنف عرض', 'قطعة', 100, 'Y', '1400', '5100', '4100', 15);
+  u_i2 := erp_inventory.add_item('QS1', 'خدمة عرض', 'ساعة', 50, 'N');
+  v_tmp := erp_inventory.adjust(u_i1, u_wh, DATE '2026-09-01', 10, 40, '3100');
 
   BEGIN v_tmp := erp_quote.create_quote(v_sup, DATE '2026-09-10', DATE '2026-09-30', NULL, NULL,
                    erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, NULL, NULL, NULL, NULL)));

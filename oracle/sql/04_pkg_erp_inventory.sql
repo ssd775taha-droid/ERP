@@ -1,5 +1,5 @@
 -- ============================================================================
--- 04: حزمة المخازن والأصناف ERP_STOCK (تعتمد على ERP_GL)
+-- 04: حزمة المخازن والأصناف ERP_INVENTORY (تعتمد على ERP_GL)
 -- التقييم بالمتوسط المرجّح لكل (صنف، مخزن): تكلفة الوحدة = قيمة الرصيد ÷ كميته.
 --   الوارد يرفع الكمية والقيمة معاً؛ الصادر يخرج بتكلفة المتوسط الحالي، وعند إخراج كل الكمية تخرج كل القيمة
 --   (لا تبقى كسور قيمة بلا كمية).
@@ -11,7 +11,7 @@
 --   -20303 تكلفة الوحدة مطلوبة (لا متوسط حالي)     -20308 كمية غير صالحة (موجبة وبثلاث منازل)
 --   -20304 المخزنان متطابقان                       -20305 تعذّر عكس الحركة (كان سيجعل الرصيد سالباً)
 -- ============================================================================
-CREATE OR REPLACE PACKAGE erp_stock AS
+CREATE OR REPLACE PACKAGE erp_inventory AS
   FUNCTION add_warehouse (p_code IN VARCHAR2, p_name IN VARCHAR2) RETURN NUMBER;
 
   FUNCTION add_item (
@@ -81,10 +81,10 @@ CREATE OR REPLACE PACKAGE erp_stock AS
     p_date    IN DATE,
     p_qty     IN NUMBER
   ) RETURN NUMBER;
-END erp_stock;
+END erp_inventory;
 /
 
-CREATE OR REPLACE PACKAGE BODY erp_stock AS
+CREATE OR REPLACE PACKAGE BODY erp_inventory AS
 
   FUNCTION get_item (p_item_id IN NUMBER) RETURN erp_items%ROWTYPE IS
     v_row erp_items%ROWTYPE;
@@ -395,6 +395,6 @@ CREATE OR REPLACE PACKAGE BODY erp_stock AS
       RAISE;
   END transfer;
 
-END erp_stock;
+END erp_inventory;
 /
-SHOW ERRORS PACKAGE BODY erp_stock
+SHOW ERRORS PACKAGE BODY erp_inventory

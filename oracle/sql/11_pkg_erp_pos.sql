@@ -1,5 +1,5 @@
 -- ============================================================================
--- 11: حزمة نقاط البيع ERP_POS (تعتمد على ERP_GL وERP_STOCK)
+-- 11: حزمة نقاط البيع ERP_POS (تعتمد على ERP_GL وERP_INVENTORY)
 -- نقطة البيع (Register) مرتبطة بمخزن، وتعمل بورديات (Shift): وردية مفتوحة واحدة لكل نقطة.
 -- بيع نقدي أو ببطاقة أو بالاثنين معاً، بالباقي للعميل من النقد، ولا ذمم عملاء في نقطة البيع.
 --
@@ -346,7 +346,7 @@ CREATE OR REPLACE PACKAGE BODY erp_pos AS
       SELECT * INTO v_item FROM erp_items WHERE item_id = v_it(i);
       v_cost(i) := NULL;
       IF v_item.track_stock = 'Y' THEN
-        v_cost(i) := erp_stock.stock_out(v_it(i), v_reg.wh_id, v_date, p_lines(i).qty, 'SALE', 'POS', v_id);
+        v_cost(i) := erp_inventory.stock_out(v_it(i), v_reg.wh_id, v_date, p_lines(i).qty, 'SALE', 'POS', v_id);
         bump(v_cogs, v_item.cogs_account, v_cost(i));
         bump(v_inv,  v_item.inv_account,  v_cost(i));
         v_cogs_sum := v_cogs_sum + v_cost(i);
@@ -492,7 +492,7 @@ CREATE OR REPLACE PACKAGE BODY erp_pos AS
       SELECT * INTO v_ol FROM erp_pos_sale_lines WHERE line_id = v_oid(i);
       SELECT * INTO v_item FROM erp_items WHERE item_id = v_ol.item_id;
       IF v_ol.cost IS NOT NULL THEN
-        erp_stock.stock_in(v_ol.item_id, v_ol.wh_id, v_date, v_qty(i), v_cost(i), 'SALE', 'POS', v_id);
+        erp_inventory.stock_in(v_ol.item_id, v_ol.wh_id, v_date, v_qty(i), v_cost(i), 'SALE', 'POS', v_id);
         IF v_cost(i) > 0 THEN
           bump(v_cogs, v_item.cogs_account, v_cost(i));
           bump(v_inv,  v_item.inv_account,  v_cost(i));
@@ -559,7 +559,7 @@ CREATE OR REPLACE PACKAGE BODY erp_pos AS
     IF v_sale.cogs_entry_id IS NOT NULL THEN
       v_tmp := erp_gl.reverse_entry(v_sale.cogs_entry_id);
     END IF;
-    erp_stock.reverse_doc('POS', p_sale_id);
+    erp_inventory.reverse_doc('POS', p_sale_id);
     UPDATE erp_pos_sales SET status = 'VOID' WHERE sale_id = p_sale_id;
   EXCEPTION
     WHEN OTHERS THEN

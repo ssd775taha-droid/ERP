@@ -301,7 +301,7 @@ END;
 **تبويب الأصناف:** كتلة `ITEMS` مرتبطة بـ `erp_items` (سجلات متعددة، `ORDER BY code`).
 - العناصر: `ITEM_ID` (عرض فقط)، `CODE`، `NAME`، `UNIT`، `SALE_PRICE`، `TRACK_STOCK` (Check Box: Y/N، افتراضي Y)، `INV_ACCOUNT` (افتراضي 1400)، `COGS_ACCOUNT` (5100)، `REV_ACCOUNT` (4100)، `ACTIVE`.
 - اجعل `ITEM_ID` و`CREATED_AT` بـ `Insert Allowed = No` و`Update Allowed = No` (هوية/افتراضي)، و`CODE` و`TRACK_STOCK` و`INV_ACCOUNT` و`COGS_ACCOUNT` بـ `Update Allowed = No` بعد الحفظ (تغييرها بعد وجود حركات يُفسد التقييم). `Delete Allowed = No` (التعطيل بـ `ACTIVE = N`).
-- `INV_ACCOUNT` من LOV يعرض حسابات الأصول الطرفية فقط، و`COGS_ACCOUNT` للمصروفات، و`REV_ACCOUNT` للإيرادات (ثلاث مجموعات سجلات بحسب `acc_type`). الحزمة `ERP_STOCK.ADD_ITEM` تتحقق من الأنواع نفسها؛ إن فضّلت إدخال الأصناف عبرها اجعل الكتلة غير مرتبطة واستدعِ الدالة من زر «حفظ».
+- `INV_ACCOUNT` من LOV يعرض حسابات الأصول الطرفية فقط، و`COGS_ACCOUNT` للمصروفات، و`REV_ACCOUNT` للإيرادات (ثلاث مجموعات سجلات بحسب `acc_type`). الحزمة `ERP_INVENTORY.ADD_ITEM` تتحقق من الأنواع نفسها؛ إن فضّلت إدخال الأصناف عبرها اجعل الكتلة غير مرتبطة واستدعِ الدالة من زر «حفظ».
 
 **تبويب المخازن:** كتلة `WAREHOUSES` مرتبطة بـ `erp_warehouses` (`WH_ID` عرض فقط بـ `Insert/Update Allowed = No`، `CODE`، `NAME`، `ACTIVE`، `Delete Allowed = No`).
 
@@ -328,7 +328,7 @@ END;
 -- ADJ.BTN_POST : WHEN-BUTTON-PRESSED
 DECLARE v_entry NUMBER;
 BEGIN
-  v_entry := erp_stock.adjust(:ADJ.ITEM_ID, :ADJ.WH_ID, :ADJ.ADJ_DATE, :ADJ.QTY_DELTA, :ADJ.UNIT_COST,
+  v_entry := erp_inventory.adjust(:ADJ.ITEM_ID, :ADJ.WH_ID, :ADJ.ADJ_DATE, :ADJ.QTY_DELTA, :ADJ.UNIT_COST,
                               NVL(:ADJ.OFFSET_ACCOUNT, '5500'), :ADJ.NOTE);
   commit_db;
   MESSAGE('رُحّلت التسوية' || CASE WHEN v_entry IS NOT NULL THEN ' (قيد رقم ' || v_entry || ')' END);
@@ -339,13 +339,13 @@ EXCEPTION
 END;
 ```
 
-**تبويب التحويل:** كتلة غير مرتبطة `TRF`: `ITEM_CODE`/`ITEM_ID`، `FROM_WH_CODE`/`FROM_WH_ID`، `TO_WH_CODE`/`TO_WH_ID`، `TRF_DATE`، `QTY`، وعرض `ON_HAND` (يُحسب بـ `erp_stock.on_hand` عند اختيار الصنف والمخزن المصدر).
+**تبويب التحويل:** كتلة غير مرتبطة `TRF`: `ITEM_CODE`/`ITEM_ID`، `FROM_WH_CODE`/`FROM_WH_ID`، `TO_WH_CODE`/`TO_WH_ID`، `TRF_DATE`، `QTY`، وعرض `ON_HAND` (يُحسب بـ `erp_inventory.on_hand` عند اختيار الصنف والمخزن المصدر).
 
 ```plsql
 -- TRF.BTN_POST : WHEN-BUTTON-PRESSED
 DECLARE v_val NUMBER;
 BEGIN
-  v_val := erp_stock.transfer(:TRF.ITEM_ID, :TRF.FROM_WH_ID, :TRF.TO_WH_ID, :TRF.TRF_DATE, :TRF.QTY);
+  v_val := erp_inventory.transfer(:TRF.ITEM_ID, :TRF.FROM_WH_ID, :TRF.TO_WH_ID, :TRF.TRF_DATE, :TRF.QTY);
   commit_db;
   MESSAGE('حُوّلت البضاعة بقيمة ' || TO_CHAR(v_val));
   CLEAR_BLOCK(NO_VALIDATE);

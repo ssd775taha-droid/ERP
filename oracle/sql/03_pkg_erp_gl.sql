@@ -148,7 +148,7 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
     p_memo  IN VARCHAR2,
     p_ref   IN VARCHAR2,
     p_lines IN erp_line_tab
-  ) RETURN NUMBER IS
+  ) RETURN NUMBER ACCESSIBLE BY (PACKAGE erp_period) IS
   BEGIN
     RETURN do_post(p_date, p_memo, p_ref, p_lines, 'CLOSING');
   END post_closing_entry;
@@ -209,7 +209,7 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
     RETURN do_reverse(p_entry_id, p_date, TRUE);
   END reverse_entry;
 
-  FUNCTION reverse_closing_entry (p_entry_id IN NUMBER) RETURN NUMBER IS
+  FUNCTION reverse_closing_entry (p_entry_id IN NUMBER) RETURN NUMBER ACCESSIBLE BY (PACKAGE erp_period) IS
   BEGIN
     RETURN do_reverse(p_entry_id, NULL, FALSE);
   END reverse_closing_entry;

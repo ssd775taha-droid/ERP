@@ -5,7 +5,7 @@ SET DEFINE OFF
 @sql/01_schema.sql
 @sql/02_seed.sql
 @sql/03_pkg_erp_gl.sql
-@sql/04_pkg_erp_stock.sql
+@sql/04_pkg_erp_inventory.sql
 @sql/05_pkg_erp_trade.sql
 @sql/06_pkg_erp_asset.sql
 @sql/07_pkg_erp_hr.sql
