@@ -1,0 +1,33 @@
+# مواصفات تقارير Oracle Reports 12c
+
+ملفات `.rdf`/`.jsp` تُبنى من **Reports Builder**. الاستعلامات جاهزة في هذا المجلد؛ هنا ما يلزم لبناء كل تقرير.
+
+## إعدادات عامة لكل تقرير
+
+- **Report Properties ← Direction**: Right To Left، والاتجاه في كل الإطارات `Right to Left`، والمحاذاة للنصوص العربية يميناً والأرقام يساراً.
+- **الخط**: Tahoma/Arial. **اللغة**: `NLS_LANG=ARABIC_SAUDI ARABIA.AL32UTF8` في بيئة الخادم (`reports.sh`/`rwserver`).
+- **تنسيق المبالغ**: `NNN,NNN,NNN,NN0.00`. **تنسيق التاريخ**: `YYYY-MM-DD`.
+- **المعاملات (User Parameters)**: كلها من نوع Char/Date بقيم افتراضية آمنة، ومعامل التاريخ يُمرَّر من Forms بصيغة `YYYY-MM-DD` ويُحوَّل بـ `TO_DATE(:P_TO, 'YYYY-MM-DD')` في الاستعلام إن عرّفته Char (الأفضل Date مع Input Mask `YYYY-MM-DD`).
+- الاستعلامات تستخدم متغيرات ربط بأسماء `:P_...` تطابق أسماء المعاملات تماماً.
+
+## التقارير
+
+| الملف المصدر | اسم التقرير | النوع | المعاملات | التخطيط |
+|---|---|---|---|---|
+| `trial_balance.sql` | `RPT_TRIAL_BALANCE` | Tabular | `P_TO` | أعمدة: الرمز، الحساب، مجموع المدين، مجموع الدائن، رصيد مدين، رصيد دائن. **ملخصات** (Summary Columns، Reset At = Report) لكل عمود مالي. رأس التقرير: الشركة + «حتى تاريخ». سطر تحقق أسفل الإجمالي: «الميزان متوازن/غير متوازن» بحقل صيغة `IF :CS_TOTAL_DEBIT = :CS_TOTAL_CREDIT THEN ...`. |
+| `ledger.sql` | `RPT_LEDGER` | Group Left | `P_ACCOUNT`, `P_FROM`, `P_TO` | رأس: رمز الحساب واسمه (استعلام مساعد `SELECT code, name FROM erp_accounts WHERE code = :P_ACCOUNT`). الصف الأول رصيد أول الفترة. العمود `balance` يُعرض كما هو (محسوب في الاستعلام). الرصيد الختامي = `balance` في آخر صف (Summary Column: Function = Last). |
+| `journal.sql` | `RPT_JOURNAL` | Group Above | `P_FROM`, `P_TO` | تجميع بـ `entry_id` (رأس المجموعة: رقم القيد والتاريخ والبيان والعلامة «عكسي»)، وتفاصيل الأسطر تحته. إجمالي مدين/دائن عام. |
+| `party_statement.sql` | `RPT_PARTY_STATEMENT` | Tabular | `P_PARTY` | رأس: اسم الطرف (استعلام مساعد من `erp_parties`). `balance` جارٍ، والرصيد المستحق = آخر قيمة. |
+| `invoice_print.sql` | `RPT_INVOICE` | Master/Detail (Form-Like) | `P_INVOICE` | استعلامان `Q_HEAD` و`Q_LINES` برابط (Data Link) `invoice_id`. الرأس: رقم الفاتورة، التاريخ، الطرف، الرقم الضريبي. الجدول: الوصف، الكمية، السعر، الضريبة %، الصافي، الإجمالي. أسفل: المجموع قبل الضريبة، الضريبة، الإجمالي، المدفوع، المتبقي. |
+| `aging.sql` | `RPT_AGING` | Tabular | `P_KIND` (SALES/PURCHASE), `P_ASOF` | أعمدة الشرائح: غير مستحق، 1-30، 31-60، 61-90، أكثر من 90، الإجمالي. إجماليات أسفل كل عمود. |
+| `vat_summary.sql` | `RPT_VAT_SUMMARY` | Tabular | `P_FROM`, `P_TO` | صفّا مخرجات/مدخلات ثم صافي الضريبة. للإقرار الضريبي الدوري (مراجعة المحاسب ضرورية: الاستعلام لا يغطي الأرصدة الافتتاحية أو التسويات). |
+
+## نشر التقارير
+
+1. ابنِ `.rdf` وتحقق منه محلياً بـ **Reports Builder ← Run Paper Layout** مع بيانات اختبار (أعدّها بتشغيل `sql/06_selftest.sql` بلا `ROLLBACK` في بيئة تجريبية، أو ترحيل حركات يدوياً).
+2. انسخ الملفات إلى مسار `REPORTS_PATH` وسجّل التقارير في `rwserver.conf` (عنصر `<job>`/`<engine>`) وعرّف اتصال `<connection>` بمخطط التطبيق.
+3. من Forms: كائنات `Report` ووحدة `run_erp_report` في `forms/FORMS_SPEC.md`.
+
+## اختبار الاستعلامات
+
+شغّل أي ملف من `reports/` في **SQL Developer**: تظهر نافذة لإدخال قيم متغيرات الربط (`:P_TO` وغيرها). أدخل التواريخ بصيغة `DATE '2026-12-31'` أو اتركها `NULL` حيث تكون اختيارية. تجنّب تمرير التواريخ كنصوص في SQL*Plus لأن التحويل الضمني يعتمد على إعدادات `NLS_DATE_FORMAT`.

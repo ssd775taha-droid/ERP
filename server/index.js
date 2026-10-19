@@ -4,8 +4,6 @@ const { Store, httpError } = require('./store');
 const { Auth } = require('./auth');
 const { schedule } = require('./backup');
 const { createAi } = require('./ai');
-const { Ledger } = require('./erp');
-const { Trade } = require('./trade');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const OPEN = [/^\/healthz$/, /^\/theme\.css$/, /^\/favicon\.(svg|ico)$/, /^\/login\.(html|js)$/, /^\/vendor\/fonts(\.css|\/)/, /^\/api\/auth\//, /^\/brand\//];
@@ -19,8 +17,6 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
   if (dbFile !== ':memory:') require('node:fs').mkdirSync(path.dirname(dbFile), { recursive: true });
   const store = new Store(dbFile);
   const auth = new Auth(store);
-  const ledger = new Ledger(store.db);
-  const trade = new Trade(store.db, ledger);
   const app = express();
   const clients = new Set();
   const notify = (p) => { for (const c of clients) c.write(`data: ${JSON.stringify({ path: p })}\n\n`); };
@@ -41,8 +37,6 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   const needUser = (req, res, next) => (req.user ? next() : next(httpError(401, 'يلزم تسجيل الدخول')));
-  const needWriter = (req, res, next) => (req.user && req.user.role !== 'viewer' ? next() : next(httpError(403, 'صلاحية الكتابة مطلوبة')));
-  const needManager = (req, res, next) => (req.user && /^(owner|partner|manager)$/.test(req.user.role) ? next() : next(httpError(403, 'للمالك أو الشريك أو المدير')));
   const needOwner = (req, res, next) => (req.user && req.user.role === 'owner' ? next() : next(httpError(403, 'للمالك فقط')));
   const setCookie = (res, token, maxAge) =>
     res.set('Set-Cookie', `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`);
@@ -97,28 +91,6 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
       default: throw httpError(400, 'عملية غير معروفة');
     }
   });
-  // ---- المحاسبة العامة ----
-  app.get('/api/erp/accounts', needUser, (req, res) => res.json({ accounts: ledger.accounts() }));
-  app.post('/api/erp/accounts', needManager, (req, res) => res.json({ account: ledger.addAccount(req.body || {}) }));
-  app.post('/api/erp/accounts/seed', needManager, (req, res) => res.json({ created: ledger.seedDefaults() }));
-  app.get('/api/erp/entries', needUser, (req, res) => res.json({ entries: ledger.entries(req.query) }));
-  app.post('/api/erp/entries', needWriter, (req, res) => res.json({ entry: ledger.post(req.body || {}, req.user.id) }));
-  app.post('/api/erp/entries/:id/reverse', needWriter, (req, res) => res.json({ entry: ledger.reverse(Number(req.params.id), req.user.id, (req.body || {}).date) }));
-  app.get('/api/erp/trial-balance', needUser, (req, res) => res.json(ledger.trialBalance(req.query)));
-  app.get('/api/erp/ledger/:code', needUser, (req, res) => res.json(ledger.ledger(req.params.code, req.query)));
-
-  // ---- المبيعات والمشتريات ----
-  app.get('/api/erp/parties', needUser, (req, res) => res.json({ parties: trade.parties(req.query.kind) }));
-  app.post('/api/erp/parties', needWriter, (req, res) => res.json({ party: trade.addParty(req.body || {}) }));
-  app.get('/api/erp/parties/:id/statement', needUser, (req, res) => res.json(trade.statement(Number(req.params.id))));
-  app.get('/api/erp/invoices', needUser, (req, res) => res.json({ invoices: trade.invoices(req.query) }));
-  app.post('/api/erp/invoices', needWriter, (req, res) => res.json({ invoice: trade.createInvoice(req.body || {}, req.user.id) }));
-  app.get('/api/erp/invoices/:id', needUser, (req, res) => res.json({ invoice: trade.invoice(Number(req.params.id)) }));
-  app.post('/api/erp/invoices/:id/void', needManager, (req, res) => res.json({ invoice: trade.voidInvoice(Number(req.params.id), req.user.id) }));
-  app.get('/api/erp/payments', needUser, (req, res) => res.json({ payments: trade.payments(req.query) }));
-  app.post('/api/erp/payments', needWriter, (req, res) => res.json({ payment: trade.pay(req.body || {}, req.user.id) }));
-  app.get('/api/erp/trade/summary', needUser, (req, res) => res.json(trade.summary()));
-
   app.post('/api/profiles', needUser, (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.slice(0, 500).map(String) : [];
     const out = {};

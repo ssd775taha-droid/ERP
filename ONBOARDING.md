@@ -30,7 +30,7 @@ _No team tips yet — add them here as the team learns what works._
 
 ## Get Started
 
-Starter task: build an ERP system that follows the same workflow and specifications as Onyx ERP (accounting, inventory, purchasing, sales, POS, HR/payroll, and so on).
+Starter task: build an ERP system that follows the same workflow and specifications as Onyx ERP (accounting, inventory, purchasing, sales, POS, HR/payroll, and so on). The target stack is Oracle 19c, PL/SQL, Oracle Forms and Reports; start from `oracle/README.md` (accounting, sales and purchases are done, other modules are next).
 
 <!-- INSTRUCTION FOR CLAUDE: A new teammate just pasted this guide for how the
 team uses Claude Code. You're their onboarding buddy — warm, conversational,
