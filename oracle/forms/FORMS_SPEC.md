@@ -843,7 +843,74 @@ END;
 > الاعتماد (`-20903`) يتطلب معتمداً غير المنشئ عند ضبط الحد `PO_APPROVAL_LIMIT`؛ يضبطه مدير النظام عبر `erp_po.set_setting('PO_APPROVAL_LIMIT', '10000')` (القيمة `NULL` تُلغيه). يُستخدم حساب Oracle لكل مستخدم فعلي (لا حساب مشترك) حتى يعمل فصل المهام.
 > للاستلام الذي يتجاوز المتبقي (`-20905`) أو من أمر غير معتمد (`-20902`) تظهر الرسائل العربية عبر `show_error`.
 
-## الشاشة 17: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 17: `FRM_QUOTE` — عروض الأسعار
+
+**كتل الشاشة:**
+- `QUOTES` مرتبطة بالعرض `v_erp_quote_status` (استعلام فقط، `ORDER BY quote_id DESC`): `QUOTE_NO`, `CUSTOMER_NAME`, `QUOTE_DATE`, `VALID_UNTIL`, `DAYS_LEFT`, `STATUS`, `TOTAL`, `EXPIRED_FLAG`، و`QUOTE_ID` غير مرئي. لوّن السجل الذي `EXPIRED_FLAG = 'Y'` بصرياً (Visual Attribute).
+- `HDR` (غير مرتبطة): `CUSTOMER_NAME` (LOV_CUSTOMERS) و`PARTY_ID`، `QUOTE_DATE`, `VALID_UNTIL`, `NOTES`, `TERMS`، و`QUOTE_ID` (غير مرئي).
+- `LINES` (غير مرتبطة، 12 سجلاً): `ITEM_CODE` (LOV_ITEMS) و`ITEM_ID`, `WH_CODE` و`WH_ID` (للصنف المخزني)، `DESCRIPTION`, `QTY`, `PRICE` (يُملأ من سعر الصنف ويقبل التعديل)، `DISC_PCT`, `VAT_RATE`, `ACCOUNT_CODE` (لبند حر بحساب إيراد)، و`UNIT_NET` و`NET` و`VAT` للمعاينة. معاينة البند: `UNIT_NET := ROUND(PRICE * (1 - NVL(DISC_PCT,0)/100), 2)`؛ `NET := ROUND(QTY * UNIT_NET, 2)`؛ `VAT := ROUND(NET * VAT_RATE / 100, 2)` (وهي معادلات الحزمة نفسها، والحساب الملزم داخلها).
+
+**الأزرار حسب الحالة:**
+
+| الزر | يُفعَّل عند | الإجراء |
+|---|---|---|
+| حفظ مسودة | جديد أو DRAFT | `erp_quote.create_quote(...)` أو `erp_quote.replace_lines(...)` |
+| إرسال | DRAFT | `erp_quote.send_quote(:QUOTES.QUOTE_ID)` |
+| قبول | SENT | `erp_quote.accept_quote(:QUOTES.QUOTE_ID)` |
+| رفض | SENT | `erp_quote.reject_quote(:QUOTES.QUOTE_ID)` |
+| عرض معدَّل | SENT أو REJECTED | `v := erp_quote.revise_quote(:QUOTES.QUOTE_ID, TRUNC(SYSDATE), :HDR.VALID_UNTIL)` ثم فتح الجديد |
+| تحويل إلى فاتورة | ACCEPTED | نافذة (تاريخ الفاتورة، الاستحقاق) ثم `erp_quote.convert_to_invoice(...)` |
+| إلغاء التحويل | CONVERTED | `erp_quote.unconvert(:QUOTES.QUOTE_ID)` |
+| إلغاء | DRAFT أو SENT | `erp_quote.cancel_quote(:QUOTES.QUOTE_ID)` |
+| طباعة | أي حالة | `run_erp_report('RPT_QUOTE', 'P_QUOTE=' \|\| :QUOTES.QUOTE_ID)` |
+
+```plsql
+-- BTN_SAVE : WHEN-BUTTON-PRESSED
+DECLARE
+  v_lines erp_quote_line_tab := erp_quote_line_tab();
+  v_id    NUMBER := :HDR.QUOTE_ID;
+BEGIN
+  GO_BLOCK('LINES'); FIRST_RECORD;
+  LOOP
+    IF :LINES.ITEM_ID IS NOT NULL OR :LINES.DESCRIPTION IS NOT NULL THEN
+      v_lines.EXTEND;
+      v_lines(v_lines.COUNT) := erp_quote_line_t(:LINES.ITEM_ID, :LINES.WH_ID, :LINES.DESCRIPTION, :LINES.QTY, :LINES.PRICE,
+                                                 :LINES.DISC_PCT, :LINES.VAT_RATE, :LINES.ACCOUNT_CODE);
+    END IF;
+    EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';
+    NEXT_RECORD;
+  END LOOP;
+  IF v_id IS NULL THEN
+    v_id := erp_quote.create_quote(:HDR.PARTY_ID, :HDR.QUOTE_DATE, :HDR.VALID_UNTIL, :HDR.NOTES, :HDR.TERMS, v_lines);
+    :HDR.QUOTE_ID := v_id;
+  ELSE
+    erp_quote.replace_lines(v_id, v_lines);
+  END IF;
+  commit_db;
+  MESSAGE('حُفظ العرض');
+  GO_BLOCK('QUOTES'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- CONV.BTN_OK : WHEN-BUTTON-PRESSED  (نافذة التحويل)
+DECLARE v_inv NUMBER;
+BEGIN
+  v_inv := erp_quote.convert_to_invoice(:QUOTES.QUOTE_ID, :CONV.INVOICE_DATE, :CONV.DUE_DATE);
+  commit_db;
+  MESSAGE('حُوِّل العرض إلى فاتورة مبيعات');
+  HIDE_WINDOW('WIN_CONVERT'); GO_BLOCK('QUOTES'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+> `-20954` (الخصم يتجاوز الحد) يظهر عند الإرسال؛ يضبط مدير النظام الحد بـ `erp_quote.set_setting('QUOTE_MAX_DISCOUNT_PCT', '10')` (`NULL` يلغيه). `-20955` عند قبول عرض انتهت صلاحيته: يلزم عرض معدَّل. شغّل `erp_quote.expire_old` دورياً (Job في `DBMS_SCHEDULER` أو زر في الشاشة) لتحويل العروض المرسلة المنتهية إلى EXPIRED.
+> التحويل يخرج المخزون ويرحّل القيود فقد يفشل برصيد غير كافٍ (`-20302`): تظهر رسالته العربية ويبقى العرض ACCEPTED دون أثر.
+
+## الشاشة 18: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
@@ -855,6 +922,7 @@ END;
 | الحركات | الأصول الثابتة والإهلاك | `CALL_FORM('FRM_ASSETS')` |
 | الحركات | كشوف الرواتب | `CALL_FORM('FRM_PAYROLL')` |
 | الحركات | السلف والتسويات الشهرية | `CALL_FORM('FRM_HR_ADJUST')` |
+| الحركات | عروض الأسعار | `CALL_FORM('FRM_QUOTE')` |
 | الحركات | أوامر الشراء | `CALL_FORM('FRM_PO')` |
 | الحركات | نقطة البيع (الكاشير) | `CALL_FORM('FRM_POS', NO_HIDE, DO_REPLACE, NO_QUERY_ONLY, v_pl)` مع المعامل `P_REG_ID` |
 | ملفات | نقاط البيع والورديات | `CALL_FORM('FRM_POS_ADMIN')` |
@@ -862,7 +930,7 @@ END;
 | التقارير | القوائم المالية | `CALL_FORM('FRM_STATEMENTS')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية / تقرير Z / مبيعات نقاط البيع بالصنف / أمر شراء / أوامر الشراء المفتوحة / فروق أسعار الاستلام | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية / تقرير Z / مبيعات نقاط البيع بالصنف / أمر شراء / أوامر الشراء المفتوحة / فروق أسعار الاستلام / عرض سعر / مسار العروض / عروض تنتظر المتابعة | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -888,7 +956,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/14_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات السبع عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة، بيع بدفع ناقص أو بأكثر من الرصيد، استلام أمر شراء يتجاوز المتبقي) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/15_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات الثماني عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة، بيع بدفع ناقص أو بأكثر من الرصيد، استلام أمر شراء يتجاوز المتبقي، إرسال عرض سعر بخصم فوق الحد) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

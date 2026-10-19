@@ -188,3 +188,16 @@ SELECT po.po_no, pa.name AS supplier_name, rc.receipt_id, rc.receipt_date, ln.de
   JOIN erp_purchase_orders po ON po.po_id = rc.po_id
   JOIN erp_parties pa       ON pa.party_id = po.party_id
   JOIN erp_po_lines ln      ON ln.line_id = rl.po_line_id;
+
+-- عروض الأسعار: الحالة مع العميل والإجمالي ومؤشر الانتهاء (مرسل تجاوز صلاحيته ولم يُحوَّل إلى EXPIRED بعد)
+CREATE OR REPLACE VIEW v_erp_quote_status AS
+SELECT q.quote_id, q.quote_no, pa.name AS customer_name, q.quote_date, q.valid_until, q.status,
+       q.subtotal, q.vat_amount, q.total, q.revision_of, q.invoice_id,
+       q.valid_until - TRUNC(SYSDATE) AS days_left,
+       CASE WHEN q.status = 'SENT' AND q.valid_until < TRUNC(SYSDATE) THEN 'Y' ELSE 'N' END AS expired_flag
+  FROM erp_quotations q JOIN erp_parties pa ON pa.party_id = q.party_id;
+
+-- مسار المبيعات: عدد وقيمة عروض كل حالة (للمقارنة وحساب نسبة التحويل)
+CREATE OR REPLACE VIEW v_erp_quote_pipeline AS
+SELECT status, COUNT(*) AS quotes, NVL(SUM(total), 0) AS total_value
+  FROM erp_quotations GROUP BY status;

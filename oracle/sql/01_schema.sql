@@ -79,6 +79,21 @@ CREATE OR REPLACE TYPE erp_po_rcv_t AS OBJECT (
 CREATE OR REPLACE TYPE erp_po_rcv_tab AS TABLE OF erp_po_rcv_t;
 /
 
+-- عروض الأسعار: بنود العرض
+CREATE OR REPLACE TYPE erp_quote_line_t AS OBJECT (
+  item_id       NUMBER,        -- اختياري: صنف (يحدد الوصف والسعر والضريبة الافتراضية)
+  wh_id         NUMBER,        -- مخزن الصرف (إلزامي للصنف المخزني)
+  description   VARCHAR2(200), -- إلزامي لبند بلا صنف
+  qty           NUMBER,
+  price         NUMBER,        -- اختياري: الافتراضي سعر بيع الصنف
+  discount_pct  NUMBER,        -- اختياري: خصم % على سعر الوحدة
+  vat_rate      NUMBER,        -- اختياري: الافتراضي نسبة ضريبة الصنف أو 0
+  account_code  VARCHAR2(12)   -- حساب إيراد (إلزامي لبند بلا صنف؛ اختياري لصنف)
+);
+/
+CREATE OR REPLACE TYPE erp_quote_line_tab AS TABLE OF erp_quote_line_t;
+/
+
 -- قائمة رسائل (مشكلات تمنع إقفال فترة)
 CREATE OR REPLACE TYPE erp_msg_tab AS TABLE OF VARCHAR2(300);
 /
@@ -706,3 +721,62 @@ CREATE TABLE erp_po_receipt_lines (
   po_price     NUMBER(18,2) NOT NULL      -- سعر الأمر وقت الاستلام (فرق السعر = (price − po_price) × qty)
 );
 CREATE INDEX erp_po_receipt_lines_rc_ix ON erp_po_receipt_lines (receipt_id);
+
+-- ---------------------------------------------------------------- عروض الأسعار (مبيعات)
+-- التزام تجاري بلا أثر محاسبي. DRAFT (قابل للتعديل) ← SENT (البنود مقفلة) ← ACCEPTED ← CONVERTED (فاتورة مبيعات)
+-- أو REJECTED / EXPIRED / CANCELLED / SUPERSEDED (حلّ محله عرض معدَّل).
+CREATE TABLE erp_quotations (
+  quote_id      NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_quotations_pk PRIMARY KEY,
+  quote_no      VARCHAR2(20) NOT NULL CONSTRAINT erp_quotations_no_uk UNIQUE,
+  party_id      NUMBER       NOT NULL CONSTRAINT erp_quotations_party_fk REFERENCES erp_parties (party_id),
+  quote_date    DATE         NOT NULL,
+  valid_until   DATE         NOT NULL,
+  status        VARCHAR2(10) DEFAULT 'DRAFT' NOT NULL
+                CONSTRAINT erp_quotations_status_ck CHECK (status IN ('DRAFT','SENT','ACCEPTED','REJECTED','EXPIRED','CONVERTED','CANCELLED','SUPERSEDED')),
+  subtotal      NUMBER(18,2) DEFAULT 0 NOT NULL,
+  vat_amount    NUMBER(18,2) DEFAULT 0 NOT NULL,
+  total         NUMBER(18,2) DEFAULT 0 NOT NULL,
+  notes         VARCHAR2(300),
+  terms         VARCHAR2(500),
+  revision_of   NUMBER       CONSTRAINT erp_quotations_rev_fk REFERENCES erp_quotations (quote_id),
+  invoice_id    NUMBER       CONSTRAINT erp_quotations_inv_fk REFERENCES erp_invoices (invoice_id),
+  sent_at       TIMESTAMP,
+  decided_at    TIMESTAMP,
+  created_by    VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at    TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT erp_quotations_valid_ck CHECK (valid_until >= quote_date)
+);
+CREATE INDEX erp_quotations_party_ix ON erp_quotations (party_id);
+CREATE INDEX erp_quotations_inv_ix   ON erp_quotations (invoice_id);
+
+CREATE TABLE erp_quote_lines (
+  line_id        NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_quote_lines_pk PRIMARY KEY,
+  quote_id       NUMBER        NOT NULL CONSTRAINT erp_quote_lines_quote_fk REFERENCES erp_quotations (quote_id),
+  line_no        NUMBER(4)     NOT NULL,
+  item_id        NUMBER        CONSTRAINT erp_quote_lines_item_fk REFERENCES erp_items (item_id),
+  wh_id          NUMBER        CONSTRAINT erp_quote_lines_wh_fk REFERENCES erp_warehouses (wh_id),
+  description    VARCHAR2(200) NOT NULL,
+  qty            NUMBER(18,3)  NOT NULL CONSTRAINT erp_quote_lines_qty_ck CHECK (qty > 0),
+  price          NUMBER(18,2)  NOT NULL CONSTRAINT erp_quote_lines_price_ck CHECK (price >= 0),
+  discount_pct   NUMBER(5,2)   DEFAULT 0 NOT NULL CONSTRAINT erp_quote_lines_disc_ck CHECK (discount_pct BETWEEN 0 AND 100),
+  unit_net_price NUMBER(18,2)  NOT NULL,   -- سعر الوحدة بعد الخصم مقرَّباً لمنزلتين؛ صافي البند = الكمية × هذا السعر
+  vat_rate       NUMBER(5,2)   DEFAULT 0 NOT NULL CONSTRAINT erp_quote_lines_rate_ck CHECK (vat_rate BETWEEN 0 AND 100),
+  account_code   VARCHAR2(12)  CONSTRAINT erp_quote_lines_acct_fk REFERENCES erp_accounts (code),
+  net            NUMBER(18,2)  NOT NULL,
+  vat            NUMBER(18,2)  NOT NULL,
+  CONSTRAINT erp_quote_lines_target_ck CHECK (item_id IS NOT NULL OR account_code IS NOT NULL),
+  CONSTRAINT erp_quote_lines_uk UNIQUE (quote_id, line_no)
+);
+
+-- بعد الإرسال لا تُضاف بنود العرض ولا تُعدَّل ولا تُحذف: التعديل بعرض معدَّل جديد (ERP_QUOTE.REVISE_QUOTE)
+CREATE OR REPLACE TRIGGER erp_quote_lines_lock_trg
+  BEFORE INSERT OR UPDATE OR DELETE ON erp_quote_lines FOR EACH ROW
+DECLARE
+  v_status erp_quotations.status%TYPE;
+BEGIN
+  SELECT status INTO v_status FROM erp_quotations WHERE quote_id = NVL(:NEW.quote_id, :OLD.quote_id);
+  IF v_status <> 'DRAFT' THEN
+    RAISE_APPLICATION_ERROR(-20912, 'لا تُعدَّل بنود عرض سعر بعد إرساله: أنشئ عرضاً معدَّلاً');
+  END IF;
+END;
+/

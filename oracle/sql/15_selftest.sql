@@ -1,6 +1,6 @@
 -- ============================================================================
--- 14: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
--- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @14_selftest.sql
+-- 15: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
+-- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @15_selftest.sql
 -- ============================================================================
 SET SERVEROUTPUT ON
 SET DEFINE OFF
@@ -14,6 +14,8 @@ DECLARE
   q_t NUMBER; q_v NUMBER; q_c NUMBER; q_d NUMBER; q_st VARCHAR2(20);
   r_wh NUMBER; r_i1 NUMBER; r_po1 NUMBER; r_po2 NUMBER; r_rc1 NUMBER; r_rc2 NUMBER; r_x NUMBER; r_y NUMBER; r_l1 NUMBER; r_l2 NUMBER;
   r_inv1 NUMBER; r_st VARCHAR2(20); r_t NUMBER;
+  u_wh NUMBER; u_i1 NUMBER; u_i2 NUMBER; u_q1 NUMBER; u_q2 NUMBER; u_q2b NUMBER; u_q3 NUMBER; u_q4 NUMBER; u_q5 NUMBER;
+  u_inv NUMBER; u_inv2 NUMBER; u_t NUMBER; u_s NUMBER; u_v NUMBER; u_st VARCHAR2(20);
   v_st VARCHAR2(20); v_ni NUMBER; v_cl NUMBER; v_iss erp_msg_tab;
   v_hd NUMBER; v_e1 NUMBER; v_e2 NUMBER; v_e3 NUMBER; v_e4 NUMBER; v_cal NUMBER; v_ctr NUMBER; v_csi NUMBER; v_cse NUMBER;
   v_hadv NUMBER; v_ra NUMBER; v_rb NUMBER; v_rc NUMBER; v_rd NUMBER; v_re NUMBER; v_n1 NUMBER; v_n2 NUMBER; v_n3 NUMBER;
@@ -723,6 +725,137 @@ BEGIN
 
   SELECT NVL(SUM(difference), 0) INTO r_t FROM v_erp_stock_vs_gl;
   check_true('بعد الاستلامات: المخزون يطابق الأستاذ', r_t = 0);
+
+
+  -- ================= عروض الأسعار =================
+  u_wh := erp_stock.add_warehouse('WQ', 'مخزن العروض');
+  u_i1 := erp_stock.add_item('QI1', 'صنف عرض', 'قطعة', 100, 'Y', '1400', '5100', '4100', 15);
+  u_i2 := erp_stock.add_item('QS1', 'خدمة عرض', 'ساعة', 50, 'N');
+  v_tmp := erp_stock.adjust(u_i1, u_wh, DATE '2026-09-01', 10, 40, '3100');
+
+  BEGIN v_tmp := erp_quote.create_quote(v_sup, DATE '2026-09-10', DATE '2026-09-30', NULL, NULL,
+                   erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, NULL, NULL, NULL, NULL)));
+    check_true('رفض عرض سعر لمورد (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض عرض سعر لمورد [' || SQLCODE || ']', SQLCODE = -20950); END;
+  BEGIN v_tmp := erp_quote.create_quote(v_cust, DATE '2026-09-10', DATE '2026-09-01', NULL, NULL,
+                   erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, NULL, NULL, NULL, NULL)));
+    check_true('رفض صلاحية قبل تاريخ العرض (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض صلاحية قبل تاريخ العرض [' || SQLCODE || ']', SQLCODE = -20950); END;
+  BEGIN v_tmp := erp_quote.create_quote(v_cust, DATE '2026-09-10', DATE '2026-09-30', NULL, NULL,
+                   erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, NULL, 150, NULL, NULL)));
+    check_true('رفض خصم أكبر من 100% (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض خصم أكبر من 100% [' || SQLCODE || ']', SQLCODE = -20952); END;
+  BEGIN v_tmp := erp_quote.create_quote(v_cust, DATE '2026-09-10', DATE '2026-09-30', NULL, NULL,
+                   erp_quote_line_tab(erp_quote_line_t(NULL, NULL, 'بند', 1, 10, NULL, NULL, '5400')));
+    check_true('رفض حساب غير إيرادي لبند (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض حساب غير إيرادي لبند [' || SQLCODE || ']', SQLCODE = -20952); END;
+  BEGIN v_tmp := erp_quote.create_quote(v_cust, DATE '2026-09-10', DATE '2026-09-30', NULL, NULL,
+                   erp_quote_line_tab(erp_quote_line_t(u_i1, NULL, NULL, 1, NULL, NULL, NULL, NULL)));
+    check_true('رفض صنف مخزني بلا مخزن (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض صنف مخزني بلا مخزن [' || SQLCODE || ']', SQLCODE = -20952); END;
+
+  -- عرض: صنف مخزني 2 × (100 − 10%) + خدمة 3 × 50 + بند حر 200 بضريبة 15% → 530 + 57 = 587
+  u_q1 := erp_quote.create_quote(v_cust, DATE '2026-09-10', DATE '2026-09-30', 'ملاحظة', 'شروط الدفع: 30 يوماً',
+            erp_quote_line_tab(erp_quote_line_t(u_i1, u_wh, NULL, 2, NULL, 10, NULL, NULL),
+                               erp_quote_line_t(u_i2, NULL, NULL, 3, NULL, NULL, NULL, NULL),
+                               erp_quote_line_t(NULL, NULL, 'تركيب', 1, 200, 0, 15, '4200')));
+  SELECT status, subtotal, vat_amount, total INTO u_st, u_t, u_s, u_v FROM erp_quotations WHERE quote_id = u_q1;
+  check_true('عرض مسودة: صافي 530 + ضريبة 57 = 587', u_st = 'DRAFT' AND u_t = 530 AND u_s = 57 AND u_v = 587);
+  BEGIN v_tmp := erp_quote.convert_to_invoice(u_q1, DATE '2026-09-11');
+    check_true('رفض تحويل عرض غير مقبول (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض تحويل عرض غير مقبول [' || SQLCODE || ']', SQLCODE = -20951); END;
+
+  -- حد الخصم عند الإرسال
+  erp_quote.set_setting('QUOTE_MAX_DISCOUNT_PCT', '5');
+  BEGIN erp_quote.send_quote(u_q1);
+    check_true('رفض إرسال عرض بخصم يتجاوز الحد (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إرسال عرض بخصم يتجاوز الحد [' || SQLCODE || ']', SQLCODE = -20954); END;
+  BEGIN erp_quote.set_setting('QUOTE_MAX_DISCOUNT_PCT', 'abc');
+    check_true('رفض قيمة إعداد غير رقمية (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض قيمة إعداد غير رقمية [' || SQLCODE || ']', SQLCODE = -20956); END;
+  BEGIN erp_quote.set_setting('QUOTE_MAX_DISCOUNT_PCT', '150');
+    check_true('رفض إعداد خارج 0-100 (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إعداد خارج 0-100 [' || SQLCODE || ']', SQLCODE = -20956); END;
+  erp_quote.set_setting('QUOTE_MAX_DISCOUNT_PCT', '15');
+  erp_quote.send_quote(u_q1);
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q1;
+  check_true('إرسال العرض بعد رفع الحد', u_st = 'SENT');
+  BEGIN UPDATE erp_quote_lines SET qty = 9 WHERE quote_id = u_q1 AND line_no = 1;
+    check_true('منع تعديل بنود عرض مرسل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('منع تعديل بنود عرض مرسل [' || SQLCODE || ']', SQLCODE = -20912); END;
+  BEGIN erp_quote.replace_lines(u_q1, erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, NULL, NULL, NULL, NULL)));
+    check_true('رفض استبدال بنود عرض مرسل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض استبدال بنود عرض مرسل [' || SQLCODE || ']', SQLCODE = -20951); END;
+
+  -- الصلاحية: القبول بعد 2026-09-30 مرفوض، وقبله مقبول
+  BEGIN erp_quote.accept_quote(u_q1, DATE '2026-10-05');
+    check_true('رفض قبول عرض منتهي الصلاحية (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض قبول عرض منتهي الصلاحية [' || SQLCODE || ']', SQLCODE = -20955); END;
+  erp_quote.accept_quote(u_q1, DATE '2026-09-20');
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q1;
+  check_true('قبول العرض ضمن الصلاحية', u_st = 'ACCEPTED');
+
+  -- التحويل إلى فاتورة مبيعات بالإجمالي نفسه، مع إخراج المخزون
+  u_inv := erp_quote.convert_to_invoice(u_q1, DATE '2026-09-21', DATE '2026-10-21');
+  SELECT subtotal, vat_amount, total INTO u_t, u_s, u_v FROM erp_invoices WHERE invoice_id = u_inv;
+  check_true('الفاتورة المحوَّلة تطابق العرض: 530 + 57 = 587', u_t = 530 AND u_s = 57 AND u_v = 587);
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q1;
+  check_true('حالة العرض CONVERTED والمخزون 8 بقيمة 320', u_st = 'CONVERTED' AND stk_qty(u_i1, u_wh) = 8 AND stk_val(u_i1, u_wh) = 320);
+  BEGIN v_tmp := erp_quote.convert_to_invoice(u_q1, DATE '2026-09-22');
+    check_true('رفض تحويل عرض محوَّل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض تحويل عرض محوَّل [' || SQLCODE || ']', SQLCODE = -20951); END;
+  BEGIN erp_trade.void_invoice(u_inv);
+    check_true('رفض إلغاء فاتورة محوَّلة من عرض مباشرة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء فاتورة محوَّلة من عرض مباشرة [' || SQLCODE || ']', SQLCODE = -20217); END;
+
+  -- إلغاء التحويل يلغي الفاتورة ويعيد المخزون والعرض
+  erp_quote.unconvert(u_q1);
+  SELECT status, invoice_id INTO u_st, u_t FROM erp_quotations WHERE quote_id = u_q1;
+  SELECT status INTO v_st FROM erp_invoices WHERE invoice_id = u_inv;
+  check_true('إلغاء التحويل: العرض ACCEPTED والفاتورة VOID والمخزون 10 بقيمة 400',
+    u_st = 'ACCEPTED' AND u_t IS NULL AND v_st = 'VOID' AND stk_qty(u_i1, u_wh) = 10 AND stk_val(u_i1, u_wh) = 400);
+  u_inv2 := erp_quote.convert_to_invoice(u_q1, DATE '2026-09-23');
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q1;
+  check_true('إعادة التحويل بعد الإلغاء', u_st = 'CONVERTED' AND u_inv2 <> u_inv);
+
+  -- عرض معدَّل: يُرسَل أولاً ثم يُعدَّل فيصير الأصل SUPERSEDED
+  u_q2 := erp_quote.create_quote(v_cust, DATE '2026-09-11', DATE '2026-09-25', NULL, NULL,
+            erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, 60, NULL, NULL, NULL)));
+  BEGIN u_q2b := erp_quote.revise_quote(u_q2);
+    check_true('رفض تعديل عرض مسودة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض تعديل عرض مسودة [' || SQLCODE || ']', SQLCODE = -20951); END;
+  erp_quote.send_quote(u_q2);
+  u_q2b := erp_quote.revise_quote(u_q2, DATE '2026-09-12', DATE '2026-09-28');
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q2;
+  SELECT status, total, revision_of INTO v_st, u_t, u_s FROM erp_quotations WHERE quote_id = u_q2b;
+  check_true('العرض المعدَّل: الأصل SUPERSEDED والجديد DRAFT بإجمالي 60 ومرتبط بالأصل', u_st = 'SUPERSEDED' AND v_st = 'DRAFT' AND u_t = 60 AND u_s = u_q2);
+
+  -- رفض وإلغاء وانتهاء
+  u_q3 := erp_quote.create_quote(v_cust, DATE '2026-09-11', DATE '2026-09-25', NULL, NULL,
+            erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, 60, NULL, NULL, NULL)));
+  erp_quote.send_quote(u_q3);
+  erp_quote.reject_quote(u_q3);
+  BEGIN erp_quote.accept_quote(u_q3, DATE '2026-09-12');
+    check_true('رفض قبول عرض مرفوض (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض قبول عرض مرفوض [' || SQLCODE || ']', SQLCODE = -20951); END;
+  u_q4 := erp_quote.create_quote(v_cust, DATE '2026-09-11', DATE '2026-09-25', NULL, NULL,
+            erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, 60, NULL, NULL, NULL)));
+  erp_quote.cancel_quote(u_q4);
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q4;
+  check_true('إلغاء عرض مسودة: CANCELLED', u_st = 'CANCELLED');
+  BEGIN erp_quote.cancel_quote(u_q1);
+    check_true('رفض إلغاء عرض محوَّل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء عرض محوَّل [' || SQLCODE || ']', SQLCODE = -20951); END;
+  u_q5 := erp_quote.create_quote(v_cust, DATE '2026-09-01', DATE '2026-09-10', NULL, NULL,
+            erp_quote_line_tab(erp_quote_line_t(u_i2, NULL, NULL, 1, 60, NULL, NULL, NULL)));
+  erp_quote.send_quote(u_q5);
+  u_t := erp_quote.expire_old(DATE '2026-09-15');
+  SELECT status INTO u_st FROM erp_quotations WHERE quote_id = u_q5;
+  check_true('انتهاء العروض المرسلة المتجاوزة صلاحيتها: عرض واحد EXPIRED', u_t = 1 AND u_st = 'EXPIRED');
+  erp_quote.set_setting('QUOTE_MAX_DISCOUNT_PCT', NULL);
+
+  SELECT NVL(SUM(difference), 0) INTO u_t FROM v_erp_stock_vs_gl;
+  check_true('بعد التحويلات: المخزون يطابق الأستاذ', u_t = 0);
 
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;

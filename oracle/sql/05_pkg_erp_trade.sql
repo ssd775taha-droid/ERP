@@ -17,6 +17,7 @@
 --   -20206 إجمالي الفاتورة يجب أن يكون موجباً     -20212 الفاتورة لا تخص الطرف
 --   -20213 لا تُلغى مشتريات بعد حركات لاحقة       -20214 صنف/مخزن البند غير صالح
 --   -20215 فاتورة مرتبطة بأصل ثابت لا تُلغى     -20216 فاتورة استلام أمر شراء (استخدم ERP_PO.VOID_RECEIPT)
+--   -20217 فاتورة محوَّلة من عرض سعر (استخدم ERP_QUOTE.UNCONVERT)
 -- ============================================================================
 CREATE OR REPLACE PACKAGE erp_trade AS
   FUNCTION add_party (
@@ -319,6 +320,12 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       SELECT COUNT(*) INTO v_tmp FROM erp_po_receipts WHERE invoice_id = p_invoice_id AND status = 'ACTIVE';
       IF v_tmp > 0 THEN
         RAISE_APPLICATION_ERROR(-20216, 'الفاتورة من استلام أمر شراء: ألغِ الاستلام عبر ERP_PO.VOID_RECEIPT');
+      END IF;
+    END IF;
+    IF v_inv.kind = 'SALES' THEN
+      SELECT COUNT(*) INTO v_tmp FROM erp_quotations WHERE invoice_id = p_invoice_id AND status = 'CONVERTED';
+      IF v_tmp > 0 THEN
+        RAISE_APPLICATION_ERROR(-20217, 'الفاتورة محوَّلة من عرض سعر: استخدم ERP_QUOTE.UNCONVERT');
       END IF;
     END IF;
     -- إلغاء مشتريات بعد حركات لاحقة على أصنافها يُفسد متوسط التكلفة؛ المسموح تسوية المخزون بدلاً منه
