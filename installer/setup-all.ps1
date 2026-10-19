@@ -19,5 +19,6 @@ if ($LASTEXITCODE -ne 0) { Stop-Msg 'فشل تشغيل واجهة الويب.' }
 Start-Sleep -Seconds 3
 Start-Process 'http://localhost:3001'
 Write-Host ''
-Write-Host 'تم. المستخدم: admin، وكلمة السر في الملف:' (Join-Path $root 'webui\.env-docker') -ForegroundColor Green
+Write-Host 'تم. لعرض اسم المستخدم وكلمة السر لاحقاً: قائمة ابدأ ← ERP ← ERP Password' -ForegroundColor Green
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'show-password.ps1')
 Read-Host 'اضغط Enter للإغلاق'

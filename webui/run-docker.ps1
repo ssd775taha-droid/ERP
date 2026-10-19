@@ -16,7 +16,7 @@ if (-not (Test-Path $envf)) {
   $webpw = New-Rand 12
   $lines = @('ERP_DB_USER=erp_owner', "ERP_DB_PASSWORD=$dbpw", "ERP_DB_CONNECT=host.docker.internal:$dbport/XEPDB1",
              'ERP_WEB_USER=admin', "ERP_WEB_PASSWORD=$webpw", "ERP_WEB_SECRET=$(New-Rand 40)")
-  [System.IO.File]::WriteAllLines((Join-Path $PSScriptRoot $envf), $lines)   # UTF-8 بلا BOM (docker --env-file لا يقبل BOM)
+  [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot $envf), (($lines -join "`n") + "`n"))   # UTF-8 بلا BOM ونهايات LF (docker --env-file)
   Write-Host "أُنشئ $envf — كلمة سر الدخول: $webpw"
 }
 

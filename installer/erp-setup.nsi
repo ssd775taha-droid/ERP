@@ -23,6 +23,7 @@ Section "Install"
   CreateDirectory "$SMPROGRAMS\ERP"
   CreateShortcut "$SMPROGRAMS\ERP\Start ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\start-erp.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\Stop ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\stop-erp.ps1"' "" 0
+  CreateShortcut "$SMPROGRAMS\ERP\ERP Password.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\show-password.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\ERP Setup (reinstall).lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup-all.ps1"' "" 0
   CreateShortcut "$DESKTOP\ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\start-erp.ps1"' "" 0
   WriteUninstaller "$INSTDIR\Uninstall.exe"
