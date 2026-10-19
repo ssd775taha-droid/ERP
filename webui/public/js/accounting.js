@@ -4,6 +4,10 @@
 
   // ---------- لوحة المعلومات ----------
   E.pages.dashboard = async function (el) {
+    if (!E.can('reports', 'r') && !E.can('accounting', 'r')) {
+      el.innerHTML = E.head('أهلاً ' + (E.me.fullName || E.me.user), 'دورك: ' + (E.me.roleName || '')) + '<div class="card">اختر من القائمة الجانبية. ' + (E.can('pos', 'w') ? '<a href="#/pos/sell">افتح شاشة البيع</a>' : '') + '</div>';
+      return;
+    }
     el.innerHTML = E.head('لوحة المعلومات', 'نظرة سريعة على الحالة المحاسبية');
     const s = await api('GET', '/summary');
     el.innerHTML = E.head('لوحة المعلومات', 'نظرة سريعة على الحالة المحاسبية') +

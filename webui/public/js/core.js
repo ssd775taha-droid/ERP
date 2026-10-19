@@ -43,6 +43,9 @@ window.ERP = (function () {
       (buyerName ? '<br>العميل: ' + E.esc(buyerName) + (buyerTaxNo ? ' — الرقم الضريبي: <span dir="ltr">' + E.esc(buyerTaxNo) + '</span>' : '') : '') +
       '</div><div>' + (withQr ? E.zatcaQr(date, total, vat) : '') + '</div></div></div>';
   };
+  // صلاحيات المستخدم الحالي (من /api/me): E.can('trade', 'w')
+  E.me = { perms: {}, isAdmin: false };
+  E.can = (mod, level) => E.me.isAdmin || ({ n: 0, r: 1, w: 2 }[E.me.perms[mod] || 'n'] >= { r: 1, w: 2 }[level || 'r']);
   E.qs = (o) => Object.keys(o).filter((k) => o[k] !== '' && o[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o[k])).join('&');
 
   E.toast = function (msg, bad) {

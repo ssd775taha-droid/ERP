@@ -4,6 +4,8 @@ const express = require('express');
 const config = require('./config');
 const db = require('./db');
 const { createAuth } = require('./auth');
+const { authorize, auditWrites } = require('./authz');
+const { ensureSchema } = require('./migrate');
 
 function createApp(cfg) {
   const auth = createAuth(cfg);
@@ -37,9 +39,15 @@ function createApp(cfg) {
 
   app.post('/api/login', auth.login);
   app.post('/api/logout', auth.logout);
-  app.get('/api/me', (req, res) => res.json({ user: req.user || null }));
+  app.get('/api/me', (req, res) => {
+    const u = req.user;
+    res.json(u ? { user: u.username, fullName: u.fullName, role: u.role, roleName: u.roleName, perms: u.perms, isAdmin: u.isAdmin } : { user: null });
+  });
 
   app.use('/api', auth.requireUser);
+  app.use('/api', auditWrites(auth));
+  app.use('/api', authorize);
+  app.use('/api', require('./routes/admin')(auth));
   app.use('/api', require('./routes/accounting')());
   app.use('/api', require('./routes/reports')());
   app.use('/api', require('./routes/periods')());
@@ -66,6 +74,7 @@ function createApp(cfg) {
 async function start() {
   const cfg = config.load();
   await db.init(cfg);
+  await ensureSchema();
   const app = createApp(cfg);
   const server = app.listen(cfg.port, cfg.host, () => {
     console.log(`واجهة ERP تعمل على http://localhost:${cfg.port}  (قاعدة البيانات: ${cfg.dbConnect})`);
@@ -79,4 +88,4 @@ if (require.main === module) {
   start().catch((e) => { console.error('تعذّر التشغيل:', e.message); process.exit(1); });
 }
 
-module.exports = { createApp };
+module.exports = { createApp, ensureSchema };

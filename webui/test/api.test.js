@@ -183,3 +183,68 @@ test('الضريبة السعودية: رفض رقم ضريبي خاطئ، وإ�
   const tb = (await call('GET', '/api/reports/trial-balance')).data.rows.find((x) => x.code === '2200');
   assert.strictEqual(Math.round(vr.data.totals.netPayable * 100), Math.round((tb.credit - tb.debit) * 100));
 });
+
+test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
+  const name = 'cash' + Date.now().toString(36);
+  assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة
+  assert.strictEqual((await call('POST', '/api/users', { username: cfg.webUser, roleId: 'cashier', password: 'Password123' })).status, 400); // اسم المدير الأساسي محجوز
+  const u = await call('POST', '/api/users', { username: name, fullName: 'كاشير اختبار', roleId: 'cashier', password: 'Password123' });
+  assert.strictEqual(u.status, 201);
+  assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'Password123' })).status, 400); // مكرر
+
+  const adminCookie = cookie;
+  cookie = '';
+  assert.strictEqual((await call('POST', '/api/login', { username: name, password: 'wrong-password' })).status, 401);
+  assert.strictEqual((await call('POST', '/api/login', { username: name, password: 'Password123' })).status, 200);
+  const status = async (m, url) => (await call(m, url)).status;
+  assert.strictEqual(await status('GET', '/api/pos/registers'), 200);
+  assert.strictEqual(await status('GET', '/api/accounts'), 200);          // قراءة مرجعية لكل المستخدمين
+  for (const url of ['/api/entries', '/api/invoices', '/api/payroll/runs', '/api/hr/employees', '/api/reports/trial-balance', '/api/summary', '/api/users', '/api/roles', '/api/audit']) {
+    assert.strictEqual(await status('GET', url), 403, url);
+  }
+  assert.strictEqual((await call('POST', '/api/accounts', { code: 'X1', name: 'x', type: 'ASSET' })).status, 403);
+  const me = await call('GET', '/api/me');
+  assert.strictEqual(me.data.role, 'cashier');
+  assert.strictEqual(me.data.isAdmin, false);
+  const cashierCookie = cookie;
+
+  // تعطيل ثم انتظار انتهاء ذاكرة المستخدم المؤقتة (5 ثوانٍ)
+  cookie = adminCookie;
+  assert.strictEqual((await call('PATCH', `/api/users/${u.data.id}`, { active: false })).status, 200);
+  await new Promise((r) => setTimeout(r, 300));
+  cookie = cashierCookie;
+  assert.strictEqual((await call('GET', '/api/me')).data.user, null);
+  cookie = '';
+  assert.strictEqual((await call('POST', '/api/login', { username: name, password: 'Password123' })).status, 401);   // المعطَّل لا يدخل
+
+  // إعادة التفعيل وتغيير كلمة السر يُسقط الجلسات القديمة
+  cookie = adminCookie;
+  assert.strictEqual((await call('PATCH', `/api/users/${u.data.id}`, { active: true })).status, 200);
+  cookie = '';
+  assert.strictEqual((await call('POST', '/api/login', { username: name, password: 'Password123' })).status, 200);
+  const oldSession = cookie;
+  cookie = adminCookie;
+  assert.strictEqual((await call('POST', `/api/users/${u.data.id}/password`, { password: 'Changed12345' })).status, 200);
+  cookie = oldSession;
+  assert.strictEqual((await call('GET', '/api/me')).data.user, null);
+  cookie = '';
+  assert.strictEqual((await call('POST', '/api/login', { username: name, password: 'Changed12345' })).status, 200);
+
+  // تنظيف: عطّل المستخدم ثم استرجع جلسة المدير
+  cookie = adminCookie;
+  assert.strictEqual((await call('PATCH', `/api/users/${u.data.id}`, { active: false })).status, 200);
+  const audit = await call('GET', '/api/audit?limit=50');
+  assert.ok(audit.data.rows.some((x) => x.username === name && x.action === 'LOGIN'));
+});
+
+test('الأدوار: دور المدير ثابت، ولا يُحذف دور جاهز أو مستخدَم', { skip: !hasDb || !canWrite }, async () => {
+  assert.strictEqual((await call('PATCH', '/api/roles/admin', { name: 'x' })).status, 400);
+  assert.strictEqual((await call('DELETE', '/api/roles/cashier')).status, 400);
+  const id = 'r' + Date.now().toString(36);
+  assert.strictEqual((await call('POST', '/api/roles', { id, name: 'دور اختبار', perms: { pos: 'r', trade: 'bogus' } })).status, 201);
+  const role = (await call('GET', '/api/roles')).data.roles.find((x) => x.id === id);
+  assert.strictEqual(role.perms.pos, 'r');
+  assert.strictEqual(role.perms.trade, 'n');           // قيمة غير صالحة تصير «لا شيء»
+  assert.strictEqual((await call('PATCH', `/api/roles/${id}`, { perms: { pos: 'w' } })).status, 200);
+  assert.strictEqual((await call('DELETE', `/api/roles/${id}`)).status, 200);
+});

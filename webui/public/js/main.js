@@ -3,28 +3,33 @@
   const app = E.$('#app');
   let me = null;
 
+  // [المسار، العنوان، الوحدة المطلوبة (قراءة) أو 'admin']؛ العنوان وحده = رأس مجموعة تُخفى إن لم يبق تحتها شيء
   const NAV = [
     ['', 'الرئيسية'],
     ['المحاسبة'],
-    ['accounts', 'دليل الحسابات'], ['entry/new', 'قيد يومية جديد'], ['entries', 'دفتر اليومية'],
+    ['accounts', 'دليل الحسابات', 'accounting'], ['entry/new', 'قيد يومية جديد', 'accounting'], ['entries', 'دفتر اليومية', 'accounting'],
     ['المبيعات والمشتريات'],
-    ['customers', 'العملاء'], ['sales', 'فواتير المبيعات'], ['suppliers', 'الموردون'], ['purchases', 'فواتير المشتريات'], ['payments', 'سندات القبض والصرف'],
+    ['customers', 'العملاء', 'trade'], ['sales', 'فواتير المبيعات', 'trade'], ['suppliers', 'الموردون', 'trade'], ['purchases', 'فواتير المشتريات', 'trade'], ['payments', 'سندات القبض والصرف', 'trade'],
     ['المخزون'],
-    ['inventory/items', 'الأصناف'], ['inventory/warehouses', 'المخازن'], ['inventory/stock', 'أرصدة المخزون'], ['inventory/moves', 'حركات المخزون'], ['inventory/adjust', 'تسوية وتحويل'],
+    ['inventory/items', 'الأصناف', 'inventory'], ['inventory/warehouses', 'المخازن', 'inventory'], ['inventory/stock', 'أرصدة المخزون', 'inventory'], ['inventory/moves', 'حركات المخزون', 'inventory'], ['inventory/adjust', 'تسوية وتحويل', 'inventory'],
     ['الأصول الثابتة'],
-    ['assets', 'سجل الأصول'], ['assets/new', 'أصل جديد'], ['assets/depreciation', 'الإهلاك الشهري'],
+    ['assets', 'سجل الأصول', 'assets'], ['assets/new', 'أصل جديد', 'assets'], ['assets/depreciation', 'الإهلاك الشهري', 'assets'],
     ['الرواتب والموارد البشرية'],
-    ['hr/employees', 'الموظفون'], ['hr/components', 'مكوّنات الراتب'], ['hr/adjustments', 'التسويات'], ['hr/advances', 'السلف'], ['payroll', 'كشوف الرواتب'],
+    ['hr/employees', 'الموظفون', 'hr'], ['hr/components', 'مكوّنات الراتب', 'hr'], ['hr/adjustments', 'التسويات', 'hr'], ['hr/advances', 'السلف', 'hr'], ['payroll', 'كشوف الرواتب', 'payroll'],
     ['نقاط البيع'],
-    ['pos/sell', 'شاشة البيع'], ['pos/sales', 'العمليات'], ['pos/shifts', 'الورديات'], ['pos/registers', 'النقاط'],
+    ['pos/sell', 'شاشة البيع', 'pos'], ['pos/sales', 'العمليات', 'pos'], ['pos/shifts', 'الورديات', 'pos'], ['pos/registers', 'النقاط', 'pos'],
     ['الطلبات والعروض'],
-    ['po', 'أوامر الشراء'], ['po/new', 'أمر شراء جديد'], ['quotes', 'عروض الأسعار'], ['quote/new', 'عرض سعر جديد'], ['settings', 'إعدادات الضوابط'], ['tax/settings', 'الضريبة السعودية'],
+    ['po', 'أوامر الشراء', 'orders'], ['po/new', 'أمر شراء جديد', 'orders'], ['quotes', 'عروض الأسعار', 'orders'], ['quote/new', 'عرض سعر جديد', 'orders'],
     ['التقارير'],
-    ['reports/trial-balance', 'ميزان المراجعة'], ['reports/ledger', 'كشف حساب'], ['reports/income-statement', 'قائمة الدخل'],
-    ['reports/aging', 'أعمار الديون'], ['reports/vat', 'إقرار الضريبة'], ['reports/balance-sheet', 'الميزانية'], ['reports/cash-flow', 'التدفقات النقدية'],
+    ['reports/trial-balance', 'ميزان المراجعة', 'reports'], ['reports/ledger', 'كشف حساب', 'reports'], ['reports/income-statement', 'قائمة الدخل', 'reports'],
+    ['reports/aging', 'أعمار الديون', 'reports'], ['reports/vat', 'إقرار الضريبة', 'reports'], ['reports/balance-sheet', 'الميزانية', 'reports'], ['reports/cash-flow', 'التدفقات النقدية', 'reports'],
     ['الإقفال'],
-    ['periods', 'الفترات والإقفال'],
+    ['periods', 'الفترات والإقفال', 'periods'],
+    ['الإعدادات'],
+    ['settings/home', 'إعدادات النظام'], ['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings'],
+    ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/password', 'كلمة سري'],
   ];
+  const allowed = (n) => !n[2] || (n[2] === 'admin' ? E.me.isAdmin : E.can(n[2], 'r'));
   const ROUTES = {
     '': 'dashboard', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
     'reports/trial-balance': 'trial-balance', 'reports/ledger': 'ledger', 'reports/income-statement': 'income-statement',
@@ -35,6 +40,7 @@
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters',
     po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
     'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
+    'settings/home': 'settingsHome', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/password': 'myPassword',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
     'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow',
@@ -48,15 +54,30 @@
     E.$('#lf').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);
-      try { const r = await E.api('POST', '/login', { username: f.get('username'), password: f.get('password') }); me = r.user || f.get('username'); await E.loadTax(); layout(); route(); }
+      try { await E.api('POST', '/login', { username: f.get('username'), password: f.get('password') }); await enter(); }
       catch (e) { loginView(e.message); }
     });
   }
 
+  // بعد الدخول: اقرأ الملف الشخصي والصلاحيات وإعدادات الضريبة ثم ارسم الواجهة
+  async function enter() {
+    const p = await E.api('GET', '/me');
+    if (!p.user) { loginView(); return; }
+    E.me = p; me = p.user;
+    await E.loadTax();
+    layout(); route();
+  }
+
   function layout() {
-    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div>' +
-      NAV.map((n) => n.length === 1 ? '<div class="grp">' + E.esc(n[0]) + '</div>' : '<a href="#/' + n[0] + '" data-r="' + n[0] + '">' + E.esc(n[1]) + '</a>').join('') +
-      '<div class="who">' + E.esc(me) + ' · <button class="link" id="lo">خروج</button></div></nav><main id="main"></main></div>';
+    const items = [];
+    NAV.forEach((n) => {
+      if (n.length === 1) items.push({ grp: n[0], kids: 0 });
+      else if (n.length === 2 || allowed(n)) { items.push({ n }); const g = items.filter((x) => x.grp).pop(); if (g) g.kids++; }
+    });
+    const html = items.filter((x) => !x.grp || x.kids > 0)
+      .map((x) => x.grp ? '<div class="grp">' + E.esc(x.grp) + '</div>' : '<a href="#/' + x.n[0] + '" data-r="' + x.n[0] + '">' + E.esc(x.n[1]) + '</a>').join('');
+    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div>' + html +
+      '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button></div></nav><main id="main"></main></div>';
     E.$('#lo').addEventListener('click', async () => { try { await E.api('POST', '/logout'); } catch (e) { /* نتجاهل */ } loginView(); });
   }
 
@@ -79,7 +100,6 @@
   E.onUnauth = () => loginView('انتهت الجلسة، سجّل الدخول من جديد');
   window.addEventListener('hashchange', route);
   (async function init() {
-    try { const r = await E.api('GET', '/me'); if (r.user) { me = r.user; await E.loadTax(); layout(); route(); } else loginView(); }
-    catch (e) { loginView(); }
+    try { await enter(); } catch (e) { loginView(); }
   })();
 })(window.ERP);
