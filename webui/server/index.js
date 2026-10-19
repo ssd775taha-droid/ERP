@@ -32,7 +32,7 @@ function createApp(cfg) {
 
   app.get('/healthz', async (req, res) => {
     try { await db.query('SELECT 1 AS "x" FROM dual'); res.json({ ok: true }); }
-    catch { res.status(503).json({ ok: false }); }
+    catch (e) { console.error('healthz:', String(e.message).split('\n')[0]); res.status(503).json({ ok: false }); }
   });
 
   app.post('/api/login', auth.login);

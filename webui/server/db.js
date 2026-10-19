@@ -59,6 +59,7 @@ function toHttpError(e) {
   if (/ORA-00001/.test(msg)) return new HttpError(409, 'القيمة مكررة (قيد فريد)');
   if (/ORA-02292/.test(msg)) return new HttpError(409, 'لا يمكن الحذف: توجد سجلات مرتبطة');
   if (/ORA-02290|ORA-01400|ORA-01438|ORA-12899/.test(msg)) return new HttpError(400, 'بيانات غير صالحة لقيود قاعدة البيانات');
+  if (/ORA-01017/.test(msg)) return new HttpError(503, 'رفضت القاعدة كلمة سر المستخدم erp_owner المحفوظة في إعدادات الواجهة (ERP_DB_PASSWORD)');
   if (/ORA-12541|ORA-12514|ORA-12170|ORA-03113|ORA-03114|ORA-17002|NJS-040|NJS-500|DPY-/.test(msg)) {
     return new HttpError(503, 'تعذّر الاتصال بقاعدة البيانات');
   }

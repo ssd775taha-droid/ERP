@@ -21,6 +21,19 @@ if [ ! -f "$ENVF" ]; then
   echo "أُنشئ $ENVF — كلمة سر الدخول: $WEBPW"
 fi
 
+# كلمة سر القاعدة الحقيقية تُؤخذ من حاوية Oracle نفسها (قد تكون ثُبّتت من مجلد آخر بكلمة سر مختلفة)
+DBNAME="${ERP_ORACLE_NAME:-erp-oracle}"
+REAL="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$DBNAME" 2>/dev/null | sed -n 's/^APP_USER_PASSWORD=//p' | head -1)"
+if [ -n "$REAL" ]; then
+  CUR="$(sed -n 's/^ERP_DB_PASSWORD=//p' "$ENVF" | head -1)"
+  if [ "$REAL" != "$CUR" ]; then
+    sed -i "s|^ERP_DB_PASSWORD=.*|ERP_DB_PASSWORD=$REAL|" "$ENVF"
+    echo "حُدّثت كلمة سر القاعدة في $ENVF من الحاوية $DBNAME"
+  fi
+else
+  echo "تنبيه: لم أجد الحاوية $DBNAME لقراءة كلمة سر القاعدة؛ أُستخدم ما في الملف"
+fi
+
 docker build -t erp-web .
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" --restart unless-stopped --add-host host.docker.internal:host-gateway \
