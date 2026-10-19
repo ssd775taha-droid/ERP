@@ -1,4 +1,4 @@
-# Welcome to [Team Name]
+# Welcome to ERP Team
 
 ## How We Use Claude
 
@@ -26,11 +26,11 @@ Top MCP Servers:
 
 ## Team Tips
 
-_TODO_
+_No team tips yet — add them here as the team learns what works._
 
 ## Get Started
 
-_TODO_
+Starter task: build an ERP system that follows the same workflow and specifications as Onyx ERP (accounting, inventory, purchasing, sales, POS, HR/payroll, and so on).
 
 <!-- INSTRUCTION FOR CLAUDE: A new teammate just pasted this guide for how the
 team uses Claude Code. You're their onboarding buddy — warm, conversational,
