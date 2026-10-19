@@ -139,3 +139,34 @@ test('نقطة بيع: وردية، بيع بدفعة غير كافية يُرف
   assert.strictEqual(close.data.variance, -2);
   assert.strictEqual((await call('GET', '/api/inventory/check')).data.ok, true);
 });
+
+test('أمر شراء: اعتماد واستلام جزئي وفاتورة، ثم إلغاء الاستلام', { skip: !hasDb || !canWrite }, async () => {
+  const sup = await call('POST', '/api/parties', { kind: 'SUPPLIER', name: 'مورد اختبار آلي' });
+  const po = await call('POST', '/api/po', { partyId: sup.data.id, date: '2026-01-10', lines: [{ description: 'خدمة', qty: 4, price: 25, vatRate: 10, account: '5400' }] });
+  assert.strictEqual(po.status, 201);
+  assert.strictEqual(po.data.order.total, 110);
+  const id = po.data.order.id, lineId = po.data.order.lines[0].id;
+  assert.strictEqual((await call('POST', `/api/po/${id}/receive`, { date: '2026-01-11', lines: [{ lineId, qty: 1 }] })).status, 400); // غير معتمد
+  assert.strictEqual((await call('POST', `/api/po/${id}/approve`, {})).status, 200);
+  assert.strictEqual((await call('POST', `/api/po/${id}/receive`, { date: '2026-01-11', lines: [{ lineId, qty: 5 }] })).status, 400); // يتجاوز المتبقي
+  const rc = await call('POST', `/api/po/${id}/receive`, { date: '2026-01-11', ref: 'S-1', lines: [{ lineId, qty: 2 }] });
+  assert.strictEqual(rc.status, 201);
+  assert.strictEqual(rc.data.order.status, 'PARTIAL');
+  assert.strictEqual((await call('POST', `/api/po/receipts/${rc.data.receiptId}/void`, {})).data.order.status, 'APPROVED');
+});
+
+test('عرض سعر: إرسال وقبول وتحويل إلى فاتورة ثم إلغاء التحويل', { skip: !hasDb || !canWrite }, async () => {
+  const c = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل عرض اختبار' });
+  const q = await call('POST', '/api/quotes', { partyId: c.data.id, date: '2026-01-12', validUntil: '2026-02-12', lines: [{ description: 'خدمة', qty: 2, price: 100, discountPct: 10, vatRate: 15, account: '4200' }] });
+  assert.strictEqual(q.status, 201);
+  assert.strictEqual(q.data.quote.total, 207);   // 2 × 90 = 180 + 15%
+  const id = q.data.quote.id;
+  assert.strictEqual((await call('POST', `/api/quotes/${id}/accept`, {})).status, 400); // لم يُرسل
+  assert.strictEqual((await call('POST', `/api/quotes/${id}/send`, {})).status, 200);
+  assert.strictEqual((await call('POST', `/api/quotes/${id}/accept`, {})).status, 200);
+  const cv = await call('POST', `/api/quotes/${id}/convert`, { date: '2026-01-13' });
+  assert.strictEqual(cv.status, 200);
+  const inv = await call('GET', `/api/invoices/${cv.data.invoiceId}`);
+  assert.strictEqual(inv.data.invoice.total, 207);
+  assert.strictEqual((await call('POST', `/api/quotes/${id}/unconvert`, {})).data.quote.status, 'ACCEPTED');
+});
