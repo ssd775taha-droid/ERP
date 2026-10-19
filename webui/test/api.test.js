@@ -115,3 +115,27 @@ test('موظف وتسوية وكشف رواتب مسودة ثم إلغاؤه، �
   assert.strictEqual((await call('POST', '/api/payroll/runs', { period: '2026-12-01' })).status, 400); // كشف فعّال موجود
   assert.strictEqual((await call('POST', `/api/payroll/runs/${run.data.run.id}/cancel`, {})).status, 200);
 });
+
+test('نقطة بيع: وردية، بيع بدفعة غير كافية يُرفض، بيع، مرتجع، إقفال بفرق', { skip: !hasDb || !canWrite }, async () => {
+  const code = 'P' + Date.now().toString(36).toUpperCase();
+  const wh = await call('POST', '/api/inventory/warehouses', { code: code.slice(-12), name: 'مخزن نقطة اختبار' });
+  const it = await call('POST', '/api/inventory/items', { code, name: 'صنف نقطة', price: '10', vat: '10' });
+  assert.strictEqual((await call('POST', '/api/inventory/adjust', { itemId: it.data.id, whId: wh.data.id, date: '2026-01-09', qtyDelta: '10', unitCost: '4', offsetAccount: '3100' })).status, 201);
+  const reg = await call('POST', '/api/pos/registers', { code: code.slice(-12), name: 'نقطة اختبار', whId: wh.data.id });
+  assert.strictEqual(reg.status, 201);
+  const sh = await call('POST', '/api/pos/shifts/open', { regId: reg.data.id, openingCash: '100' });
+  assert.strictEqual(sh.status, 201);
+  const lines = [{ itemId: it.data.id, qty: 3 }];
+  assert.strictEqual((await call('POST', '/api/pos/sales', { shiftId: sh.data.id, date: '2026-01-09', lines, payments: [{ method: 'CASH', amount: '5' }] })).status, 400);
+  const s = await call('POST', '/api/pos/sales', { shiftId: sh.data.id, date: '2026-01-09', lines, payments: [{ method: 'CASH', amount: '40' }] });
+  assert.strictEqual(s.status, 201);
+  assert.strictEqual(s.data.sale.total, 33);
+  assert.strictEqual(s.data.sale.changeDue, 7);
+  const ret = await call('POST', `/api/pos/sales/${s.data.sale.id}/return`, { shiftId: sh.data.id, date: '2026-01-09', method: 'CASH', lines: [{ lineId: s.data.sale.lines[0].id, qty: 1 }] });
+  assert.strictEqual(ret.status, 201);
+  assert.strictEqual(ret.data.sale.total, 11);
+  assert.strictEqual((await call('GET', `/api/pos/shifts/${sh.data.id}`)).data.shift.expectedCashNow, 122); // 100 + 33 − 11
+  const close = await call('POST', `/api/pos/shifts/${sh.data.id}/close`, { counted: '120' });
+  assert.strictEqual(close.data.variance, -2);
+  assert.strictEqual((await call('GET', '/api/inventory/check')).data.ok, true);
+});
