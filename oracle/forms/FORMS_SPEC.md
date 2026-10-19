@@ -766,7 +766,84 @@ END;
 
 كتلة `REGS` مرتبطة بـ `erp_pos_registers` (`REG_ID` عرض فقط، `CODE`, `NAME`, `WH_ID` من LOV المخازن، `CASH_ACCOUNT` من LOV حسابات النقد (`cash_account = 'Y'`)، `PRICES_INCLUDE_VAT` Check Box، `ACTIVE`، `Delete Allowed = No`). الإنشاء الأسلم بكتلة غير مرتبطة وزر يستدعي `erp_pos.add_register(...)` لأنه يتحقق من نوع حساب الصندوق. كتلة `SHIFTS` مرتبطة بالعرض `v_erp_pos_shift_summary` (استعلام فقط، `ORDER BY opened_at DESC`) وزر لتقرير Z: `run_erp_report('RPT_Z', 'P_SHIFT=' || :SHIFTS.SHIFT_ID)`. وبتبويب المبيعات: كتلة على `erp_pos_sales` (استعلام فقط) تعرض الإيصالات مع زر إعادة الطباعة `RPT_POS_RECEIPT`.
 
-## الشاشة 16: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 16: `FRM_PO` — أوامر الشراء
+
+**كتل الشاشة:**
+- `POS` مرتبطة بالعرض `v_erp_po_status` (استعلام فقط، `ORDER BY po_id DESC`): `PO_NO`, `SUPPLIER_NAME`, `PO_DATE`, `EXPECTED_DATE`, `STATUS`, `TOTAL`, `ORDERED_QTY`, `RECEIVED_QTY`, `OVERDUE`، و`PO_ID` غير مرئي.
+- `HDR` (غير مرتبطة، سجل واحد): `SUPPLIER_NAME` (LOV_SUPPLIERS) و`PARTY_ID`، `PO_DATE`, `EXPECTED_DATE`, `NOTES`، و`PO_ID` (غير مرئي: يُملأ عند فتح أمر قائم أو حفظ جديد).
+- `LINES` (غير مرتبطة، 12 سجلاً): `ITEM_CODE` (LOV_ITEMS، اختياري) و`ITEM_ID`, `WH_CODE` (LOV_WAREHOUSES) و`WH_ID`, `DESCRIPTION`, `QTY`, `PRICE`, `VAT_RATE`, `ACCOUNT_CODE` (لبند بلا صنف مخزني)، و`NET`/`VAT` للعرض. اختيار صنف يملأ الوصف والضريبة، والمخزن الافتراضي `MAIN`.
+- `RCV` (نافذة الاستلام، غير مرتبطة): كتلة `RCV_LINES` استعلام على `v_erp_po_open_lines` للأمر الحالي مع عنصرين غير مرتبطين `RCV_QTY` و`RCV_PRICE` (اختياري)، وحقلا `RCV_DATE` و`SUP_INV_NO` (رقم فاتورة المورد).
+
+**الأزرار حسب حالة الأمر** (تفعيلها في `WHEN-NEW-RECORD-INSTANCE` لـ `POS` بنمط الرواتب):
+
+| الزر | يُفعَّل عند | الإجراء |
+|---|---|---|
+| حفظ مسودة | جديد أو DRAFT | `erp_po.create_po(...)` لأمر جديد، أو `erp_po.replace_lines(...)` لمسودة قائمة |
+| اعتماد | DRAFT | `erp_po.approve_po(:POS.PO_ID)` |
+| استلام | APPROVED أو PARTIAL | يفتح نافذة الاستلام ثم `erp_po.receive(...)` |
+| إلغاء استلام | أمر له استلامات (يُختار من قائمة استلامات الأمر) | `erp_po.void_receipt(:RCPTS.RECEIPT_ID)` |
+| إغلاق | APPROVED أو PARTIAL | `erp_po.close_po(:POS.PO_ID)` |
+| إلغاء الأمر | DRAFT أو APPROVED | `erp_po.cancel_po(:POS.PO_ID)` |
+| طباعة | أي حالة | `run_erp_report('RPT_PO', 'P_PO=' \|\| :POS.PO_ID)` |
+
+```plsql
+-- BTN_SAVE : WHEN-BUTTON-PRESSED  (مسودة جديدة أو استبدال بنود مسودة)
+DECLARE
+  v_lines erp_po_line_tab := erp_po_line_tab();
+  v_id    NUMBER := :HDR.PO_ID;
+BEGIN
+  GO_BLOCK('LINES'); FIRST_RECORD;
+  LOOP
+    IF :LINES.ITEM_ID IS NOT NULL OR :LINES.DESCRIPTION IS NOT NULL THEN
+      v_lines.EXTEND;
+      v_lines(v_lines.COUNT) := erp_po_line_t(:LINES.ITEM_ID, :LINES.WH_ID, :LINES.DESCRIPTION, :LINES.QTY, :LINES.PRICE,
+                                              :LINES.VAT_RATE, :LINES.ACCOUNT_CODE);
+    END IF;
+    EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';
+    NEXT_RECORD;
+  END LOOP;
+  IF v_id IS NULL THEN
+    v_id := erp_po.create_po(:HDR.PARTY_ID, :HDR.PO_DATE, :HDR.EXPECTED_DATE, :HDR.NOTES, v_lines);
+    :HDR.PO_ID := v_id;
+  ELSE
+    erp_po.replace_lines(v_id, v_lines);
+  END IF;
+  commit_db;
+  MESSAGE('حُفظ الأمر');
+  GO_BLOCK('POS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- RCV.BTN_OK : WHEN-BUTTON-PRESSED
+DECLARE
+  v_lines erp_po_rcv_tab := erp_po_rcv_tab();
+  v_rc    NUMBER;
+BEGIN
+  GO_BLOCK('RCV_LINES'); FIRST_RECORD;
+  LOOP
+    IF NVL(:RCV_LINES.RCV_QTY, 0) > 0 THEN
+      v_lines.EXTEND;
+      v_lines(v_lines.COUNT) := erp_po_rcv_t(:RCV_LINES.LINE_ID, :RCV_LINES.RCV_QTY, :RCV_LINES.RCV_PRICE);
+    END IF;
+    EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';
+    NEXT_RECORD;
+  END LOOP;
+  v_rc := erp_po.receive(:POS.PO_ID, :RCV.RCV_DATE, :RCV.SUP_INV_NO, v_lines);
+  commit_db;
+  MESSAGE('سُجّل الاستلام وأُنشئت فاتورة المشتريات');
+  HIDE_WINDOW('WIN_RECEIVE'); GO_BLOCK('POS'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+> الاعتماد (`-20903`) يتطلب معتمداً غير المنشئ عند ضبط الحد `PO_APPROVAL_LIMIT`؛ يضبطه مدير النظام عبر `erp_po.set_setting('PO_APPROVAL_LIMIT', '10000')` (القيمة `NULL` تُلغيه). يُستخدم حساب Oracle لكل مستخدم فعلي (لا حساب مشترك) حتى يعمل فصل المهام.
+> للاستلام الذي يتجاوز المتبقي (`-20905`) أو من أمر غير معتمد (`-20902`) تظهر الرسائل العربية عبر `show_error`.
+
+## الشاشة 17: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
@@ -778,13 +855,14 @@ END;
 | الحركات | الأصول الثابتة والإهلاك | `CALL_FORM('FRM_ASSETS')` |
 | الحركات | كشوف الرواتب | `CALL_FORM('FRM_PAYROLL')` |
 | الحركات | السلف والتسويات الشهرية | `CALL_FORM('FRM_HR_ADJUST')` |
+| الحركات | أوامر الشراء | `CALL_FORM('FRM_PO')` |
 | الحركات | نقطة البيع (الكاشير) | `CALL_FORM('FRM_POS', NO_HIDE, DO_REPLACE, NO_QUERY_ONLY, v_pl)` مع المعامل `P_REG_ID` |
 | ملفات | نقاط البيع والورديات | `CALL_FORM('FRM_POS_ADMIN')` |
 | الإقفال | إقفال الفترات والسنة | `CALL_FORM('FRM_PERIODS')` |
 | التقارير | القوائم المالية | `CALL_FORM('FRM_STATEMENTS')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية / تقرير Z / مبيعات نقاط البيع بالصنف | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية / تقرير Z / مبيعات نقاط البيع بالصنف / أمر شراء / أوامر الشراء المفتوحة / فروق أسعار الاستلام | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -810,7 +888,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/13_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات الست عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة، بيع بدفع ناقص أو بأكثر من الرصيد) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/14_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات السبع عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة، بيع بدفع ناقص أو بأكثر من الرصيد، استلام أمر شراء يتجاوز المتبقي) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

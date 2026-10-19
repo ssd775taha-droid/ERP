@@ -1,6 +1,6 @@
 -- ============================================================================
--- 13: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
--- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @13_selftest.sql
+-- 14: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
+-- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @14_selftest.sql
 -- ============================================================================
 SET SERVEROUTPUT ON
 SET DEFINE OFF
@@ -12,6 +12,8 @@ DECLARE
   q_wh NUMBER; q_i1 NUMBER; q_i2 NUMBER; q_g1 NUMBER; q_g2 NUMBER; q_sh1 NUMBER; q_sh2 NUMBER;
   q_s1 NUMBER; q_s2 NUMBER; q_s3 NUMBER; q_s4 NUMBER; q_s5 NUMBER; q_rt1 NUMBER; q_rt2 NUMBER; q_x NUMBER;
   q_t NUMBER; q_v NUMBER; q_c NUMBER; q_d NUMBER; q_st VARCHAR2(20);
+  r_wh NUMBER; r_i1 NUMBER; r_po1 NUMBER; r_po2 NUMBER; r_rc1 NUMBER; r_rc2 NUMBER; r_x NUMBER; r_y NUMBER; r_l1 NUMBER; r_l2 NUMBER;
+  r_inv1 NUMBER; r_st VARCHAR2(20); r_t NUMBER;
   v_st VARCHAR2(20); v_ni NUMBER; v_cl NUMBER; v_iss erp_msg_tab;
   v_hd NUMBER; v_e1 NUMBER; v_e2 NUMBER; v_e3 NUMBER; v_e4 NUMBER; v_cal NUMBER; v_ctr NUMBER; v_csi NUMBER; v_cse NUMBER;
   v_hadv NUMBER; v_ra NUMBER; v_rb NUMBER; v_rc NUMBER; v_rd NUMBER; v_re NUMBER; v_n1 NUMBER; v_n2 NUMBER; v_n3 NUMBER;
@@ -606,6 +608,121 @@ BEGIN
 
   SELECT NVL(SUM(difference), 0) INTO q_t FROM v_erp_stock_vs_gl;
   check_true('بعد كل عمليات نقاط البيع: المخزون يطابق الأستاذ', q_t = 0);
+
+
+  -- ================= أوامر الشراء =================
+  r_wh := erp_stock.add_warehouse('WPO', 'مخزن المشتريات');
+  r_i1 := erp_stock.add_item('BO1', 'صنف أمر شراء', 'قطعة', 0, 'Y');
+
+  BEGIN v_tmp := erp_po.create_po(v_cust, DATE '2026-08-01', NULL, NULL,
+                   erp_po_line_tab(erp_po_line_t(r_i1, r_wh, NULL, 1, 10, NULL, NULL)));
+    check_true('رفض أمر شراء لعميل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض أمر شراء لعميل [' || SQLCODE || ']', SQLCODE = -20901); END;
+  BEGIN v_tmp := erp_po.create_po(v_sup, DATE '2026-08-01', NULL, NULL,
+                   erp_po_line_tab(erp_po_line_t(r_i1, NULL, NULL, 1, 10, NULL, NULL)));
+    check_true('رفض صنف مخزني بلا مخزن (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض صنف مخزني بلا مخزن [' || SQLCODE || ']', SQLCODE = -20904); END;
+  BEGIN v_tmp := erp_po.create_po(v_sup, DATE '2026-08-01', NULL, NULL,
+                   erp_po_line_tab(erp_po_line_t(NULL, NULL, 'خدمة', 1, 10, 0, NULL)));
+    check_true('رفض بند بلا صنف وبلا حساب (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض بند بلا صنف وبلا حساب [' || SQLCODE || ']', SQLCODE = -20904); END;
+
+  -- أمر: صنف مخزني 10 × 12.50 بضريبة 15% (125 + 18.75) وخدمة 200 بلا ضريبة → 343.75
+  r_po1 := erp_po.create_po(v_sup, DATE '2026-08-01', DATE '2026-08-10', 'أمر اختبار',
+             erp_po_line_tab(erp_po_line_t(r_i1, r_wh, NULL, 10, 12.5, 15, NULL),
+                             erp_po_line_t(NULL, NULL, 'خدمة تركيب', 1, 200, 0, '5400')));
+  SELECT status, total INTO r_st, r_t FROM erp_purchase_orders WHERE po_id = r_po1;
+  check_true('أمر شراء مسودة بإجمالي 343.75', r_st = 'DRAFT' AND r_t = 343.75);
+  SELECT line_id INTO r_l1 FROM erp_po_lines WHERE po_id = r_po1 AND line_no = 1;
+  SELECT line_id INTO r_l2 FROM erp_po_lines WHERE po_id = r_po1 AND line_no = 2;
+  BEGIN v_tmp := erp_po.receive(r_po1, DATE '2026-08-05', 'S-1', erp_po_rcv_tab(erp_po_rcv_t(r_l1, 1, NULL)));
+    check_true('رفض الاستلام من مسودة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض الاستلام من مسودة [' || SQLCODE || ']', SQLCODE = -20902); END;
+
+  erp_po.replace_lines(r_po1, erp_po_line_tab(erp_po_line_t(r_i1, r_wh, NULL, 10, 12.5, 15, NULL),
+                                              erp_po_line_t(NULL, NULL, 'خدمة تركيب', 1, 200, 0, '5400')));
+  SELECT total INTO r_t FROM erp_purchase_orders WHERE po_id = r_po1;
+  check_true('استبدال بنود المسودة يعيد الإجمالي نفسه', r_t = 343.75);
+  SELECT line_id INTO r_l1 FROM erp_po_lines WHERE po_id = r_po1 AND line_no = 1;
+  SELECT line_id INTO r_l2 FROM erp_po_lines WHERE po_id = r_po1 AND line_no = 2;
+
+  -- فصل المهام: حد الاعتماد يمنع منشئ الأمر من اعتماده
+  erp_po.set_setting('PO_APPROVAL_LIMIT', '100');
+  BEGIN erp_po.approve_po(r_po1);
+    check_true('رفض اعتماد المنشئ لأمر فوق الحد (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض اعتماد المنشئ لأمر فوق الحد [' || SQLCODE || ']', SQLCODE = -20903); END;
+  BEGIN erp_po.set_setting('PO_APPROVAL_LIMIT', 'abc');
+    check_true('رفض قيمة إعداد غير رقمية (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض قيمة إعداد غير رقمية [' || SQLCODE || ']', SQLCODE = -20908); END;
+  erp_po.set_setting('PO_APPROVAL_LIMIT', NULL);
+  erp_po.approve_po(r_po1);
+  SELECT status INTO r_st FROM erp_purchase_orders WHERE po_id = r_po1;
+  check_true('اعتماد الأمر بعد إزالة الحد', r_st = 'APPROVED');
+  BEGIN UPDATE erp_po_lines SET qty = 5 WHERE line_id = r_l1;
+    check_true('منع تعديل بنود أمر معتمد (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('منع تعديل بنود أمر معتمد [' || SQLCODE || ']', SQLCODE = -20911); END;
+  BEGIN erp_po.replace_lines(r_po1, erp_po_line_tab(erp_po_line_t(r_i1, r_wh, NULL, 1, 1, 0, NULL)));
+    check_true('رفض استبدال بنود أمر معتمد (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض استبدال بنود أمر معتمد [' || SQLCODE || ']', SQLCODE = -20902); END;
+
+  -- استلام جزئي: 4 من 10 بسعر الأمر → فاتورة 57.50 والمخزون 4 بقيمة 50 (دون الضريبة)
+  r_rc1 := erp_po.receive(r_po1, DATE '2026-08-05', 'SUP-100', erp_po_rcv_tab(erp_po_rcv_t(r_l1, 4, NULL)));
+  SELECT invoice_id INTO r_inv1 FROM erp_po_receipts WHERE receipt_id = r_rc1;
+  SELECT total INTO r_t FROM erp_invoices WHERE invoice_id = r_inv1;
+  SELECT status INTO r_st FROM erp_purchase_orders WHERE po_id = r_po1;
+  check_true('استلام جزئي: فاتورة 57.50 وحالة الأمر PARTIAL', r_t = 57.5 AND r_st = 'PARTIAL');
+  check_true('المخزون بعد الاستلام الجزئي: 4 بقيمة 50', stk_qty(r_i1, r_wh) = 4 AND stk_val(r_i1, r_wh) = 50);
+  BEGIN v_tmp := erp_po.receive(r_po1, DATE '2026-08-06', 'X', erp_po_rcv_tab(erp_po_rcv_t(r_l1, 7, NULL)));
+    check_true('رفض استلام يتجاوز المتبقي (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض استلام يتجاوز المتبقي [' || SQLCODE || ']', SQLCODE = -20905); END;
+  BEGIN erp_trade.void_invoice(r_inv1);
+    check_true('رفض إلغاء فاتورة استلام مباشرة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء فاتورة استلام مباشرة [' || SQLCODE || ']', SQLCODE = -20216); END;
+
+  -- استلام المتبقي بسعر فاتورة مختلف (13 بدل 12.50) مع بند الخدمة
+  r_rc2 := erp_po.receive(r_po1, DATE '2026-08-08', 'SUP-101',
+             erp_po_rcv_tab(erp_po_rcv_t(r_l1, 6, 13), erp_po_rcv_t(r_l2, 1, NULL)));
+  SELECT status INTO r_st FROM erp_purchase_orders WHERE po_id = r_po1;
+  check_true('استلام المتبقي: حالة RECEIVED والمخزون 10 بقيمة 128 (50 + 78)', r_st = 'RECEIVED' AND stk_qty(r_i1, r_wh) = 10 AND stk_val(r_i1, r_wh) = 128);
+  SELECT NVL(SUM(variance), 0) INTO r_t FROM v_erp_po_variance WHERE po_no = (SELECT po_no FROM erp_purchase_orders WHERE po_id = r_po1);
+  check_true('فرق السعر المسجَّل = (13 − 12.50) × 6 = 3.00', r_t = 3);
+  BEGIN v_tmp := erp_po.receive(r_po1, DATE '2026-08-09', 'X', erp_po_rcv_tab(erp_po_rcv_t(r_l1, 1, NULL)));
+    check_true('رفض الاستلام من أمر مستلم بالكامل (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض الاستلام من أمر مستلم بالكامل [' || SQLCODE || ']', SQLCODE = -20902); END;
+
+  -- إلغاء الاستلام الثاني يعيد الكميات والمخزون وحالة الأمر
+  erp_po.void_receipt(r_rc2);
+  SELECT status INTO r_st FROM erp_purchase_orders WHERE po_id = r_po1;
+  SELECT received_qty INTO r_t FROM erp_po_lines WHERE line_id = r_l1;
+  check_true('إلغاء الاستلام: PARTIAL والمستلم 4 والمخزون 4 بقيمة 50', r_st = 'PARTIAL' AND r_t = 4 AND stk_qty(r_i1, r_wh) = 4 AND stk_val(r_i1, r_wh) = 50);
+  SELECT NVL(SUM(variance), 0) INTO r_t FROM v_erp_po_variance WHERE po_no = (SELECT po_no FROM erp_purchase_orders WHERE po_id = r_po1);
+  check_true('فرق السعر لا يشمل استلاماً ملغى', r_t = 0);
+  BEGIN erp_po.void_receipt(r_rc2);
+    check_true('رفض إلغاء استلام ملغى (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء استلام ملغى [' || SQLCODE || ']', SQLCODE = -20907); END;
+
+  -- إغلاق الأمر المستلم جزئياً، ورفض إلغائه
+  BEGIN erp_po.cancel_po(r_po1);
+    check_true('رفض إلغاء أمر استُلم بعضه (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء أمر استُلم بعضه [' || SQLCODE || ']', SQLCODE = -20902); END;
+  erp_po.close_po(r_po1);
+  SELECT status INTO r_st FROM erp_purchase_orders WHERE po_id = r_po1;
+  check_true('إغلاق أمر مستلم جزئياً: CLOSED', r_st = 'CLOSED');
+  BEGIN v_tmp := erp_po.receive(r_po1, DATE '2026-08-09', 'X', erp_po_rcv_tab(erp_po_rcv_t(r_l1, 1, NULL)));
+    check_true('رفض الاستلام من أمر مغلق (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض الاستلام من أمر مغلق [' || SQLCODE || ']', SQLCODE = -20902); END;
+
+  -- إلغاء أمر معتمد لم يُستلم منه شيء
+  r_po2 := erp_po.create_po(v_sup, DATE '2026-08-02', NULL, NULL, erp_po_line_tab(erp_po_line_t(r_i1, r_wh, NULL, 2, 10, 0, NULL)));
+  erp_po.approve_po(r_po2);
+  erp_po.cancel_po(r_po2);
+  SELECT status INTO r_st FROM erp_purchase_orders WHERE po_id = r_po2;
+  check_true('إلغاء أمر معتمد بلا استلام: CANCELLED', r_st = 'CANCELLED');
+  SELECT COUNT(*) INTO r_t FROM v_erp_po_open_lines WHERE po_id IN (r_po1, r_po2);
+  check_true('لا بنود مفتوحة للأوامر المغلقة أو الملغاة', r_t = 0);
+
+  SELECT NVL(SUM(difference), 0) INTO r_t FROM v_erp_stock_vs_gl;
+  check_true('بعد الاستلامات: المخزون يطابق الأستاذ', r_t = 0);
 
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;

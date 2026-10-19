@@ -40,6 +40,7 @@ UPDATE erp_accounts SET cf_category = 'FINANCING' WHERE code IN ('3000', '3100',
 
 INSERT INTO erp_counters (name, last_no) VALUES ('SALES',    0);
 INSERT INTO erp_counters (name, last_no) VALUES ('PURCHASE', 0);
+INSERT INTO erp_counters (name, last_no) VALUES ('PO', 0);
 INSERT INTO erp_counters (name, last_no) VALUES ('POS_SALE', 0);
 INSERT INTO erp_counters (name, last_no) VALUES ('POS_RETURN', 0);
 

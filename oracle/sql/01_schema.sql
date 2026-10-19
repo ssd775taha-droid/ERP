@@ -57,6 +57,28 @@ CREATE OR REPLACE TYPE erp_pos_ret_t AS OBJECT (
 CREATE OR REPLACE TYPE erp_pos_ret_tab AS TABLE OF erp_pos_ret_t;
 /
 
+-- أوامر الشراء: بنود الأمر، وبنود الاستلام
+CREATE OR REPLACE TYPE erp_po_line_t AS OBJECT (
+  item_id       NUMBER,        -- اختياري: صنف (يحدد الوصف والضريبة الافتراضية)
+  wh_id         NUMBER,        -- مخزن الاستلام (إلزامي للصنف المخزني)
+  description   VARCHAR2(200), -- إلزامي لبند بلا صنف
+  qty           NUMBER,
+  price         NUMBER,
+  vat_rate      NUMBER,        -- اختياري: الافتراضي نسبة ضريبة الصنف أو 0
+  account_code  VARCHAR2(12)   -- حساب المصروف/الأصل لبند بلا صنف مخزني (إلزامي له)
+);
+/
+CREATE OR REPLACE TYPE erp_po_line_tab AS TABLE OF erp_po_line_t;
+/
+CREATE OR REPLACE TYPE erp_po_rcv_t AS OBJECT (
+  po_line_id  NUMBER,
+  qty         NUMBER,
+  price       NUMBER           -- اختياري: سعر فاتورة المورد الفعلي إن اختلف عن سعر الأمر
+);
+/
+CREATE OR REPLACE TYPE erp_po_rcv_tab AS TABLE OF erp_po_rcv_t;
+/
+
 -- قائمة رسائل (مشكلات تمنع إقفال فترة)
 CREATE OR REPLACE TYPE erp_msg_tab AS TABLE OF VARCHAR2(300);
 /
@@ -593,3 +615,94 @@ CREATE TABLE erp_pos_payments (
   account_code  VARCHAR2(12) NOT NULL CONSTRAINT erp_pos_payments_acct_fk REFERENCES erp_accounts (code)
 );
 CREATE INDEX erp_pos_payments_sale_ix ON erp_pos_payments (sale_id);
+
+-- ---------------------------------------------------------------- إعدادات عامة
+CREATE TABLE erp_settings (
+  name   VARCHAR2(40)  CONSTRAINT erp_settings_pk PRIMARY KEY,
+  value  VARCHAR2(200) NOT NULL
+);
+
+-- ---------------------------------------------------------------- أوامر الشراء
+-- التزام بلا أثر محاسبي: الاستلام ينشئ فاتورة مشتريات (ERP_TRADE) تدخل المخزون وترحّل القيد.
+-- DRAFT (قابل للتعديل) ← APPROVED ← PARTIAL ← RECEIVED، أو CLOSED (أُغلق ما تبقى) أو CANCELLED.
+CREATE TABLE erp_purchase_orders (
+  po_id         NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_purchase_orders_pk PRIMARY KEY,
+  po_no         VARCHAR2(20) NOT NULL CONSTRAINT erp_purchase_orders_no_uk UNIQUE,
+  party_id      NUMBER       NOT NULL CONSTRAINT erp_purchase_orders_party_fk REFERENCES erp_parties (party_id),
+  po_date       DATE         NOT NULL,
+  expected_date DATE,
+  status        VARCHAR2(9)  DEFAULT 'DRAFT' NOT NULL
+                CONSTRAINT erp_purchase_orders_status_ck CHECK (status IN ('DRAFT','APPROVED','PARTIAL','RECEIVED','CLOSED','CANCELLED')),
+  subtotal      NUMBER(18,2) DEFAULT 0 NOT NULL,
+  vat_amount    NUMBER(18,2) DEFAULT 0 NOT NULL,
+  total         NUMBER(18,2) DEFAULT 0 NOT NULL,
+  notes         VARCHAR2(300),
+  created_by    VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at    TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL,
+  approved_by   VARCHAR2(128),
+  approved_at   TIMESTAMP
+);
+CREATE INDEX erp_purchase_orders_party_ix ON erp_purchase_orders (party_id);
+
+CREATE TABLE erp_po_lines (
+  line_id       NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_po_lines_pk PRIMARY KEY,
+  po_id         NUMBER        NOT NULL CONSTRAINT erp_po_lines_po_fk REFERENCES erp_purchase_orders (po_id),
+  line_no       NUMBER(4)     NOT NULL,
+  item_id       NUMBER        CONSTRAINT erp_po_lines_item_fk REFERENCES erp_items (item_id),
+  wh_id         NUMBER        CONSTRAINT erp_po_lines_wh_fk REFERENCES erp_warehouses (wh_id),
+  description   VARCHAR2(200) NOT NULL,
+  qty           NUMBER(18,3)  NOT NULL CONSTRAINT erp_po_lines_qty_ck CHECK (qty > 0),
+  price         NUMBER(18,2)  NOT NULL CONSTRAINT erp_po_lines_price_ck CHECK (price >= 0),
+  vat_rate      NUMBER(5,2)   DEFAULT 0 NOT NULL CONSTRAINT erp_po_lines_rate_ck CHECK (vat_rate BETWEEN 0 AND 100),
+  account_code  VARCHAR2(12)  CONSTRAINT erp_po_lines_acct_fk REFERENCES erp_accounts (code),
+  net           NUMBER(18,2)  NOT NULL,
+  vat           NUMBER(18,2)  NOT NULL,
+  received_qty  NUMBER(18,3)  DEFAULT 0 NOT NULL,
+  CONSTRAINT erp_po_lines_recv_ck CHECK (received_qty >= 0 AND received_qty <= qty),
+  CONSTRAINT erp_po_lines_target_ck CHECK (item_id IS NOT NULL OR account_code IS NOT NULL),
+  CONSTRAINT erp_po_lines_uk UNIQUE (po_id, line_no)
+);
+
+-- بعد الاعتماد لا تُعدَّل بنود الأمر (غير الكمية المستلمة) ولا تُضاف ولا تُحذف
+CREATE OR REPLACE TRIGGER erp_po_lines_lock_trg
+  BEFORE INSERT OR UPDATE OR DELETE ON erp_po_lines FOR EACH ROW
+DECLARE
+  v_status erp_purchase_orders.status%TYPE;
+BEGIN
+  SELECT status INTO v_status FROM erp_purchase_orders WHERE po_id = NVL(:NEW.po_id, :OLD.po_id);
+  IF v_status <> 'DRAFT' THEN
+    IF INSERTING OR DELETING THEN
+      RAISE_APPLICATION_ERROR(-20911, 'لا تُضاف ولا تُحذف بنود أمر شراء بعد اعتماده');
+    ELSIF :OLD.qty <> :NEW.qty OR :OLD.price <> :NEW.price OR :OLD.vat_rate <> :NEW.vat_rate
+       OR :OLD.net <> :NEW.net OR :OLD.vat <> :NEW.vat OR :OLD.description <> :NEW.description
+       OR NVL(:OLD.item_id, -1) <> NVL(:NEW.item_id, -1) OR NVL(:OLD.wh_id, -1) <> NVL(:NEW.wh_id, -1)
+       OR NVL(:OLD.account_code, '-') <> NVL(:NEW.account_code, '-') THEN
+      RAISE_APPLICATION_ERROR(-20911, 'لا تُعدَّل بنود أمر شراء بعد اعتماده');
+    END IF;
+  END IF;
+END;
+/
+
+-- استلام: يربط أمر الشراء بفاتورة المشتريات التي أنشأها
+CREATE TABLE erp_po_receipts (
+  receipt_id    NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_po_receipts_pk PRIMARY KEY,
+  po_id         NUMBER       NOT NULL CONSTRAINT erp_po_receipts_po_fk REFERENCES erp_purchase_orders (po_id),
+  invoice_id    NUMBER       NOT NULL CONSTRAINT erp_po_receipts_inv_fk REFERENCES erp_invoices (invoice_id),
+  receipt_date  DATE         NOT NULL,
+  status        VARCHAR2(6)  DEFAULT 'ACTIVE' NOT NULL CONSTRAINT erp_po_receipts_status_ck CHECK (status IN ('ACTIVE','VOID')),
+  note          VARCHAR2(300),
+  created_by    VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  created_at    TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL
+);
+CREATE INDEX erp_po_receipts_po_ix  ON erp_po_receipts (po_id);
+CREATE INDEX erp_po_receipts_inv_ix ON erp_po_receipts (invoice_id);
+
+CREATE TABLE erp_po_receipt_lines (
+  rl_id        NUMBER GENERATED ALWAYS AS IDENTITY CONSTRAINT erp_po_receipt_lines_pk PRIMARY KEY,
+  receipt_id   NUMBER       NOT NULL CONSTRAINT erp_po_receipt_lines_rc_fk REFERENCES erp_po_receipts (receipt_id),
+  po_line_id   NUMBER       NOT NULL CONSTRAINT erp_po_receipt_lines_ln_fk REFERENCES erp_po_lines (line_id),
+  qty          NUMBER(18,3) NOT NULL CONSTRAINT erp_po_receipt_lines_qty_ck CHECK (qty > 0),
+  price        NUMBER(18,2) NOT NULL,     -- سعر الفاتورة الفعلي
+  po_price     NUMBER(18,2) NOT NULL      -- سعر الأمر وقت الاستلام (فرق السعر = (price − po_price) × qty)
+);
+CREATE INDEX erp_po_receipt_lines_rc_ix ON erp_po_receipt_lines (receipt_id);

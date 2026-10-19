@@ -13,5 +13,6 @@ SET DEFINE OFF
 @sql/09_pkg_erp_fin.sql
 @sql/10_pkg_erp_period.sql
 @sql/11_pkg_erp_pos.sql
-@sql/12_views.sql
-PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/13_selftest.sql
+@sql/12_pkg_erp_po.sql
+@sql/13_views.sql
+PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/14_selftest.sql

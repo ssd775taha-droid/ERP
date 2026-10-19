@@ -158,3 +158,33 @@ SELECT sh.shift_id, r.code AS reg_code, r.name AS reg_name, sh.cashier, sh.opene
          WHERE s.shift_id = sh.shift_id AND s.kind = 'RETURN' AND s.status = 'COMPLETED' AND p.method = 'CARD') AS card_refunds,
        sh.expected_cash, sh.counted_cash, sh.variance
   FROM erp_pos_shifts sh JOIN erp_pos_registers r ON r.reg_id = sh.reg_id;
+
+-- حالة أوامر الشراء: الكميات المطلوبة والمستلمة والمتبقية، والتأخر عن موعد التوريد
+CREATE OR REPLACE VIEW v_erp_po_status AS
+SELECT po.po_id, po.po_no, pa.name AS supplier_name, po.po_date, po.expected_date, po.status,
+       po.subtotal, po.vat_amount, po.total,
+       NVL(l.ordered_qty, 0) AS ordered_qty, NVL(l.received_qty, 0) AS received_qty,
+       NVL(l.ordered_qty, 0) - NVL(l.received_qty, 0) AS open_qty,
+       CASE WHEN po.status IN ('APPROVED', 'PARTIAL') AND po.expected_date IS NOT NULL AND po.expected_date < TRUNC(SYSDATE) THEN 'Y' ELSE 'N' END AS overdue
+  FROM erp_purchase_orders po
+  JOIN erp_parties pa ON pa.party_id = po.party_id
+  LEFT JOIN (SELECT po_id, SUM(qty) AS ordered_qty, SUM(received_qty) AS received_qty FROM erp_po_lines GROUP BY po_id) l ON l.po_id = po.po_id;
+
+-- البنود التي ينتظر استلامها (أوامر معتمدة أو مستلمة جزئياً)
+CREATE OR REPLACE VIEW v_erp_po_open_lines AS
+SELECT po.po_id, po.po_no, pa.name AS supplier_name, po.expected_date,
+       l.line_id, l.line_no, l.description, l.qty, l.received_qty, l.qty - l.received_qty AS open_qty, l.price, l.vat_rate
+  FROM erp_purchase_orders po
+  JOIN erp_parties pa ON pa.party_id = po.party_id
+  JOIN erp_po_lines l ON l.po_id = po.po_id
+ WHERE po.status IN ('APPROVED', 'PARTIAL') AND l.received_qty < l.qty;
+
+-- فروق الأسعار: سعر الفاتورة الفعلي مقابل سعر الأمر في الاستلامات الفعّالة
+CREATE OR REPLACE VIEW v_erp_po_variance AS
+SELECT po.po_no, pa.name AS supplier_name, rc.receipt_id, rc.receipt_date, ln.description,
+       rl.qty, rl.po_price, rl.price, (rl.price - rl.po_price) * rl.qty AS variance
+  FROM erp_po_receipt_lines rl
+  JOIN erp_po_receipts rc   ON rc.receipt_id = rl.receipt_id AND rc.status = 'ACTIVE'
+  JOIN erp_purchase_orders po ON po.po_id = rc.po_id
+  JOIN erp_parties pa       ON pa.party_id = po.party_id
+  JOIN erp_po_lines ln      ON ln.line_id = rl.po_line_id;
