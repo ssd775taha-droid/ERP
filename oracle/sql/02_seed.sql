@@ -32,6 +32,11 @@ INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5500', 'ف
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5600', 'مصروف الإهلاك',        'EXPENSE',   '5000');
 INSERT INTO erp_accounts (code, name, acc_type, parent_code) VALUES ('5700', 'خسائر بيع أصول ثابتة', 'EXPENSE',   '5000');
 
+-- تصنيف الحسابات لقائمة التدفقات النقدية: النقد والبنوك، والاستثمارية (الأصول الثابتة ومجمعها)، والتمويلية (حقوق الملكية)
+UPDATE erp_accounts SET cash_account = 'Y' WHERE code IN ('1100', '1200');
+UPDATE erp_accounts SET cf_category = 'INVESTING' WHERE code IN ('1500', '1510');
+UPDATE erp_accounts SET cf_category = 'FINANCING' WHERE code IN ('3000', '3100', '3200');
+
 INSERT INTO erp_counters (name, last_no) VALUES ('SALES',    0);
 INSERT INTO erp_counters (name, last_no) VALUES ('PURCHASE', 0);
 

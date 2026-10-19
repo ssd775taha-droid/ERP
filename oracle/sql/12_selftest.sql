@@ -1,6 +1,6 @@
 -- ============================================================================
--- 10: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
--- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @10_selftest.sql
+-- 12: اختبار ذاتي لحزم PL/SQL. يتراجع عن كل شيء في النهاية (ROLLBACK) فلا يترك بيانات.
+-- شغّله بعد 01-05:  SET SERVEROUTPUT ON  ثم  @12_selftest.sql
 -- ============================================================================
 SET SERVEROUTPUT ON
 SET DEFINE OFF
@@ -9,7 +9,7 @@ DECLARE
   v_fail  PLS_INTEGER := 0;
   v_cust  NUMBER; v_sup NUMBER; v_si NUMBER; v_pi NUMBER; v_entry NUMBER; v_tmp NUMBER;
   v_inv   erp_invoices%ROWTYPE;
-  v_st VARCHAR2(20);
+  v_st VARCHAR2(20); v_ni NUMBER; v_cl NUMBER; v_iss erp_msg_tab;
   v_hd NUMBER; v_e1 NUMBER; v_e2 NUMBER; v_e3 NUMBER; v_e4 NUMBER; v_cal NUMBER; v_ctr NUMBER; v_csi NUMBER; v_cse NUMBER;
   v_hadv NUMBER; v_ra NUMBER; v_rb NUMBER; v_rc NUMBER; v_rd NUMBER; v_re NUMBER; v_n1 NUMBER; v_n2 NUMBER; v_n3 NUMBER;
   v_cat NUMBER; v_fa NUMBER; v_fb NUMBER; v_fc NUMBER; v_fd NUMBER; v_fe NUMBER; v_ff NUMBER; v_finv NUMBER;
@@ -406,6 +406,91 @@ BEGIN
 
   SELECT difference INTO v_tmp FROM v_erp_payroll_vs_gl;
   check_true('صافي الكشوف المرحَّلة غير المصروفة يطابق ح/2300', v_tmp = 0);
+
+
+  -- ================= إقفال الفترات والقوائم المالية =================
+  -- إهلاك معلّق على أصل ساري (ج) يمنع إقفال يناير
+  v_iss := erp_period.close_issues(DATE '2026-01-01');
+  check_true('مشكلات الإقفال تكشف الإهلاك المعلّق', v_iss.COUNT > 0);
+  BEGIN erp_period.close_period(DATE '2026-01-15');
+    check_true('رفض إقفال شهر فيه إهلاك معلّق (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إقفال شهر فيه إهلاك معلّق [' || SQLCODE || ']', SQLCODE = -20702); END;
+  check_true('تشغيل الإهلاك المعلّق: ج 600 (6 × 100)', erp_asset.run_depreciation(DATE '2026-06-30') = 600);
+  v_iss := erp_period.close_issues(DATE '2026-01-01');
+  check_true('لا مشكلات بعد معالجة الإهلاك', v_iss.COUNT = 0);
+
+  erp_period.close_period(DATE '2026-01-15');
+  check_true('يناير مقفل', erp_period.is_closed(DATE '2026-01-20'));
+  BEGIN v_tmp := erp_gl.post_entry(DATE '2026-01-20', 'في فترة مقفلة', NULL,
+                   erp_line_tab(erp_line_t('5400', 1, 0, NULL), erp_line_t('2400', 0, 1, NULL)));
+    check_true('رفض قيد في فترة مقفلة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض قيد في فترة مقفلة [' || SQLCODE || ']', SQLCODE = -20113); END;
+  SELECT MIN(entry_id) INTO v_tmp FROM erp_entries WHERE memo = 'كسور';
+  BEGIN v_tmp := erp_gl.reverse_entry(v_tmp);
+    check_true('رفض عكس قيد تاريخه في فترة مقفلة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض عكس قيد تاريخه في فترة مقفلة [' || SQLCODE || ']', SQLCODE = -20113); END;
+  BEGIN erp_period.close_period(DATE '2026-03-01');
+    check_true('رفض إقفال مارس قبل فبراير (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إقفال مارس قبل فبراير [' || SQLCODE || ']', SQLCODE = -20703); END;
+
+  erp_period.reopen_period(DATE '2026-01-01');
+  v_tmp := erp_gl.post_entry(DATE '2026-01-20', 'مصروف بعد إعادة الفتح', NULL,
+             erp_line_tab(erp_line_t('5400', 1, 0, NULL), erp_line_t('2400', 0, 1, NULL)));
+  check_true('بعد إعادة فتح يناير يُقبل القيد', v_tmp IS NOT NULL);
+  FOR m IN 1 .. 6 LOOP
+    erp_period.close_period(ADD_MONTHS(DATE '2026-01-01', m - 1));
+  END LOOP;
+  SELECT COUNT(*) INTO v_tmp FROM erp_periods WHERE status = 'CLOSED';
+  check_true('أُقفلت الأشهر من يناير إلى يونيو بالترتيب', v_tmp = 6);
+
+  -- القوائم قبل إقفال السنة
+  v_ni := erp_fin.net_income(DATE '2026-01-01', DATE '2026-12-31');
+  check_true('الأرباح غير المقفلة = صافي الدخل قبل إقفال السنة', v_ni <> 0 AND erp_fin.unclosed_earnings(DATE '2026-12-31') = v_ni);
+  check_true('الميزانية متوازنة: الأصول = الخصوم + حقوق الملكية + أرباح الفترة',
+    erp_fin.section_total('ASSET', DATE '2026-12-31') =
+      erp_fin.section_total('LIABILITY', DATE '2026-12-31') + erp_fin.section_total('EQUITY', DATE '2026-12-31')
+      + erp_fin.unclosed_earnings(DATE '2026-12-31'));
+  check_true('التدفقات النقدية: تشغيلي + استثماري + تمويلي = رصيد النقد الختامي − الافتتاحي',
+    erp_fin.cash_flow(DATE '2026-01-01', DATE '2026-12-31', 'OPERATING')
+      + erp_fin.cash_flow(DATE '2026-01-01', DATE '2026-12-31', 'INVESTING')
+      + erp_fin.cash_flow(DATE '2026-01-01', DATE '2026-12-31', 'FINANCING')
+      = erp_fin.cash_balance(DATE '2026-12-31') - erp_fin.cash_balance(DATE '2025-12-31'));
+  check_true('التدفق الاستثماري غير صفري (شراء/بيع أصول) والتمويلي 0.30 (قيد الكسور)',
+    erp_fin.cash_flow(DATE '2026-01-01', DATE '2026-12-31', 'INVESTING') <> 0
+    AND erp_fin.cash_flow(DATE '2026-01-01', DATE '2026-12-31', 'FINANCING') = 0.3);
+
+  -- إقفال السنة
+  v_cl := erp_period.close_year(DATE '2026-12-31');
+  check_true('قيد إقفال السنة', v_cl IS NOT NULL);
+  check_true('بعد الإقفال: لا أرباح غير مقفلة وصافي الدخل للسنة ثابت',
+    erp_fin.unclosed_earnings(DATE '2026-12-31') = 0 AND erp_fin.net_income(DATE '2026-01-01', DATE '2026-12-31') = v_ni);
+  check_true('الأرباح المحتجزة (ح/3200) = صافي دخل السنة', erp_fin.account_balance('3200', NULL) = -v_ni);
+  check_true('الإيرادات والمصروفات صُفّرت: ح/4100 وح/5200', bal('4100', 'C') = 0 AND bal('5200', 'D') = 0);
+  check_true('الميزانية متوازنة بعد الإقفال',
+    erp_fin.section_total('ASSET', DATE '2026-12-31') =
+      erp_fin.section_total('LIABILITY', DATE '2026-12-31') + erp_fin.section_total('EQUITY', DATE '2026-12-31'));
+  BEGIN v_tmp := erp_period.close_year(DATE '2026-12-31');
+    check_true('رفض إقفال سنة مقفلة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض إقفال سنة مقفلة [' || SQLCODE || ']', SQLCODE = -20704); END;
+  BEGIN v_tmp := erp_gl.post_entry(DATE '2026-12-15', 'بعد إقفال السنة', NULL,
+                   erp_line_tab(erp_line_t('5400', 1, 0, NULL), erp_line_t('2400', 0, 1, NULL)));
+    check_true('رفض قيد في ديسمبر بعد إقفال السنة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض قيد في ديسمبر بعد إقفال السنة [' || SQLCODE || ']', SQLCODE = -20113); END;
+  BEGIN erp_period.reopen_period(DATE '2026-06-01');
+    check_true('رفض فتح شهر ضمن سنة مقفلة (لم يُرفع خطأ)', FALSE);
+  EXCEPTION WHEN OTHERS THEN check_true('رفض فتح شهر ضمن سنة مقفلة [' || SQLCODE || ']', SQLCODE = -20704); END;
+
+  -- إعادة فتح السنة ثم إقفالها من جديد
+  erp_period.reopen_year(DATE '2026-12-31');
+  check_true('إعادة فتح السنة تعيد الأرباح غير المقفلة وتفتح الأشهر',
+    erp_fin.unclosed_earnings(DATE '2026-12-31') = v_ni AND NOT erp_period.is_closed(DATE '2026-12-15') AND NOT erp_period.is_closed(DATE '2026-03-15'));
+  check_true('قيد الإقفال العكسي لا يغيّر صافي دخل السنة', erp_fin.net_income(DATE '2026-01-01', DATE '2026-12-31') = v_ni);
+  FOR m IN 1 .. 6 LOOP
+    erp_period.close_period(ADD_MONTHS(DATE '2026-01-01', m - 1));
+  END LOOP;
+  v_cl := erp_period.close_year(DATE '2026-12-31');
+  check_true('إعادة إقفال السنة بعد فتحها', v_cl IS NOT NULL AND erp_fin.unclosed_earnings(DATE '2026-12-31') = 0);
+  erp_period.reopen_year(DATE '2026-12-31');
 
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;

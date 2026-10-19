@@ -566,7 +566,87 @@ END;
 
 > عرّف معاملات النموذج `P_PARTY_ID` و`P_INVOICE_ID` و`P_REMAINING` (CHAR، 30) في وحدة `FRM_PAYMENT`.
 
-## الشاشة 12: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
+## الشاشة 12: `FRM_PERIODS` — إقفال الفترات والسنة
+
+- كتلة `PER` مرتبطة بالعرض `v_erp_period_status` (استعلام فقط، `ORDER BY period DESC`): `PERIOD` (شهر)، `STATUS`، `ENTRIES`.
+- كتلة `ISSUES` غير مرتبطة (سجلات متعددة، عنصر `MSG` للعرض) تعرض مشكلات الشهر المحدد قبل الإقفال. تُملأ من `erp_period.close_issues`.
+- كتلة `YEARS` مرتبطة بـ `erp_year_closings` (استعلام فقط): `YEAR_END`, `NET_INCOME`, `STATUS`.
+- كتلة تحكم `CTRL`: `YEAR_END` (آخر يوم في شهر، افتراضي 31 ديسمبر من السنة الماضية) وأزرار: فحص الشهر، إقفال الشهر، إعادة فتح الشهر، إقفال السنة، إعادة فتح السنة.
+
+```plsql
+-- PER : WHEN-NEW-RECORD-INSTANCE  (عرض مشكلات الشهر الحالي تلقائياً)
+-- وكذلك CTRL.BTN_CHECK : WHEN-BUTTON-PRESSED
+DECLARE
+  v_list erp_msg_tab;
+BEGIN
+  v_list := erp_period.close_issues(:PER.PERIOD);
+  GO_BLOCK('ISSUES'); CLEAR_BLOCK(NO_VALIDATE);
+  IF v_list.COUNT = 0 THEN
+    :ISSUES.MSG := 'جاهز للإقفال: لا مشكلات';
+  ELSE
+    FOR i IN 1 .. v_list.COUNT LOOP
+      :ISSUES.MSG := v_list(i);
+      IF i < v_list.COUNT THEN NEXT_RECORD; END IF;
+    END LOOP;
+  END IF;
+  GO_BLOCK('PER');
+END;
+
+-- CTRL.BTN_CLOSE : WHEN-BUTTON-PRESSED   (إعادة الفتح تستبدل الاسم: erp_period.reopen_period)
+BEGIN
+  IF SHOW_ALERT('AL_CONFIRM_CLOSE_PERIOD') <> ALERT_BUTTON1 THEN RETURN; END IF;
+  erp_period.close_period(:PER.PERIOD);
+  commit_db;
+  MESSAGE('أُقفل الشهر');
+  GO_BLOCK('PER'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+
+-- CTRL.BTN_CLOSE_YEAR : WHEN-BUTTON-PRESSED   (reopen_year بالنمط نفسه)
+DECLARE v_entry NUMBER;
+BEGIN
+  IF SHOW_ALERT('AL_CONFIRM_CLOSE_YEAR') <> ALERT_BUTTON1 THEN RETURN; END IF;
+  v_entry := erp_period.close_year(:CTRL.YEAR_END);
+  commit_db;
+  MESSAGE('أُقفلت السنة' || CASE WHEN v_entry IS NOT NULL THEN ' (قيد رقم ' || v_entry || ')' END);
+  GO_BLOCK('YEARS'); EXECUTE_QUERY; GO_BLOCK('PER'); EXECUTE_QUERY;
+EXCEPTION
+  WHEN FORM_TRIGGER_FAILURE THEN RAISE;
+  WHEN OTHERS THEN rollback_db; show_error; RAISE FORM_TRIGGER_FAILURE;
+END;
+```
+
+> الرسالة `-20113` («الفترة … مقفلة») تظهر في كل شاشات الحركات عند محاولة قيد بتاريخ في فترة مقفلة؛ معالجتها العامة `show_error` تكفي. إلغاء فاتورة أو كشف رواتب تاريخه في فترة مقفلة يفشل بالرسالة نفسها (عكس القيد يقع في الفترة المقفلة): المطلوب إعادة فتح الفترة أو تصحيح بقيد جديد بتاريخ مفتوح.
+
+## الشاشة 13: `FRM_STATEMENTS` — القوائم المالية
+
+كتلة تحكم `CTRL` فقط: `P_FROM`, `P_TO` (افتراضياً أول السنة واليوم)، `P_ASOF`، وأزرار تشغّل التقارير ببطاقة ملخص من `ERP_FIN`:
+
+| الزر | الإجراء |
+|---|---|
+| قائمة الدخل | `run_erp_report('RPT_INCOME', 'P_FROM=' \|\| TO_CHAR(:CTRL.P_FROM,'YYYY-MM-DD') \|\| ' P_TO=' \|\| TO_CHAR(:CTRL.P_TO,'YYYY-MM-DD'))` |
+| الميزانية | `run_erp_report('RPT_BALANCE_SHEET', 'P_ASOF=' \|\| TO_CHAR(:CTRL.P_ASOF,'YYYY-MM-DD'))` |
+| التدفقات النقدية | `run_erp_report('RPT_CASH_FLOW', 'P_FROM=… P_TO=…')` |
+| ميزان المراجعة | `RPT_TRIAL_BALANCE` بالمعامل `P_TO` |
+
+```plsql
+-- CTRL.BTN_SUMMARY : WHEN-BUTTON-PRESSED  (أرقام سريعة قبل فتح التقرير، وفحص توازن الميزانية)
+DECLARE
+  v_a NUMBER; v_l NUMBER; v_e NUMBER; v_u NUMBER;
+BEGIN
+  v_a := erp_fin.section_total('ASSET',     :CTRL.P_ASOF);
+  v_l := erp_fin.section_total('LIABILITY', :CTRL.P_ASOF);
+  v_e := erp_fin.section_total('EQUITY',    :CTRL.P_ASOF);
+  v_u := erp_fin.unclosed_earnings(:CTRL.P_ASOF);
+  :CTRL.SUMMARY := 'الأصول ' || TO_CHAR(v_a) || ' | الخصوم ' || TO_CHAR(v_l) || ' | حقوق الملكية ' || TO_CHAR(v_e + v_u)
+                   || CASE WHEN v_a = v_l + v_e + v_u THEN ' — الميزانية متوازنة' ELSE ' — الميزانية غير متوازنة!' END
+                   || ' | صافي الدخل ' || TO_CHAR(erp_fin.net_income(:CTRL.P_FROM, :CTRL.P_TO));
+END;
+```
+
+## الشاشة 14: القائمة الرئيسية `ERP_MENU` (Menu Module `.mmb`)
 
 | القائمة | البند | الإجراء |
 |---|---|---|
@@ -578,9 +658,11 @@ END;
 | الحركات | الأصول الثابتة والإهلاك | `CALL_FORM('FRM_ASSETS')` |
 | الحركات | كشوف الرواتب | `CALL_FORM('FRM_PAYROLL')` |
 | الحركات | السلف والتسويات الشهرية | `CALL_FORM('FRM_HR_ADJUST')` |
+| الإقفال | إقفال الفترات والسنة | `CALL_FORM('FRM_PERIODS')` |
+| التقارير | القوائم المالية | `CALL_FORM('FRM_STATEMENTS')` |
 | الحركات | قيد يومية | `CALL_FORM('FRM_JOURNAL')` |
 | الحركات | الفواتير | `CALL_FORM('FRM_INVOICE')` |
-| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين | `run_erp_report('<اسم التقرير>')` |
+| التقارير | ميزان المراجعة / دفتر الأستاذ / كشف حساب / أعمار الذمم / ملخص الضريبة / أرصدة المخزون / بطاقة الصنف / سجل الأصول / سجل الإهلاك / جدول إهلاك أصل / كشف الرواتب / قسيمة راتب / ملخص الكشف بالبنود / سلف الموظفين / قائمة الدخل / الميزانية / التدفقات النقدية | `run_erp_report('<اسم التقرير>')` |
 | خروج | | `EXIT_FORM` |
 
 ## تشغيل التقارير من Forms
@@ -606,7 +688,7 @@ END;
 
 ## قائمة التحقق قبل التسليم
 
-- [ ] شغّل `oracle/install.sql` ثم `sql/10_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
-- [ ] ابنِ الشاشات الاثنتي عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق) وتأكد أن الرسالة العربية تظهر.
+- [ ] شغّل `oracle/install.sql` ثم `sql/12_selftest.sql` وتأكد أن كل الاختبارات `PASS`.
+- [ ] ابنِ الشاشات الأربع عشرة بالترتيب أعلاه، وجرّب في كل منها حالة خطأ متعمدة (قيد غير متوازن، دفعة أكبر من المتبقي، بيع أكثر من رصيد المخزن، بيع أصل عليه إهلاك معلّق، قيد بتاريخ في فترة مقفلة) وتأكد أن الرسالة العربية تظهر.
 - [ ] أنشئ مستخدم تطبيق بلا صلاحيات DML مباشرة على جداول الحركات، وتأكد أن الشاشات تعمل به.
 - [ ] اضبط `Direction = Right To Left` و`NLS_LANG` وتأكد من ظهور العربية سليمة في الشاشات والتقارير.

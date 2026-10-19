@@ -9,6 +9,7 @@
 --   -20103 سطر غير صالح (مدين/دائن)   -20107 القيد غير متوازن
 --   -20104 أكثر من منزلتين عشريتين    -20110 قيد غير موجود
 --   -20111 لا يُعكس قيد عكسي          -20112 القيد معكوس مسبقاً
+--   -20113 تاريخ القيد في فترة محاسبية مقفلة
 -- ============================================================================
 CREATE OR REPLACE PACKAGE erp_gl AS
   -- ترحيل قيد متوازن. يعيد رقم القيد. (دالة تعدّل بيانات: تُستدعى من PL/SQL لا من SELECT)
@@ -24,10 +25,31 @@ CREATE OR REPLACE PACKAGE erp_gl AS
     p_entry_id IN NUMBER,
     p_date     IN DATE DEFAULT NULL
   ) RETURN NUMBER;
+
+  -- مساران داخليان لإقفال السنة لا تستدعيهما إلا حزمة ERP_PERIOD (ACCESSIBLE BY): يسمحان بقيد في فترة مقفلة،
+  -- ويحملان النوع CLOSING فيُستبعدان من قائمة الدخل. لا تُمنح لأحد غيرها.
+  FUNCTION post_closing_entry (
+    p_date  IN DATE,
+    p_memo  IN VARCHAR2,
+    p_ref   IN VARCHAR2,
+    p_lines IN erp_line_tab
+  ) RETURN NUMBER ACCESSIBLE BY (PACKAGE erp_period);
+
+  FUNCTION reverse_closing_entry (p_entry_id IN NUMBER) RETURN NUMBER ACCESSIBLE BY (PACKAGE erp_period);
 END erp_gl;
 /
 
 CREATE OR REPLACE PACKAGE BODY erp_gl AS
+
+  -- يرفض التاريخ إن وقع في فترة مقفلة
+  PROCEDURE assert_open (p_date IN DATE) IS
+    v_n NUMBER;
+  BEGIN
+    SELECT COUNT(*) INTO v_n FROM erp_periods WHERE period = TRUNC(p_date, 'MM') AND status = 'CLOSED';
+    IF v_n > 0 THEN
+      RAISE_APPLICATION_ERROR(-20113, 'الفترة ' || TO_CHAR(p_date, 'YYYY-MM') || ' مقفلة: لا قيود بتاريخ فيها. استخدم تاريخاً في فترة مفتوحة أو أعد فتح الفترة');
+    END IF;
+  END assert_open;
 
   -- يتأكد أن الحساب موجود وفعّال وطرفي (لا أبناء له)
   PROCEDURE check_postable (p_code IN VARCHAR2) IS
@@ -49,11 +71,12 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
     END IF;
   END check_postable;
 
-  FUNCTION post_entry (
+  FUNCTION do_post (
     p_date  IN DATE,
     p_memo  IN VARCHAR2,
     p_ref   IN VARCHAR2,
-    p_lines IN erp_line_tab
+    p_lines IN erp_line_tab,
+    p_kind  IN VARCHAR2
   ) RETURN NUMBER IS
     v_id     erp_entries.entry_id%TYPE;
     v_debit  NUMBER;
@@ -65,6 +88,9 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
 
     IF p_date IS NULL THEN
       RAISE_APPLICATION_ERROR(-20101, 'تاريخ القيد مطلوب');
+    END IF;
+    IF p_kind = 'NORMAL' THEN
+      assert_open(p_date);
     END IF;
     IF p_lines IS NULL OR p_lines.COUNT < 2 THEN
       RAISE_APPLICATION_ERROR(-20102, 'القيد يحتاج سطرين على الأقل');
@@ -90,8 +116,8 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
         'القيد غير متوازن: المدين ' || TO_CHAR(v_dr_sum) || ' والدائن ' || TO_CHAR(v_cr_sum));
     END IF;
 
-    INSERT INTO erp_entries (entry_date, memo, ref)
-    VALUES (TRUNC(p_date), SUBSTR(p_memo, 1, 300), SUBSTR(p_ref, 1, 60))
+    INSERT INTO erp_entries (entry_date, memo, ref, kind)
+    VALUES (TRUNC(p_date), SUBSTR(p_memo, 1, 300), SUBSTR(p_ref, 1, 60), p_kind)
     RETURNING entry_id INTO v_id;
 
     FOR i IN 1 .. p_lines.COUNT LOOP
@@ -105,21 +131,43 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
     WHEN OTHERS THEN
       ROLLBACK TO SAVEPOINT erp_gl_post;
       RAISE;
+  END do_post;
+
+  FUNCTION post_entry (
+    p_date  IN DATE,
+    p_memo  IN VARCHAR2,
+    p_ref   IN VARCHAR2,
+    p_lines IN erp_line_tab
+  ) RETURN NUMBER IS
+  BEGIN
+    RETURN do_post(p_date, p_memo, p_ref, p_lines, 'NORMAL');
   END post_entry;
 
-  FUNCTION reverse_entry (
+  FUNCTION post_closing_entry (
+    p_date  IN DATE,
+    p_memo  IN VARCHAR2,
+    p_ref   IN VARCHAR2,
+    p_lines IN erp_line_tab
+  ) RETURN NUMBER IS
+  BEGIN
+    RETURN do_post(p_date, p_memo, p_ref, p_lines, 'CLOSING');
+  END post_closing_entry;
+
+  FUNCTION do_reverse (
     p_entry_id IN NUMBER,
-    p_date     IN DATE DEFAULT NULL
+    p_date     IN DATE,
+    p_check    IN BOOLEAN
   ) RETURN NUMBER IS
     v_date  erp_entries.entry_date%TYPE;
     v_ref   erp_entries.ref%TYPE;
     v_void  erp_entries.void_of%TYPE;
+    v_kind  erp_entries.kind%TYPE;
     v_new   erp_entries.entry_id%TYPE;
   BEGIN
     SAVEPOINT erp_gl_reverse;
 
     BEGIN
-      SELECT entry_date, ref, void_of INTO v_date, v_ref, v_void
+      SELECT entry_date, ref, void_of, kind INTO v_date, v_ref, v_void, v_kind
         FROM erp_entries WHERE entry_id = p_entry_id;
     EXCEPTION
       WHEN NO_DATA_FOUND THEN
@@ -128,10 +176,13 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
     IF v_void IS NOT NULL THEN
       RAISE_APPLICATION_ERROR(-20111, 'لا يُعكس قيد عكسي');
     END IF;
+    IF p_check THEN
+      assert_open(NVL(p_date, v_date));
+    END IF;
 
     BEGIN
-      INSERT INTO erp_entries (entry_date, memo, ref, void_of)
-      VALUES (TRUNC(NVL(p_date, v_date)), 'عكس القيد رقم ' || p_entry_id, v_ref, p_entry_id)
+      INSERT INTO erp_entries (entry_date, memo, ref, void_of, kind)
+      VALUES (TRUNC(NVL(p_date, v_date)), 'عكس القيد رقم ' || p_entry_id, v_ref, p_entry_id, v_kind)
       RETURNING entry_id INTO v_new;
     EXCEPTION
       WHEN DUP_VAL_ON_INDEX THEN   -- القيد UNIQUE على void_of يحمي من العكس المزدوج حتى مع التزامن
@@ -148,7 +199,20 @@ CREATE OR REPLACE PACKAGE BODY erp_gl AS
     WHEN OTHERS THEN
       ROLLBACK TO SAVEPOINT erp_gl_reverse;
       RAISE;
+  END do_reverse;
+
+  FUNCTION reverse_entry (
+    p_entry_id IN NUMBER,
+    p_date     IN DATE DEFAULT NULL
+  ) RETURN NUMBER IS
+  BEGIN
+    RETURN do_reverse(p_entry_id, p_date, TRUE);
   END reverse_entry;
+
+  FUNCTION reverse_closing_entry (p_entry_id IN NUMBER) RETURN NUMBER IS
+  BEGIN
+    RETURN do_reverse(p_entry_id, NULL, FALSE);
+  END reverse_closing_entry;
 
 END erp_gl;
 /

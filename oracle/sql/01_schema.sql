@@ -31,6 +31,10 @@ CREATE OR REPLACE TYPE erp_inv_line_t AS OBJECT (
 CREATE OR REPLACE TYPE erp_inv_line_tab AS TABLE OF erp_inv_line_t;
 /
 
+-- قائمة رسائل (مشكلات تمنع إقفال فترة)
+CREATE OR REPLACE TYPE erp_msg_tab AS TABLE OF VARCHAR2(300);
+/
+
 -- ---------------------------------------------------------------- دليل الحسابات
 CREATE TABLE erp_accounts (
   code         VARCHAR2(12)  CONSTRAINT erp_accounts_pk PRIMARY KEY,
@@ -38,7 +42,11 @@ CREATE TABLE erp_accounts (
   acc_type     VARCHAR2(10)  NOT NULL
                CONSTRAINT erp_accounts_type_ck CHECK (acc_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')),
   parent_code  VARCHAR2(12)  CONSTRAINT erp_accounts_parent_fk REFERENCES erp_accounts (code),
-  active       CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_accounts_active_ck CHECK (active IN ('Y','N'))
+  active       CHAR(1)       DEFAULT 'Y' NOT NULL CONSTRAINT erp_accounts_active_ck CHECK (active IN ('Y','N')),
+  -- لقائمة التدفقات النقدية: حسابات النقد والبنوك، وتصنيف باقي الحسابات (التشغيلي هو الافتراضي)
+  cash_account CHAR(1)       DEFAULT 'N' NOT NULL CONSTRAINT erp_accounts_cash_ck CHECK (cash_account IN ('Y','N')),
+  cf_category  VARCHAR2(9)   DEFAULT 'OPERATING' NOT NULL CONSTRAINT erp_accounts_cf_ck CHECK (cf_category IN ('OPERATING','INVESTING','FINANCING')),
+  CONSTRAINT erp_accounts_cash_type_ck CHECK (cash_account = 'N' OR acc_type = 'ASSET')
 );
 CREATE INDEX erp_accounts_parent_ix ON erp_accounts (parent_code);
 
@@ -49,6 +57,7 @@ CREATE TABLE erp_entries (
   memo        VARCHAR2(300),
   ref         VARCHAR2(60),
   void_of     NUMBER        CONSTRAINT erp_entries_void_fk REFERENCES erp_entries (entry_id),
+  kind        VARCHAR2(7)   DEFAULT 'NORMAL' NOT NULL CONSTRAINT erp_entries_kind_ck CHECK (kind IN ('NORMAL','CLOSING')),   -- CLOSING: قيد إقفال سنة (يُستبعد من قائمة الدخل)
   created_by  VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
   created_at  TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
   CONSTRAINT erp_entries_void_uk UNIQUE (void_of)      -- القيد يُعكس مرة واحدة فقط
@@ -455,3 +464,23 @@ BEGIN
   END IF;
 END;
 /
+
+-- ---------------------------------------------------------------- الفترات المحاسبية وإقفال السنة
+-- فترة بلا صف = مفتوحة. القفل يرفضه الدفتر نفسه (ERP_GL.POST_ENTRY) فلا يمرّ منه قيد بتاريخ في فترة مقفلة.
+CREATE TABLE erp_periods (
+  period     DATE         CONSTRAINT erp_periods_pk PRIMARY KEY CONSTRAINT erp_periods_first_ck CHECK (period = TRUNC(period, 'MM')),
+  status     VARCHAR2(6)  DEFAULT 'OPEN' NOT NULL CONSTRAINT erp_periods_status_ck CHECK (status IN ('OPEN','CLOSED')),
+  changed_by VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  changed_at TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL
+);
+
+-- إقفال سنة مالية (12 شهراً تنتهي في year_end): قيد يصفّر الإيرادات والمصروفات إلى الأرباح المحتجزة
+CREATE TABLE erp_year_closings (
+  year_end         DATE         CONSTRAINT erp_year_closings_pk PRIMARY KEY CONSTRAINT erp_year_closings_end_ck CHECK (year_end = LAST_DAY(year_end)),
+  net_income       NUMBER(18,2) NOT NULL,
+  entry_id         NUMBER       CONSTRAINT erp_year_closings_entry_fk REFERENCES erp_entries (entry_id),   -- NULL إن لم تكن هناك أرصدة
+  status           VARCHAR2(8)  DEFAULT 'CLOSED' NOT NULL CONSTRAINT erp_year_closings_status_ck CHECK (status IN ('CLOSED','REOPENED')),
+  reopen_entry_id  NUMBER       CONSTRAINT erp_year_closings_reopen_fk REFERENCES erp_entries (entry_id),
+  changed_by       VARCHAR2(128) DEFAULT SYS_CONTEXT('USERENV','SESSION_USER') NOT NULL,
+  changed_at       TIMESTAMP    DEFAULT SYSTIMESTAMP NOT NULL
+);

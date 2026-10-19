@@ -128,3 +128,13 @@ SELECT NVL((SELECT SUM(total_net) FROM erp_payroll_runs WHERE status = 'POSTED')
        NVL((SELECT SUM(total_net) FROM erp_payroll_runs WHERE status = 'POSTED'), 0)
          - NVL((SELECT SUM(credit - debit) FROM erp_lines WHERE account_code = '2300'), 0) AS difference
   FROM dual;
+
+-- حالة الأشهر: كل شهر فيه قيود أو له صف في الفترات، مع عدد القيود (غير المسجَّل = مفتوح)
+CREATE OR REPLACE VIEW v_erp_period_status AS
+SELECT m.period, NVL(p.status, 'OPEN') AS status, m.entries
+  FROM (SELECT TRUNC(entry_date, 'MM') AS period, COUNT(*) AS entries FROM erp_entries GROUP BY TRUNC(entry_date, 'MM')) m
+  LEFT JOIN erp_periods p ON p.period = m.period
+UNION ALL
+SELECT p.period, p.status, 0
+  FROM erp_periods p
+ WHERE NOT EXISTS (SELECT 1 FROM erp_entries e WHERE TRUNC(e.entry_date, 'MM') = p.period);
