@@ -248,6 +248,34 @@ test('التقارير المتقدمة: تطابق إجمالي التحليل 
   assert.strictEqual((await call('GET', '/api/reports/comparative?f1=x')).status, 400);
 });
 
+test('تقارير المخزون: التقييم يطابق الأرصدة والأستاذ، وكارت الصنف وملخص الحركة متسقان', { skip: !hasDb || !canWrite }, async () => {
+  const stock = (await call('GET', '/api/inventory/stock')).data;
+  const val = await call('GET', '/api/inventory/reports/valuation?asof=2099-12-31');
+  assert.strictEqual(val.status, 200);
+  assert.strictEqual(Math.round(val.data.totalValue * 100), Math.round(stock.totalValue * 100));
+  const split = (await call('GET', '/api/inventory/reports/valuation?asof=2099-12-31&split=1')).data;
+  assert.strictEqual(Math.round(split.totalValue * 100), Math.round(stock.totalValue * 100));
+  const mv = (await call('GET', '/api/inventory/reports/movement?from=2000-01-01&to=2099-12-31')).data;
+  assert.strictEqual(Math.round(mv.totals.closeValue * 100), Math.round(stock.totalValue * 100));
+  assert.strictEqual(Math.round((mv.totals.openValue + mv.totals.inValue - mv.totals.outValue) * 100), Math.round(mv.totals.closeValue * 100));
+  const withStock = stock.rows.find((x) => x.qty > 0);
+  if (withStock) {
+    const card = await call('GET', `/api/inventory/reports/item-card?item=${withStock.itemId}&from=2000-01-01&to=2099-12-31`);
+    assert.strictEqual(card.status, 200);
+    const total = stock.rows.filter((x) => x.itemId === withStock.itemId).reduce((s, x) => s + x.qty, 0);
+    assert.strictEqual(Math.round(card.data.closing.qty * 1000), Math.round(total * 1000));
+  }
+  assert.strictEqual((await call('GET', '/api/inventory/reports/item-card?item=999999999&from=2000-01-01&to=2099-12-31')).status, 404);
+  assert.strictEqual((await call('GET', '/api/inventory/reports/item-card?from=2000-01-01&to=2099-12-31')).status, 400);
+  const slow = await call('GET', '/api/inventory/reports/slow-moving?asof=2099-12-31&days=30');
+  assert.strictEqual(slow.status, 200);
+  assert.ok(slow.data.rows.every((x) => x.idleDays >= 30));
+  const sh = await call('GET', '/api/inventory/reports/shortage?asof=2099-12-31&limit=0');
+  assert.strictEqual(sh.status, 200);
+  assert.ok(sh.data.rows.every((x) => x.qty <= 0));
+  assert.strictEqual((await call('GET', '/api/inventory/reports/shortage?asof=2099-12-31&limit=-1')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

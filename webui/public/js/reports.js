@@ -106,4 +106,72 @@
         '<table><tfoot>' + tot('صافي الربح / (الخسارة)', T.net, false) + '</tfoot></table>';
     });
   };
+
+  // ---------- تقارير المخزون ----------
+  const q3 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 3 });
+  const whSel = (whs, label) => '<label>' + (label || 'المخزن') + '<select name="wh"><option value="">كل المخازن</option>' + whs.map((w) => '<option value="' + w.id + '">' + esc(w.name) + '</option>').join('') + '</select></label>';
+  const MT = { PURCHASE: 'شراء', SALE: 'بيع', ADJUST: 'تسوية', TRANSFER: 'تحويل', REVERSAL: 'عكس' };
+
+  E.pages['inv-valuation'] = async (el) => {
+    const { warehouses } = await api('GET', '/warehouses');
+    shell(el, 'تقييم المخزون', 'الكمية والقيمة ومتوسط التكلفة لكل صنف بتاريخ محدد (من سجل الحركات)',
+      dateF('asof', 'بتاريخ', E.today()) + whSel(warehouses) + '<label><input type="checkbox" name="split" value="1"> تفصيل حسب المخزن</label>', async (f) => {
+      const r = await api('GET', '/inventory/reports/valuation?' + E.qs(f));
+      if (!r.rows.length) return '<div class="msg warn">لا رصيد في هذا التاريخ</div>';
+      const split = f.split === '1';
+      return '<div class="card"><strong>إجمالي قيمة المخزون: ' + money(r.totalValue) + '</strong> <span class="muted">(' + r.rows.length + ' سطر)</span></div>' +
+        '<table><thead><tr><th>الرمز</th><th>الصنف</th>' + (split ? '<th>المخزن</th>' : '') + '<th class="n">الكمية</th><th class="n">متوسط التكلفة</th><th class="n">القيمة</th><th class="n">%</th></tr></thead><tbody>' +
+        r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td>' + (split ? '<td>' + esc(x.whName) + '</td>' : '') + '<td class="n">' + q3(x.qty) + ' ' + esc(x.unit) + '</td><td class="n">' + money(x.avgCost) + '</td><td class="n">' + money(x.value) + '</td><td class="n">' + pctTxt(x.share) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td colspan="' + (split ? 5 : 4) + '">الإجمالي</td><td class="n">' + money(r.totalValue) + '</td><td></td></tr></tfoot></table>';
+    });
+  };
+
+  E.pages['inv-card'] = async (el, param) => {
+    const [{ items }, { warehouses }] = await Promise.all([api('GET', '/items'), api('GET', '/warehouses')]);
+    const stockItems = items.filter((i) => i.trackStock !== 'N' && i.track_stock !== 'N');
+    shell(el, 'كارت الصنف', 'حركة صنف واحد برصيد جارٍ للكمية والقيمة',
+      '<label>الصنف<select name="item"><option value="">— اختر صنفاً —</option>' + stockItems.map((i) => '<option value="' + i.id + '">' + esc(i.code) + ' — ' + esc(i.name) + '</option>').join('') + '</select></label>' +
+      whSel(warehouses) + dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+      if (!f.item) return '<div class="msg warn">اختر صنفاً</div>';
+      const r = await api('GET', '/inventory/reports/item-card?' + E.qs(f));
+      return '<h3>' + esc(r.item.code) + ' — ' + esc(r.item.name) + ' <span class="muted">(' + esc(r.item.unit) + ')</span></h3>' +
+        '<table><thead><tr><th>التاريخ</th><th>النوع</th><th>المخزن</th><th class="n">وارد</th><th class="n">صادر</th><th class="n">القيمة</th><th class="n">رصيد الكمية</th><th class="n">رصيد القيمة</th></tr></thead><tbody>' +
+        '<tr class="head"><td colspan="6">رصيد افتتاحي</td><td class="n">' + q3(r.opening.qty) + '</td><td class="n">' + money(r.opening.value) + '</td></tr>' +
+        r.rows.map((x) => '<tr><td>' + esc(x.date) + '</td><td>' + (MT[x.type] || x.type) + (x.reverses ? ' <span class="tag warn">عكس ' + x.reverses + '</span>' : '') + '</td><td>' + esc(x.whName) + '</td><td class="n">' + (x.qty > 0 ? q3(x.qty) : '') + '</td><td class="n">' + (x.qty < 0 ? q3(-x.qty) : '') + '</td><td class="n">' + money(x.value) + '</td><td class="n">' + q3(x.balQty) + '</td><td class="n">' + money(x.balValue) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td colspan="6">رصيد ختامي</td><td class="n">' + q3(r.closing.qty) + '</td><td class="n">' + money(r.closing.value) + '</td></tr></tfoot></table>';
+    });
+    if (param) { E.$('select[name=item]', el).value = param; E.$('#f', el).requestSubmit(); }
+  };
+
+  E.pages['inv-movement'] = async (el) => {
+    const { warehouses } = await api('GET', '/warehouses');
+    shell(el, 'ملخص حركة المخزون', 'افتتاحي + وارد − صادر = ختامي لكل صنف في الفترة (التحويل بين المخازن يُستبعد عند اختيار «كل المخازن»)',
+      dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()) + whSel(warehouses), async (f) => {
+      const r = await api('GET', '/inventory/reports/movement?' + E.qs(f));
+      if (!r.rows.length) return '<div class="msg warn">لا حركة في هذه الفترة</div>';
+      const t = r.totals;
+      return '<table><thead><tr><th>الرمز</th><th>الصنف</th><th class="n">افتتاحي (كمية)</th><th class="n">افتتاحي (قيمة)</th><th class="n">وارد (كمية)</th><th class="n">وارد (قيمة)</th><th class="n">صادر (كمية)</th><th class="n">صادر (قيمة)</th><th class="n">ختامي (كمية)</th><th class="n">ختامي (قيمة)</th></tr></thead><tbody>' +
+        r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + q3(x.openQty) + '</td><td class="n">' + money(x.openValue) + '</td><td class="n">' + q3(x.inQty) + '</td><td class="n">' + money(x.inValue) + '</td><td class="n">' + q3(x.outQty) + '</td><td class="n">' + money(x.outValue) + '</td><td class="n">' + q3(x.closeQty) + '</td><td class="n">' + money(x.closeValue) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td colspan="3"></td><td class="n">' + money(t.openValue) + '</td><td></td><td class="n">' + money(t.inValue) + '</td><td></td><td class="n">' + money(t.outValue) + '</td><td></td><td class="n">' + money(t.closeValue) + '</td></tr></tfoot></table>';
+    });
+  };
+
+  E.pages['inv-slow'] = (el) => shell(el, 'ركود المخزون', 'أصناف لها رصيد ولم تُبَع منذ المدة المحددة (الصنف الذي لم يُبَع قط يُحسب عمره من أول وارد)',
+    dateF('asof', 'بتاريخ', E.today()) + '<label>لم تُبَع منذ (يوم)<input name="days" value="90" size="5" inputmode="numeric"></label>', async (f) => {
+    const r = await api('GET', '/inventory/reports/slow-moving?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg good">لا أصناف راكدة لأكثر من ' + r.days + ' يوماً</div>';
+    return '<div class="card"><strong>قيمة المخزون الراكد: ' + money(r.totalValue) + '</strong> <span class="muted">(' + r.rows.length + ' صنف راكد ≥ ' + r.days + ' يوماً)</span></div>' +
+      '<table><thead><tr><th>الرمز</th><th>الصنف</th><th class="n">الكمية</th><th class="n">القيمة</th><th>آخر بيع</th><th class="n">أيام الركود</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + q3(x.qty) + ' ' + esc(x.unit) + '</td><td class="n">' + money(x.value) + '</td><td>' + (x.lastSale ? esc(x.lastSale) : '<span class="tag warn">لم يُبَع قط</span>') + '</td><td class="n">' + x.idleDays + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(r.totalValue) + '</td><td colspan="2"></td></tr></tfoot></table>';
+  });
+
+  E.pages['inv-shortage'] = (el) => shell(el, 'نواقص وتغطية المخزون', 'أصناف مخزنية نشطة رصيدها أقل من أو يساوي الحد، مع معدل البيع اليومي (آخر 90 يوماً) وأيام التغطية',
+    dateF('asof', 'بتاريخ', E.today()) + '<label>الرصيد ≤<input name="limit" value="0" size="6" inputmode="decimal"></label>', async (f) => {
+    const r = await api('GET', '/inventory/reports/shortage?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg good">لا أصناف عند هذا الحد</div>';
+    return '<table><thead><tr><th>الرمز</th><th>الصنف</th><th class="n">الرصيد</th><th class="n">مباع آخر 90 يوماً</th><th class="n">المعدل اليومي</th><th class="n">تكفي لـ (يوم)</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n ' + (x.qty <= 0 ? 'bad' : '') + '">' + q3(x.qty) + ' ' + esc(x.unit) + '</td><td class="n">' + q3(x.sold90) + '</td><td class="n">' + q3(x.daily) + '</td><td class="n">' + (x.coverDays == null ? '—' : x.coverDays) + '</td></tr>').join('') + '</tbody></table>' +
+      '<p class="muted">الأصناف الأكثر مبيعاً أولاً؛ «—» تعني لا مبيعات في الفترة.</p>';
+  });
 })(window.ERP);

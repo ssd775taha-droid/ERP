@@ -66,7 +66,7 @@
       const [s, c] = await Promise.all([api('GET', '/inventory/stock?' + E.qs({ wh: f.get('wh'), item: f.get('item') })), api('GET', '/inventory/check')]);
       E.$('#chk', el).innerHTML = c.ok ? '<div class="msg good">قيمة المخزون تطابق الأستاذ</div>' : '<div class="msg bad">فرق بين المخزون والأستاذ: ' + c.rows.filter((x) => x.difference).map((x) => esc(x.account) + ' (' + money(x.difference) + ')').join('، ') + ' — غالباً قيد يدوي على حساب المخزون</div>';
       E.$('#out', el).innerHTML = s.rows.length ? '<table><thead><tr><th>الصنف</th><th>المخزن</th><th class="n">الكمية</th><th class="n">متوسط التكلفة</th><th class="n">القيمة</th></tr></thead><tbody>' +
-        s.rows.map((x) => '<tr><td>' + esc(x.itemCode) + ' — ' + esc(x.itemName) + '</td><td>' + esc(x.whName) + '</td><td class="n">' + q3(x.qty) + ' ' + esc(x.unit) + '</td><td class="n">' + money(x.avgCost) + '</td><td class="n">' + money(x.value) + '</td></tr>').join('') +
+        s.rows.map((x) => '<tr><td><a href="#/inventory/card/' + x.itemId + '" title="كارت الصنف">' + esc(x.itemCode) + ' — ' + esc(x.itemName) + '</a></td><td>' + esc(x.whName) + '</td><td class="n">' + q3(x.qty) + ' ' + esc(x.unit) + '</td><td class="n">' + money(x.avgCost) + '</td><td class="n">' + money(x.value) + '</td></tr>').join('') +
         '</tbody><tfoot><tr><td colspan="4">إجمالي القيمة</td><td class="n">' + money(s.totalValue) + '</td></tr></tfoot></table>' : '<div class="msg warn">لا أرصدة</div>';
     }
     E.$('#f', el).addEventListener('submit', (ev) => { ev.preventDefault(); go().catch((e) => E.toast(e.message, true)); });
