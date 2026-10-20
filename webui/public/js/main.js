@@ -72,9 +72,10 @@
 
   function loginView(msg) {
     me = null;
-    app.innerHTML = '<div class="login card"><h1>نظام ERP</h1><p class="sub">تسجيل الدخول</p>' + (msg ? E.err(msg) : '') +
-      '<form id="lf"><input name="username" placeholder="اسم المستخدم" autocomplete="username" required autofocus>' +
-      '<input name="password" type="password" placeholder="كلمة المرور" autocomplete="current-password" required><button class="btn" style="width:100%">دخول</button></form></div>';
+    app.innerHTML = '<div class="login-wrap"><div class="login-brand"><i>E</i><h1>نظام ERP</h1><p>المحاسبة والمبيعات والمشتريات والمخزون والرواتب</p></div>' +
+      '<div class="login-form"><form id="lf"><h2>تسجيل الدخول</h2>' + (msg ? E.err(msg) : '') +
+      '<input name="username" placeholder="اسم المستخدم" autocomplete="username" required autofocus>' +
+      '<input name="password" type="password" placeholder="كلمة المرور" autocomplete="current-password" required><button class="btn">دخول</button></form></div></div>';
     E.$('#lf').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);
@@ -94,6 +95,39 @@
 
   const NAV_PARENT = { 'invoice/view': 'sales', 'invoice/new': 'sales', 'party/statement': 'customers', 'payment/view': 'payments', 'payment/new': 'payments', 'note/view': 'notes', 'note/new': 'notes', 'entry/view': 'entries',
     'po/view': 'po', 'po/edit': 'po', 'quote/view': 'quotes', 'quote/edit': 'quotes', 'assets/view': 'assets', 'employee/view': 'hr/employees', 'payroll/view': 'payroll', 'pos/sale': 'pos/sales', 'pos/shift': 'pos/shifts' };
+  // أيقونات خطية للأقسام (SVG مضمّن، بلا مكتبات خارجية)
+  const ic = (d) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
+  const ICONS = {
+    acc: ic('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/><path d="M9 8h6"/>'),
+    trade: ic('<path d="M4 8h13l-3-3"/><path d="M20 16H7l3 3"/>'),
+    inv: ic('<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>'),
+    pos: ic('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h2m4 0h2M8 15h2m4 0h2"/>'),
+    assets: ic('<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>'),
+    hr: ic('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.5a3 3 0 0 1 0 5.8M18 14.3c1.8.8 3 2.6 3 4.7"/>'),
+    set: ic('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 6l2.2 1.5M17.6 16.5l2.2 1.5M2 12h3M19 12h3M4.2 18l2.2-1.5M17.6 7.5L19.8 6"/>'),
+  };
+  // مسار الصفحة فوق العنوان، وزر «؟» يُظهر وصف الصفحة بدل ترك سطر شرح ثابت تحت كل عنوان
+  function crumbFor(key) {
+    for (const sec of SECTIONS) for (const g of sec.groups) if (g.items.some((n) => n[0] === key)) return sec.title + (g.t ? ' › ' + g.t : '');
+    return '';
+  }
+  function decoratePage(main, key) {
+    const run = () => {
+      const h = E.$('h1', main);
+      if (!h || h.dataset.dec) return;
+      h.dataset.dec = '1';
+      const c = crumbFor(key);
+      if (c) { const d = document.createElement('div'); d.className = 'crumb noprint'; d.textContent = c; h.insertAdjacentElement('beforebegin', d); }
+      const sub = h.nextElementSibling;
+      if (sub && sub.classList.contains('sub')) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'hq noprint'; b.title = 'وصف الصفحة'; b.textContent = '؟';
+        b.addEventListener('click', () => sub.classList.toggle('show')); h.appendChild(b);
+      }
+    };
+    run();
+    new MutationObserver(run).observe(main, { childList: true, subtree: true });
+  }
+
   // حالة طيّ الأقسام تُحفظ في المتصفح؛ القسم الذي فيه الصفحة الحالية يُفتح دائماً
   const openSet = () => { try { return new Set(JSON.parse(localStorage.getItem('erp_nav_open') || '[]')); } catch (e) { return new Set(); } };
   const saveOpen = (set) => { try { localStorage.setItem('erp_nav_open', JSON.stringify([...set])); } catch (e) { /* التخزين غير متاح */ } };
@@ -108,12 +142,11 @@
     const html = '<a href="#/" data-r="">الرئيسية</a><a href="#/search" data-r="search">الاستعلام</a>' + SECTIONS.map((sec) => {
       const groups = sec.groups.map((g) => ({ t: g.t, items: g.items.filter((n) => allowed(n)) })).filter((g) => g.items.length);
       if (!groups.length) return '';
-      const count = groups.reduce((s, g) => s + g.items.length, 0);
-      return '<details class="sec" data-s="' + sec.id + '"' + (open.has(sec.id) ? ' open' : '') + '><summary>' + E.esc(sec.title) + ' <span class="cnt">' + count + '</span></summary>' +
+      return '<details class="sec" data-s="' + sec.id + '"' + (open.has(sec.id) ? ' open' : '') + '><summary>' + (ICONS[sec.id] || '') + E.esc(sec.title) + '</summary>' +
         groups.map((g) => (g.t ? '<div class="grp">' + E.esc(g.t) + '</div>' : '') + g.items.map(link).join('')).join('') + '</details>';
     }).join('');
-    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div>' + html +
-      '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><div class="print-only" id="phead"></div><main id="main"></main><div class="print-only" id="pfoot"></div><button class="fab noprint" id="pbtn" title="طباعة هذه الشاشة" aria-label="طباعة">🖨 طباعة</button></div>';
+    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand"><i>E</i>نظام ERP</div>' + html +
+      '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><div class="print-only" id="phead"></div><main id="main"></main><div class="print-only" id="pfoot"></div><button class="fab noprint" id="pbtn" title="طباعة هذه الشاشة" aria-label="طباعة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/></svg>طباعة</button></div>';
     E.$('nav.side').addEventListener('toggle', (ev) => {
       const d = ev.target; if (!d || !d.matches || !d.matches('details.sec')) return;
       const set = openSet(); if (d.open) set.add(d.dataset.s); else set.delete(d.dataset.s); saveOpen(set);
@@ -159,6 +192,7 @@
     // صلاحية قراءة فقط على وحدة الصفحة: تُخفى أدوات الإضافة والتعديل والإلغاء
     const pm = PAGE[key];
     if (pm && pm[0] !== 'admin' && !E.can(pm[0], 'w')) E.readOnly(main, MODULE_LABEL[pm[0]] || pm[0]);
+    decoratePage(main, act);
     try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); return; }
     if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); (main._openDoc || (() => E.reportDoc(main)))(); }, 500);
   }

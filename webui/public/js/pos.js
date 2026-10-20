@@ -38,7 +38,7 @@
     function render() {
       body.innerHTML = cart.map((l, i) => '<tr data-i="' + i + '"><td>' + esc(l.name) + (l.trackStock === 'Y' && l.onHand != null ? ' <span class="muted">(متاح ' + q3(l.onHand) + ')</span>' : '') + '</td>' +
         '<td><input class="cq" value="' + l.qty + '" size="5" inputmode="decimal"></td><td class="n">' + money(l.price) + '</td><td><input class="cd" value="' + l.disc + '" size="4" inputmode="decimal"></td>' +
-        '<td class="n">' + money(lineTotal(l)) + '</td><td><button type="button" class="btn alt sm" data-act="rm" data-i="' + i + '">✕</button></td></tr>').join('') || '<tr><td colspan="6" class="muted">السلة فارغة — امسح باركود صنف</td></tr>';
+        '<td class="n">' + money(lineTotal(l)) + '</td><td><button type="button" class="btn alt sm" data-act="rm" data-i="' + i + '">×</button></td></tr>').join('') || '<tr><td colspan="6" class="muted">السلة فارغة — امسح باركود صنف</td></tr>';
       const t = r2(cart.reduce((s, l) => s + lineTotal(l), 0));
       E.$('#tot', el).textContent = money(t); calcChange();
     }

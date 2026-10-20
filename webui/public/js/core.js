@@ -35,7 +35,7 @@ window.ERP = (function () {
     const t = E.tax, l = E.lh, o = opt || {};
     const logo = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(l.logo || '') ? '<img class="lh-logo" alt="" src="' + l.logo + '">' : '';
     const ids = [t.sellerVatNo ? 'الرقم الضريبي: <span dir="ltr">' + E.esc(t.sellerVatNo) + '</span>' : '', l.crNo ? 'السجل التجاري: <span dir="ltr">' + E.esc(l.crNo) + '</span>' : ''].filter(Boolean).join(' · ');
-    const contact = [l.phone ? '☎ <span dir="ltr">' + E.esc(l.phone) + '</span>' : '', l.email ? '<span dir="ltr">' + E.esc(l.email) + '</span>' : '', l.website ? '<span dir="ltr">' + E.esc(l.website) + '</span>' : ''].filter(Boolean).join(' · ');
+    const contact = [l.phone ? 'هاتف <span dir="ltr">' + E.esc(l.phone) + '</span>' : '', l.email ? '<span dir="ltr">' + E.esc(l.email) + '</span>' : '', l.website ? '<span dir="ltr">' + E.esc(l.website) + '</span>' : ''].filter(Boolean).join(' · ');
     return '<div class="lh">' + logo + '<div class="lh-txt"><b class="lh-name">' + E.esc(t.sellerName || o.fallback || 'نظام ERP') + '</b>' +
       (l.nameEn ? '<div class="lh-en" dir="ltr">' + E.esc(l.nameEn) + '</div>' : '') +
       (ids ? '<div>' + ids + '</div>' : '') + (t.sellerAddress ? '<div>' + E.esc(t.sellerAddress) + '</div>' : '') + (contact ? '<div>' + contact + '</div>' : '') + '</div></div>';
@@ -185,7 +185,7 @@ window.ERP = (function () {
       t.dataset.x = '1';
       const b = document.createElement('p');
       b.className = 'noprint'; b.style.margin = '0 0 6px';
-      b.innerHTML = '<button type="button" class="btn alt sm" data-x="xlsx">⬇ Excel</button> <button type="button" class="btn alt sm" data-x="csv">⬇ CSV</button>';
+      b.innerHTML = '<button type="button" class="btn alt sm" data-x="xlsx">Excel</button> <button type="button" class="btn alt sm" data-x="csv">CSV</button>';
       E.attachTableFilter(t, b);
       b.addEventListener('click', (ev) => {
         const k = ev.target.dataset && ev.target.dataset.x; if (!k) return;

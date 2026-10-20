@@ -40,8 +40,8 @@
   // أزرار الصف: E.crudBtns('party', { id, name, … }) — البيانات تُخزَّن في الزر نفسه
   E.crudBtns = (kind, rec) => {
     const c = CFG[kind], d = ' data-k="' + kind + '" data-rec="' + esc(JSON.stringify(rec)) + '"';
-    return (c.noEdit ? '' : '<button class="btn alt sm" data-act="c-edit"' + d + '>✎ تعديل</button> ') +
-      (c.noDel ? '' : '<button class="btn danger sm" data-act="c-del"' + d + '>' + (c.voidPath ? '🗑 إلغاء السند' : '🗑 حذف') + '</button>');
+    return (c.noEdit ? '' : '<button class="btn alt sm" data-act="c-edit"' + d + '>تعديل</button> ') +
+      (c.noDel ? '' : '<button class="btn danger sm" data-act="c-del"' + d + '>' + (c.voidPath ? 'إلغاء السند' : 'حذف') + '</button>');
   };
 
   // يربط أزرار التعديل والحذف داخل عنصر الصفحة مرة واحدة؛ reload يعيد رسم الصفحة بعد النجاح

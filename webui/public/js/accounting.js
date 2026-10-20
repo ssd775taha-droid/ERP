@@ -97,7 +97,7 @@
     const accts = await E.loadAccounts();
     const opts = E.accountOptions(accts);
     const line = () => '<tr class="ln"><td><select class="ac">' + opts + '</select></td><td><input class="dr" inputmode="decimal" size="12"></td>' +
-      '<td><input class="cr" inputmode="decimal" size="12"></td><td><input class="nt" maxlength="200"></td><td><button type="button" class="btn alt sm" data-act="rm">✕</button></td></tr>';
+      '<td><input class="cr" inputmode="decimal" size="12"></td><td><input class="nt" maxlength="200"></td><td><button type="button" class="btn alt sm" data-act="rm">×</button></td></tr>';
     el.innerHTML = E.head('قيد يومية جديد', 'يجب أن يتساوى مجموع المدين والدائن') +
       '<div id="out"></div><div class="card"><div class="row">' +
       '<label>التاريخ<input type="date" id="e-date" value="' + E.today() + '"></label>' +

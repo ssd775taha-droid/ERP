@@ -24,7 +24,7 @@
     const t = r.totals, m = (x) => (x ? money(x) : '');
     const stat = (k, v) => '<div class="stat"><div class="muted">' + k + '</div><b>' + v + '</b></div>';
     const cards = '<div class="cards">' + (r.hasPeriod ? stat('إجمالي المدين (الحركة)', money(t.periodDebit)) + stat('إجمالي الدائن (الحركة)', money(t.periodCredit)) : stat('إجمالي المدين', money(t.debit)) + stat('إجمالي الدائن', money(t.credit))) +
-      stat('الأرصدة المدينة', money(t.balanceDebit)) + stat('الأرصدة الدائنة', money(t.balanceCredit)) + stat(r.balanced ? 'الميزان متوازن ✓' : 'الميزان غير متوازن!', money(Math.abs(t.debit - t.credit))) + '</div>';
+      stat('الأرصدة المدينة', money(t.balanceDebit)) + stat('الأرصدة الدائنة', money(t.balanceCredit)) + stat(r.balanced ? 'الميزان متوازن' : 'الميزان غير متوازن!', money(Math.abs(t.debit - t.credit))) + '</div>';
     if (!r.rows.length) return cards + '<div class="msg warn">لا حركة</div>';
     if (!r.hasPeriod) {
       return cards + '<table><thead><tr><th>الرمز</th><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">رصيد مدين</th><th class="n">رصيد دائن</th></tr></thead><tbody>' +
@@ -275,7 +275,7 @@
   });
 
   E.pages['hr-data-gaps'] = (el) => shell(el, 'نواقص بيانات الموظفين', 'موظفون على رأس العمل ينقصهم رقم هوية أو حساب بنكي أو قسم أو وظيفة (مهم قبل تحويل الرواتب)', '', async () => {
-    const r = await api('GET', '/hr/reports/data-gaps'), t = r.totals, no = (x) => (x ? '<span class="tag bad">ناقص</span>' : '<span class="tag good">✓</span>');
+    const r = await api('GET', '/hr/reports/data-gaps'), t = r.totals, no = (x) => (x ? '<span class="tag bad">ناقص</span>' : '<span class="tag good"></span>');
     if (!r.rows.length) return '<div class="msg good">بيانات كل الموظفين (' + r.active + ') مكتملة</div>';
     return '<div class="cards">' + stat('موظفون ناقصو بيانات', r.rows.length + ' من ' + r.active) + stat('بلا هوية', t.noId) + stat('بلا حساب بنكي', t.noBank) + stat('بلا قسم', t.noDept) + stat('بلا وظيفة', t.noJob) + '</div>' +
       '<table><thead><tr><th>الرمز</th><th>الموظف</th><th>القسم</th><th>الهوية</th><th>الحساب البنكي</th><th>القسم</th><th>الوظيفة</th></tr></thead><tbody>' +

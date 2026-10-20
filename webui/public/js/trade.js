@@ -76,7 +76,7 @@
     const aopts = '<option value="">الافتراضي</option>' + accts.filter((a) => a.active === 'Y' && !a.children).map((a) => '<option value="' + esc(a.code) + '">' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('');
     const line = () => '<tr class="ln"><td><select class="it">' + iopts + '</select></td><td><input class="ds" maxlength="200" placeholder="الوصف"></td><td><select class="wh" disabled>' + wopts + '</select></td>' +
       '<td><select class="ac">' + aopts + '</select></td><td><input class="q" inputmode="decimal" value="1" size="6"></td><td><input class="pr" inputmode="decimal" size="10"></td><td><input class="vt" inputmode="decimal" value="' + E.tax.vatRate + '" size="5"></td>' +
-      '<td class="n tot">0.00</td><td><button type="button" class="btn alt sm" data-act="rm">✕</button></td></tr>';
+      '<td class="n tot">0.00</td><td><button type="button" class="btn alt sm" data-act="rm">×</button></td></tr>';
     el.innerHTML = E.head('فاتورة ' + KIND[kind] + ' جديدة', 'الأصناف المخزنية تحرّك المخزون وتُرحَّل تكلفتها تلقائياً') + '<div class="card"><div class="row">' +
       '<label>' + PKIND[pk] + '<select id="pt">' + parties.map((p) => '<option value="' + p.id + '">' + esc(p.name) + '</option>').join('') + '</select></label>' +
       '<label>التاريخ<input type="date" id="dt" value="' + E.today() + '"></label><label>الاستحقاق<input type="date" id="du"></label><label>المرجع<input id="rf" maxlength="60"></label>' +

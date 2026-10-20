@@ -15,7 +15,7 @@
     const aopts = '<option value="">—</option>' + accts.filter((a) => a.active === 'Y' && !a.children).map((a) => '<option value="' + esc(a.code) + '">' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('');
     const line = () => '<tr class="ln"><td><select class="it">' + iopts + '</select></td><td><input class="ds" maxlength="200" placeholder="الوصف"></td><td><select class="wh" disabled>' + wopts + '</select></td>' +
       '<td><select class="ac">' + aopts + '</select></td><td><input class="q" value="1" size="5" inputmode="decimal"></td><td><input class="pr" size="9" inputmode="decimal"></td>' +
-      (kind === 'Q' ? '<td><input class="dc" value="0" size="4" inputmode="decimal"></td>' : '') + '<td><input class="vt" value="' + E.tax.vatRate + '" size="4" inputmode="decimal"></td><td class="n tot">0.00</td><td><button type="button" class="btn alt sm" data-act="rm">✕</button></td></tr>';
+      (kind === 'Q' ? '<td><input class="dc" value="0" size="4" inputmode="decimal"></td>' : '') + '<td><input class="vt" value="' + E.tax.vatRate + '" size="4" inputmode="decimal"></td><td class="n tot">0.00</td><td><button type="button" class="btn alt sm" data-act="rm">×</button></td></tr>';
     const html = '<table><thead><tr><th>الصنف</th><th>الوصف</th><th>المخزن</th><th>' + (kind === 'Q' ? 'حساب الإيراد' : 'حساب المصروف') + '</th><th>الكمية</th><th>السعر</th>' + (kind === 'Q' ? '<th>خصم %</th>' : '') + '<th>ضريبة %</th><th class="n">الصافي</th><th></th></tr></thead><tbody id="lines">' + line() + '</tbody>' +
       '<tfoot><tr><td colspan="' + (kind === 'Q' ? 8 : 7) + '">الإجمالي التقريبي بعد الضريبة</td><td class="n" id="gt">0.00</td><td></td></tr></tfoot></table>' +
       '<p><button type="button" class="btn alt" data-act="add">+ بند</button></p>';

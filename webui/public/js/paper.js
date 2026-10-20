@@ -60,7 +60,7 @@
     const dlg = document.createElement('dialog');
     dlg.className = 'docdlg'; dlg.id = 'docdlg';
     const btns = (sp.actions || []).map((a, i) => '<button type="button" class="btn alt ' + (a.cls || '') + '" data-i="' + i + '">' + esc(a.label) + '</button>').join(' ');
-    dlg.innerHTML = '<div class="dd-bar"><b>' + esc(sp.windowTitle || sp.titleAr) + '</b><button type="button" class="btn alt sm" data-x="close">✕</button></div>' +
+    dlg.innerHTML = '<div class="dd-bar"><b>' + esc(sp.windowTitle || sp.titleAr) + '</b><button type="button" class="btn alt sm" data-x="close">×</button></div>' +
       '<div class="dd-tools"><span>لغة المستند / Language:</span><span class="seg"><button type="button" data-l="ar" class="on">العربية</button><button type="button" data-l="en">English</button></span></div>' +
       '<div class="dd-view"><div id="dd-paper"></div></div>' +
       '<div class="dd-actions"><button type="button" class="btn gold" data-x="pdf">تنزيل PDF</button> <button type="button" class="btn alt" data-x="xlsx">تنزيل Excel</button> <button type="button" class="btn alt" data-x="print">طباعة</button> <button type="button" class="btn alt" data-x="wa">إرسال واتساب</button> ' + btns + ' <button type="button" class="btn alt" data-x="close">إغلاق</button></div>';
@@ -127,7 +127,7 @@
   // معاينة الإيصال قبل الطباعة
   E.openThermal = (s) => {
     const dlg = document.createElement('dialog'); dlg.className = 'docdlg thdlg'; dlg.id = 'docdlg';
-    dlg.innerHTML = '<div class="dd-bar"><b>إيصال حراري 80مم — <span dir="ltr">' + esc(s.no) + '</span></b><button type="button" class="btn alt sm" data-x="close">✕</button></div><div class="dd-view"><div class="th-paper">' + E.thermalHtml(s) + '</div></div>' +
+    dlg.innerHTML = '<div class="dd-bar"><b>إيصال حراري 80مم — <span dir="ltr">' + esc(s.no) + '</span></b><button type="button" class="btn alt sm" data-x="close">×</button></div><div class="dd-view"><div class="th-paper">' + E.thermalHtml(s) + '</div></div>' +
       '<div class="dd-actions"><button type="button" class="btn gold" data-x="print">طباعة الإيصال</button> <button type="button" class="btn alt" data-x="close">إغلاق</button></div>';
     document.body.appendChild(dlg);
     const close = () => { dlg.close(); dlg.remove(); };

@@ -44,7 +44,7 @@
         '</td><td class="n ot">0.00</td></tr>';
     }).join('') : '';
     const free = () => '<tr class="fl"><td><input class="fd" maxlength="200" placeholder="الوصف (خصم، رسوم، تعديل سعر…)"></td><td><input class="fq" value="1" size="5" inputmode="decimal"></td><td><input class="fp" size="9" inputmode="decimal"></td>' +
-      '<td><input class="fv" value="' + E.tax.vatRate + '" size="4" inputmode="decimal"></td><td><select class="fa">' + accOpts + '</select></td><td class="n ft">0.00</td><td><button type="button" class="btn alt sm" data-act="rmf">✕</button></td></tr>';
+      '<td><input class="fv" value="' + E.tax.vatRate + '" size="4" inputmode="decimal"></td><td><select class="fa">' + accOpts + '</select></td><td class="n ft">0.00</td><td><button type="button" class="btn alt sm" data-act="rmf">×</button></td></tr>';
     el.innerHTML = E.head(label, 'على الفاتورة ' + inv.no + ' (' + inv.date + ') — ' + inv.partyName + ' — المتبقي الفعلي ' + money(inv.remaining)) +
       '<div class="card"><div class="row"><label>التاريخ<input type="date" id="dt" value="' + E.today() + '"></label><label style="flex:1">سبب الإشعار (إلزامي)<input id="rs" maxlength="300" placeholder="' + (credit ? 'مثال: مرتجع بضاعة تالفة / خصم كمية' : 'مثال: رسوم تأخير / فرق سعر') + '"></label></div>' +
       (credit ? '<h3>بنود الفاتورة (اكتب الكمية المرتجعة أو المخفَّضة)</h3><table><thead><tr><th>البند</th><th class="n">الكمية الأصلية</th><th class="n">المتاح</th><th>الكمية</th><th>السعر</th><th>ضريبة %</th><th>المخزون</th><th class="n">الإجمالي</th></tr></thead><tbody id="ol">' + origRows + '</tbody></table>' +
