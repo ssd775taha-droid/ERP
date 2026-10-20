@@ -26,7 +26,7 @@
     ['الإقفال'],
     ['periods', 'الفترات والإقفال', 'periods'],
     ['الإعدادات'],
-    ['settings/home', 'إعدادات النظام'], ['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings'],
+    ['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings'],
     ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/password', 'كلمة سري'],
   ];
   const allowed = (n) => !n[2] || (n[2] === 'admin' ? E.me.isAdmin : E.can(n[2], 'r'));
@@ -76,8 +76,9 @@
     });
     const html = items.filter((x) => !x.grp || x.kids > 0)
       .map((x) => x.grp ? '<div class="grp">' + E.esc(x.grp) + '</div>' : '<a href="#/' + x.n[0] + '" data-r="' + x.n[0] + '">' + E.esc(x.n[1]) + '</a>').join('');
-    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div>' + html +
-      '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button></div></nav><main id="main"></main></div>';
+    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div><a href="#/settings/home" data-r="settings/home" style="background:rgba(255,255,255,.1)">⚙ الإعدادات والمستخدمون والصلاحيات</a>' + html +
+      '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><main id="main"></main></div>';
+    E.api('GET', '/version').then((v) => { const el = E.$('#ver'); if (el) el.textContent = 'الإصدار ' + v.version; }).catch(() => {});
     E.$('#lo').addEventListener('click', async () => { try { await E.api('POST', '/logout'); } catch (e) { /* نتجاهل */ } loginView(); });
   }
 

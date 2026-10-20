@@ -37,6 +37,8 @@ function createApp(cfg) {
     catch (e) { console.error('healthz:', String(e.message).split('\n')[0]); res.status(503).json({ ok: false }); }
   });
 
+  const VERSION = require('../package.json').version;
+  app.get('/api/version', (req, res) => res.json({ version: VERSION }));
   app.post('/api/login', auth.login);
   app.post('/api/logout', auth.logout);
   app.get('/api/me', (req, res) => {
