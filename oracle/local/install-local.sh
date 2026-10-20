@@ -58,8 +58,8 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   fi
   docker start "$NAME" >/dev/null
   # إن حُذف مجلد التثبيت السابق (المربوط بالحاوية) نعيد إنشاء الحاوية على المجلد الحالي؛ البيانات في وحدة التخزين تبقى
-  if ! docker exec "$NAME" test -f /erp/check_install.sql; then
-    echo "مجلد التثبيت السابق غير موجود: إعادة إنشاء الحاوية (البيانات محفوظة)"
+  if ! docker exec "$NAME" test -f /erp/upgrade.sql; then
+    echo "مجلد التثبيت السابق مفقود أو قديم (بلا upgrade.sql): إعادة إنشاء الحاوية (البيانات محفوظة)"
     docker stop "$NAME" >/dev/null; docker rm "$NAME" >/dev/null
     EXISTS=0
   fi

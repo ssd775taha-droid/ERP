@@ -49,9 +49,9 @@ if ($exists) {
   }
   docker start $Name | Out-Null
   # إن كان مجلد التثبيت السابق (المربوط بالحاوية) قد حُذف فنعيد إنشاء الحاوية على المجلد الحالي، والبيانات في وحدة التخزين تبقى
-  docker exec $Name test -f /erp/check_install.sql 2>$null
+  docker exec $Name test -f /erp/upgrade.sql 2>$null
   if ($LASTEXITCODE -ne 0) {
-    Write-Host 'مجلد التثبيت السابق غير موجود: إعادة إنشاء الحاوية (البيانات محفوظة)'
+    Write-Host 'مجلد التثبيت السابق مفقود أو قديم (بلا upgrade.sql): إعادة إنشاء الحاوية (البيانات محفوظة)'
     docker stop $Name | Out-Null
     docker rm $Name | Out-Null
     $exists = $null
