@@ -63,6 +63,28 @@ window.ERP = (function () {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
+  // وضع القراءة فقط: يخفي نماذج الإضافة وأزرار الإجراء وروابط الإنشاء/التعديل وحقول الجداول؛ يُبقي الطباعة والتصدير ونماذج العرض (المرشِّحات)
+  E.readOnly = (main, label) => {
+    const hide = (n) => { n.hidden = true; n.style.display = 'none'; };
+    const apply = () => {
+      E.$$('form', main).forEach((f) => {
+        const isFilter = E.$$('button', f).some((b) => /^(عرض|بحث)$/.test(b.textContent.trim()));
+        if (!isFilter) hide(f.closest('.card') || f);
+      });
+      E.$$('[data-act]', main).forEach((b) => { if (b.dataset.act !== 'print') hide(b); });
+      E.$$('a', main).forEach((a) => { if (/#\/[^\s]*\b(new|edit)(\/|-|$)/.test(a.getAttribute('href') || '') || /^#\/(note|invoice|quote|po)\/new/.test(a.getAttribute('href') || '')) hide(a.closest('p') && a.closest('p').children.length === 1 ? a.closest('p') : a); });
+      E.$$('table input, table select', main).forEach(hide);
+      E.$$('select[data-act-change]', main).forEach((s) => { s.disabled = true; });
+      // بطاقات صارت فارغة بعد الإخفاء
+      E.$$('.card', main).forEach((c) => { if (!c.hidden && !c.innerText.trim()) hide(c); });
+    };
+    // الشريط عبر ::before في CSS كي لا يُمحى حين تكتب الصفحة محتواها في main
+    main.classList.add('ro');
+    main.dataset.ro = 'عرض فقط: صلاحيتك على «' + label + '» قراءة، فلا تظهر أدوات الإضافة والتعديل.';
+    new MutationObserver(apply).observe(main, { childList: true, subtree: true });
+    apply();
+  };
+
   // يضيف زر «تصدير» تلقائياً قبل كل جدول فيه أكثر من صف في الصفحة الحالية (يراقب ما يُحمَّل لاحقاً)
   E.autoExport = (main) => {
     // اسم الملف بحروف لاتينية من مسار الصفحة (بعض المتصفحات تُسقط الأسماء العربية فيصير الملف download)

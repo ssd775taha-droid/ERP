@@ -72,3 +72,5 @@ svg.chart .bs, .lg.bs { fill: var(--brand); background: var(--brand); }
 svg.chart .bp, .lg.bp { fill: var(--warn); background: var(--warn); }
 svg.chart .bl { fill: var(--muted); font-size: 11px; }
 .lg { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline: 4px; }
+main.ro::before { content: attr(data-ro); display: block; background: var(--warn-bg); color: var(--warn); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+@media print { main.ro::before { display: none; } }

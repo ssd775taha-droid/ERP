@@ -16,7 +16,7 @@
       stat('الحسابات', s.accounts) + stat('القيود', s.entries) + stat('رصيد النقدية والبنوك', money(s.cash)) +
       stat('أرباح لم تُقفل', money(s.unclosedEarnings)) + stat('أشهر مقفلة', s.closedMonths) + '</div>' +
       '<div id="dash"></div>' +
-      '<div class="card"><a href="#/entry/new">+ قيد يومية جديد</a> · <a href="#/reports/trial-balance">ميزان المراجعة</a> · <a href="#/reports/balance-sheet">الميزانية</a></div>';
+      '<div class="card">' + (E.can('accounting', 'w') ? '<a href="#/entry/new">+ قيد يومية جديد</a> · ' : '') + (E.can('reports', 'r') ? '<a href="#/reports/trial-balance">ميزان المراجعة</a> · <a href="#/reports/balance-sheet">الميزانية</a>' : '') + '</div>';
     // مؤشرات إضافية: مستحقات ومتأخرات ورسم المبيعات والمشتريات لآخر 6 أشهر وأكبر العملاء (تظهر لمن يملك صلاحية التقارير)
     if (E.can('reports', 'r')) {
       api('GET', '/reports/dashboard').then((d) => {

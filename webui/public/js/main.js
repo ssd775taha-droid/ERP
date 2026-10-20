@@ -29,7 +29,26 @@
     ['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings'],
     ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري'],
   ];
-  const allowed = (n) => !n[2] || (n[2] === 'admin' ? E.me.isAdmin : E.can(n[2], 'r'));
+  // الوحدة والمستوى اللازمان لكل صفحة (مفتاح المسار). صفحات الإنشاء/التنفيذ تتطلب كتابة. ما لا يُذكر هنا مفتوح لكل مستخدم مسجَّل
+  const R = 'r', W = 'w';
+  const PAGE = {
+    accounts: ['accounting', R], 'entry/new': ['accounting', W], entries: ['accounting', R],
+    customers: ['trade', R], sales: ['trade', R], suppliers: ['trade', R], purchases: ['trade', R], payments: ['trade', R], notes: ['trade', R],
+    'invoice/new': ['trade', W], 'invoice/view': ['trade', R], 'party/statement': ['trade', R], 'payment/new': ['trade', W], 'note/new': ['trade', W], 'note/view': ['trade', R],
+    'inventory/items': ['inventory', R], 'inventory/warehouses': ['inventory', R], 'inventory/stock': ['inventory', R], 'inventory/moves': ['inventory', R], 'inventory/adjust': ['inventory', W],
+    assets: ['assets', R], 'assets/new': ['assets', W], 'assets/view': ['assets', R], 'assets/depreciation': ['assets', W],
+    'hr/employees': ['hr', R], 'employee/view': ['hr', R], 'hr/components': ['hr', R], 'hr/adjustments': ['hr', R], 'hr/advances': ['hr', R], payroll: ['payroll', R], 'payroll/view': ['payroll', R],
+    'pos/sell': ['pos', W], 'pos/sales': ['pos', R], 'pos/sale': ['pos', R], 'pos/shifts': ['pos', R], 'pos/shift': ['pos', R], 'pos/registers': ['pos', R],
+    po: ['orders', R], 'po/new': ['orders', W], 'po/view': ['orders', R], 'po/edit': ['orders', W], quotes: ['orders', R], 'quote/new': ['orders', W], 'quote/view': ['orders', R], 'quote/edit': ['orders', W],
+    'reports/trial-balance': ['reports', R], 'reports/ledger': ['reports', R], 'reports/income-statement': ['reports', R], 'reports/aging': ['reports', R], 'reports/vat': ['reports', R],
+    'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], periods: ['periods', R],
+    settings: ['settings', R], 'tax/settings': ['settings', R],
+    'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'],
+  };
+  const MODULE_LABEL = { accounting: 'المحاسبة', periods: 'إقفال الفترات', reports: 'التقارير', trade: 'المبيعات والمشتريات', inventory: 'المخزون', assets: 'الأصول الثابتة',
+    hr: 'الموارد البشرية', payroll: 'الرواتب', pos: 'نقاط البيع', orders: 'الطلبات والعروض', settings: 'الإعدادات', admin: 'إدارة النظام' };
+  const permits = (key, level) => { const p = PAGE[key]; if (!p) return true; return p[0] === 'admin' ? !!E.me.isAdmin : E.can(p[0], level || p[1]); };
+  const allowed = (n) => !n[2] || permits(n[0]);
   const ROUTES = {
     '': 'dashboard', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
     'reports/trial-balance': 'trial-balance', 'reports/ledger': 'ledger', 'reports/income-statement': 'income-statement',
@@ -97,6 +116,16 @@
     old.replaceWith(main);
     E.autoExport(main);
     if (!name || !E.pages[name]) { main.innerHTML = E.err('الصفحة غير موجودة'); return; }
+    // لا صلاحية: صفحة واضحة دون استدعاء أي واجهة برمجية
+    if (!permits(key)) {
+      const p = PAGE[key];
+      main.innerHTML = E.head('لا صلاحية', 'هذه الصفحة غير متاحة لدورك (' + (E.me.roleName || '') + ')') +
+        '<div class="msg warn">تحتاج صلاحية ' + (p[0] === 'admin' ? 'مدير النظام' : (p[1] === 'w' ? 'الكتابة' : 'القراءة') + ' على «' + (MODULE_LABEL[p[0]] || p[0]) + '»') + '. اطلب من مدير النظام تعديل دورك.</div><p><a href="#/">الرئيسية</a></p>';
+      return;
+    }
+    // صلاحية قراءة فقط على وحدة الصفحة: تُخفى أدوات الإضافة والتعديل والإلغاء
+    const pm = PAGE[key];
+    if (pm && pm[0] !== 'admin' && !E.can(pm[0], 'w')) E.readOnly(main, MODULE_LABEL[pm[0]] || pm[0]);
     try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); }
   }
 
