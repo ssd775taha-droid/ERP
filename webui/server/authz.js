@@ -4,13 +4,15 @@ const { HttpError } = require('./db');
 const R = (re, module, opt = {}) => ({ re, module, ...opt });
 // الترتيب مهم: أول قاعدة مطابقة. any = أي مستخدم مسجَّل، admin = مدير فقط
 const RULES = [
-  R(/^\/(me|account\/password|search)$/, 'any'),   // /search يقتصر داخلياً على الأنواع المسموحة للمستخدم
+  R(/^\/(me|account\/password|search|alerts)$/, 'any'),   // /search يقتصر داخلياً على الأنواع المسموحة للمستخدم
   R(/^\/(users|roles|audit|meta)(\/|$)/, 'admin'),
   R(/^\/accounts(\/|$)/, 'accounting', { readAny: true }),     // دليل الحسابات يُقرأ لتعبئة القوائم في كل الوحدات
   R(/^\/entries(\/|$)/, 'accounting'),
   R(/^\/summary$/, 'summary'),
   R(/^\/reports\//, 'reports'),
   R(/^\/(periods|years)(\/|$)/, 'periods'),
+  R(/^\/import\/parties$/, 'trade'),
+  R(/^\/import\/items$/, 'inventory'),
   R(/^\/(parties|invoices|payments|notes)(\/|$)/, 'trade'),
   R(/^\/(items|warehouses)$/, 'inventory', { readAny: true }),
   R(/^\/inventory(\/|$)/, 'inventory'),

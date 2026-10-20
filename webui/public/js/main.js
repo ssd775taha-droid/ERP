@@ -31,7 +31,7 @@
       { t: 'تقارير الرواتب', items: [['payroll/dept', 'الرواتب حسب القسم', 'payroll'], ['payroll/employee-sheet', 'رواتب الموظفين بالأشهر', 'payroll'], ['payroll/components', 'الرواتب حسب المكوّن', 'payroll'], ['payroll/trend', 'اتجاه تكلفة الرواتب', 'payroll']] } ] },
     { id: 'set', title: 'الإعدادات والإدارة', groups: [
       { t: 'المنشأة', items: [['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings']] },
-      { t: 'النظام', items: [['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري']] } ] },
+      { t: 'النظام', items: [['settings/import', 'استيراد البيانات'], ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري']] } ] },
   ];
   // الوحدة والمستوى اللازمان لكل صفحة (مفتاح المسار). صفحات الإنشاء/التنفيذ تتطلب كتابة. ما لا يُذكر هنا مفتوح لكل مستخدم مسجَّل
   const R = 'r', W = 'w';
@@ -63,7 +63,7 @@
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters', 'pos/rep-daily': 'pos-daily', 'pos/rep-items': 'pos-items', 'pos/rep-cashiers': 'pos-cashiers', 'pos/rep-hourly': 'pos-hourly', 'pos/rep-shifts': 'pos-shifts', 'pos/rep-returns': 'pos-returns',
     'po/edit': 'poEdit', 'quote/edit': 'quoteEdit', po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
     'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
-    'settings/home': 'settingsHome', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
+    'settings/home': 'settingsHome', 'settings/import': 'importData', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
     notes: 'notes', 'note/new': 'noteNew', 'note/view': 'noteView',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',

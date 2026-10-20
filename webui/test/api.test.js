@@ -527,6 +527,34 @@ test('تقارير المبيعات والمشتريات الإضافية: ال�
   assert.strictEqual((await call('GET', '/api/reports/open-invoices?kind=SALES')).status, 400);
 });
 
+test('التنبيهات والاستيراد: بنية التنبيهات، وتجربة الاستيراد لا تحفظ، والحقيقي يحفظ الصحيح ويرفض المكرر والخاطئ', { skip: !hasDb || !canWrite }, async () => {
+  const al = await call('GET', '/api/alerts');
+  assert.strictEqual(al.status, 200);
+  for (const a of al.data.alerts) { assert.ok(['bad', 'warn', 'info'].includes(a.level) && a.count > 0 && a.href.startsWith('#/')); }
+  const st = Date.now().toString(36);
+  const before = (await call('GET', '/api/parties?kind=CUSTOMER')).data.parties.length;
+  const rows = [{ name: 'مستورد ' + st + 'أ', phone: '0500000001', taxNo: '310122393500003' }, { name: 'مستورد ' + st + 'ب' }, { name: 'مستورد ' + st + 'أ' }, { name: 'ضريبي خاطئ ' + st, taxNo: '123' }, { name: '' }];
+  const dry = await call('POST', '/api/import/parties', { kind: 'CUSTOMER', rows, dryRun: true });
+  assert.strictEqual(dry.status, 200);
+  assert.deepStrictEqual([dry.data.ok, dry.data.failed], [2, 3]);
+  assert.strictEqual((await call('GET', '/api/parties?kind=CUSTOMER')).data.parties.length, before);   // التجربة لم تحفظ
+  const real = await call('POST', '/api/import/parties', { kind: 'CUSTOMER', rows, dryRun: false });
+  assert.deepStrictEqual([real.data.ok, real.data.failed], [2, 3]);
+  assert.strictEqual((await call('GET', '/api/parties?kind=CUSTOMER')).data.parties.length, before + 2);
+  const again = await call('POST', '/api/import/parties', { kind: 'CUSTOMER', rows: [rows[0]], dryRun: false });
+  assert.strictEqual(again.data.failed, 1);       // موجود مسبقاً
+  assert.strictEqual((await call('POST', '/api/import/parties', { kind: 'X', rows })).status, 400);
+  assert.strictEqual((await call('POST', '/api/import/parties', { kind: 'CUSTOMER', rows: [] })).status, 400);
+  // أصناف: رمز مكرر داخل الملف، وسعر خاطئ، وخدمة
+  const items = [{ code: 'IM' + st + '1', name: 'صنف مستورد', unit: 'علبة', price: '12.5', vat: '15', trackStock: 'نعم' }, { code: 'IM' + st + '2', name: 'خدمة مستوردة', price: '100', trackStock: 'لا' },
+    { code: 'IM' + st + '1', name: 'مكرر' }, { code: 'IM' + st + '3', name: 'سعر خاطئ', price: 'abc' }];
+  const ri = await call('POST', '/api/import/items', { rows: items, dryRun: false });
+  assert.deepStrictEqual([ri.data.ok, ri.data.failed], [2, 2]);
+  const list = (await call('GET', '/api/items')).data.items;
+  assert.strictEqual(list.find((x) => x.code === 'IM' + st + '2').trackStock, 'N');
+  assert.strictEqual(list.find((x) => x.code === 'IM' + st + '1').price, 12.5);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

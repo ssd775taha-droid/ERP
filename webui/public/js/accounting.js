@@ -3,9 +3,21 @@
   const { esc, money, api } = E;
 
   // ---------- لوحة المعلومات ----------
+  // بطاقة التنبيهات التشغيلية (ما يحتاج متابعة) تحت عنوان اللوحة، وتُخفى إن لم يوجد شيء
+  async function showAlerts(el) {
+    try {
+      const { alerts } = await api('GET', '/alerts');
+      if (!alerts.length) return;
+      const box = document.createElement('div'); box.className = 'card alerts';
+      box.innerHTML = '<h3>تنبيهات تحتاج متابعة</h3><ul class="alist">' + alerts.map((a) => '<li class="' + a.level + '"><a href="' + a.href + '">' + a.count + ' ' + esc(a.text) + (a.amount != null ? ' — ' + money(a.amount) : '') + '</a></li>').join('') + '</ul>';
+      const h = E.$('h1 + .sub', el) || E.$('h1', el);
+      if (h) h.insertAdjacentElement('afterend', box);
+    } catch (e) { /* التنبيهات اختيارية */ }
+  }
   E.pages.dashboard = async function (el) {
     if (!E.can('reports', 'r') && !E.can('accounting', 'r')) {
       el.innerHTML = E.head('أهلاً ' + (E.me.fullName || E.me.user), 'دورك: ' + (E.me.roleName || '')) + '<div class="card">اختر من القائمة الجانبية. ' + (E.can('pos', 'w') ? '<a href="#/pos/sell">افتح شاشة البيع</a>' : '') + '</div>';
+      showAlerts(el);
       return;
     }
     el.innerHTML = E.head('لوحة المعلومات', 'نظرة سريعة على الحالة المحاسبية');
@@ -17,6 +29,7 @@
       stat('أرباح لم تُقفل', money(s.unclosedEarnings)) + stat('أشهر مقفلة', s.closedMonths) + '</div>' +
       '<div id="dash"></div>' +
       '<div class="card">' + (E.can('accounting', 'w') ? '<a href="#/entry/new">+ قيد يومية جديد</a> · ' : '') + (E.can('reports', 'r') ? '<a href="#/reports/trial-balance">ميزان المراجعة</a> · <a href="#/reports/balance-sheet">الميزانية</a>' : '') + '</div>';
+    showAlerts(el);
     // مؤشرات إضافية: مستحقات ومتأخرات ورسم المبيعات والمشتريات لآخر 6 أشهر وأكبر العملاء (تظهر لمن يملك صلاحية التقارير)
     if (E.can('reports', 'r')) {
       api('GET', '/reports/dashboard').then((d) => {
