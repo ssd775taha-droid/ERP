@@ -3,33 +3,33 @@
   const app = E.$('#app');
   let me = null;
 
-  // [المسار، العنوان، الوحدة المطلوبة (قراءة) أو 'admin']؛ العنوان وحده = رأس مجموعة تُخفى إن لم يبق تحتها شيء
-  const NAV = [
-    ['', 'الرئيسية'], ['search', 'الاستعلام'],
-    ['المحاسبة'],
-    ['accounts', 'دليل الحسابات', 'accounting'], ['entry/new', 'قيد يومية جديد', 'accounting'], ['entries', 'دفتر اليومية', 'accounting'],
-    ['المبيعات والمشتريات'],
-    ['customers', 'العملاء', 'trade'], ['sales', 'فواتير المبيعات', 'trade'], ['suppliers', 'الموردون', 'trade'], ['purchases', 'فواتير المشتريات', 'trade'], ['payments', 'سندات القبض والصرف', 'trade'], ['notes', 'إشعارات الدائن والمدين', 'trade'],
-    ['المخزون'],
-    ['inventory/items', 'الأصناف', 'inventory'], ['inventory/warehouses', 'المخازن', 'inventory'], ['inventory/stock', 'أرصدة المخزون', 'inventory'], ['inventory/moves', 'حركات المخزون', 'inventory'], ['inventory/adjust', 'تسوية وتحويل', 'inventory'],
-    ['inventory/valuation', 'تقييم المخزون', 'inventory'], ['inventory/card', 'كارت الصنف', 'inventory'], ['inventory/movement', 'ملخص حركة المخزون', 'inventory'], ['inventory/slow', 'ركود المخزون', 'inventory'], ['inventory/shortage', 'نواقص وتغطية', 'inventory'],
-    ['الأصول الثابتة'],
-    ['assets', 'سجل الأصول', 'assets'], ['assets/new', 'أصل جديد', 'assets'], ['assets/depreciation', 'الإهلاك الشهري', 'assets'],
-    ['الرواتب والموارد البشرية'],
-    ['hr/employees', 'الموظفون', 'hr'], ['hr/components', 'مكوّنات الراتب', 'hr'], ['hr/adjustments', 'التسويات', 'hr'], ['hr/advances', 'السلف', 'hr'], ['hr/headcount', 'القوى العاملة حسب القسم', 'hr'], ['hr/tenure', 'مدة الخدمة', 'hr'], ['hr/movements', 'حركة الموظفين', 'hr'], ['hr/salary-changes', 'تغيّرات الرواتب', 'hr'], ['hr/advances-report', 'أرصدة السلف', 'hr'], ['hr/data-gaps', 'نواقص بيانات الموظفين', 'hr'], ['payroll', 'كشوف الرواتب', 'payroll'], ['payroll/dept', 'الرواتب حسب القسم', 'payroll'], ['payroll/employee-sheet', 'رواتب الموظفين بالأشهر', 'payroll'], ['payroll/components', 'الرواتب حسب المكوّن', 'payroll'], ['payroll/trend', 'اتجاه تكلفة الرواتب', 'payroll'],
-    ['نقاط البيع'],
-    ['pos/sell', 'شاشة البيع', 'pos'], ['pos/sales', 'العمليات', 'pos'], ['pos/shifts', 'الورديات', 'pos'], ['pos/registers', 'النقاط', 'pos'],
-    ['الطلبات والعروض'],
-    ['po', 'أوامر الشراء', 'orders'], ['po/new', 'أمر شراء جديد', 'orders'], ['quotes', 'عروض الأسعار', 'orders'], ['quote/new', 'عرض سعر جديد', 'orders'],
-    ['التقارير'],
-    ['reports/trial-balance', 'ميزان المراجعة', 'reports'], ['reports/ledger', 'كشف حساب', 'reports'], ['reports/income-statement', 'قائمة الدخل', 'reports'],
-    ['reports/aging', 'أعمار الديون', 'reports'], ['reports/vat', 'إقرار الضريبة', 'reports'], ['reports/balance-sheet', 'الميزانية', 'reports'], ['reports/cash-flow', 'التدفقات النقدية', 'reports'],
-    ['reports/sales-analysis', 'تحليل المبيعات والمشتريات', 'reports'], ['reports/item-profit', 'ربحية الأصناف', 'reports'], ['reports/comparative', 'قائمة الدخل المقارنة', 'reports'],
-    ['الإقفال'],
-    ['periods', 'الفترات والإقفال', 'periods'],
-    ['الإعدادات'],
-    ['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings'],
-    ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري'],
+  // الأقسام: كل قسم قابل للطي وفيه مجموعات فرعية. عنصر = [المسار، العنوان، الوحدة المطلوبة (قراءة) أو 'admin']؛ يُخفى العنصر بلا صلاحية، وتُخفى المجموعة والقسم إن فرغا
+  const SECTIONS = [
+    { id: 'acc', title: 'المحاسبة', groups: [
+      { t: 'الدفاتر', items: [['accounts', 'دليل الحسابات', 'accounting'], ['entry/new', 'قيد يومية جديد', 'accounting'], ['entries', 'دفتر اليومية', 'accounting']] },
+      { t: 'التقارير المالية', items: [['reports/trial-balance', 'ميزان المراجعة', 'reports'], ['reports/ledger', 'كشف حساب', 'reports'], ['reports/income-statement', 'قائمة الدخل', 'reports'], ['reports/comparative', 'قائمة الدخل المقارنة', 'reports'], ['reports/balance-sheet', 'الميزانية', 'reports'], ['reports/cash-flow', 'التدفقات النقدية', 'reports']] },
+      { t: 'الإقفال', items: [['periods', 'الفترات والإقفال', 'periods']] } ] },
+    { id: 'trade', title: 'المبيعات والمشتريات', groups: [
+      { t: 'المبيعات', items: [['customers', 'العملاء', 'trade'], ['sales', 'فواتير المبيعات', 'trade'], ['quotes', 'عروض الأسعار', 'orders'], ['quote/new', 'عرض سعر جديد', 'orders']] },
+      { t: 'المشتريات', items: [['suppliers', 'الموردون', 'trade'], ['purchases', 'فواتير المشتريات', 'trade'], ['po', 'أوامر الشراء', 'orders'], ['po/new', 'أمر شراء جديد', 'orders']] },
+      { t: 'السندات والإشعارات', items: [['payments', 'سندات القبض والصرف', 'trade'], ['notes', 'إشعارات الدائن والمدين', 'trade']] },
+      { t: 'التقارير', items: [['reports/sales-analysis', 'تحليل المبيعات والمشتريات', 'reports'], ['reports/item-profit', 'ربحية الأصناف', 'reports'], ['reports/aging', 'أعمار الديون', 'reports'], ['reports/vat', 'إقرار الضريبة', 'reports']] } ] },
+    { id: 'inv', title: 'المخزون', groups: [
+      { t: 'البيانات والعمليات', items: [['inventory/items', 'الأصناف', 'inventory'], ['inventory/warehouses', 'المخازن', 'inventory'], ['inventory/adjust', 'تسوية وتحويل', 'inventory']] },
+      { t: 'الأرصدة والحركات', items: [['inventory/stock', 'أرصدة المخزون', 'inventory'], ['inventory/moves', 'حركات المخزون', 'inventory']] },
+      { t: 'التقارير', items: [['inventory/valuation', 'تقييم المخزون', 'inventory'], ['inventory/card', 'كارت الصنف', 'inventory'], ['inventory/movement', 'ملخص حركة المخزون', 'inventory'], ['inventory/slow', 'ركود المخزون', 'inventory'], ['inventory/shortage', 'نواقص وتغطية', 'inventory']] } ] },
+    { id: 'pos', title: 'نقاط البيع', groups: [
+      { t: '', items: [['pos/sell', 'شاشة البيع', 'pos'], ['pos/sales', 'العمليات', 'pos'], ['pos/shifts', 'الورديات', 'pos'], ['pos/registers', 'النقاط', 'pos']] } ] },
+    { id: 'assets', title: 'الأصول الثابتة', groups: [
+      { t: '', items: [['assets', 'سجل الأصول', 'assets'], ['assets/new', 'أصل جديد', 'assets'], ['assets/depreciation', 'الإهلاك الشهري', 'assets']] } ] },
+    { id: 'hr', title: 'الموارد البشرية والرواتب', groups: [
+      { t: 'الموظفون', items: [['hr/employees', 'الموظفون', 'hr'], ['hr/components', 'مكوّنات الراتب', 'hr'], ['hr/adjustments', 'التسويات', 'hr'], ['hr/advances', 'السلف', 'hr']] },
+      { t: 'الرواتب', items: [['payroll', 'كشوف الرواتب', 'payroll']] },
+      { t: 'تقارير الموارد البشرية', items: [['hr/headcount', 'القوى العاملة حسب القسم', 'hr'], ['hr/tenure', 'مدة الخدمة', 'hr'], ['hr/movements', 'حركة الموظفين', 'hr'], ['hr/salary-changes', 'تغيّرات الرواتب', 'hr'], ['hr/advances-report', 'أرصدة السلف', 'hr'], ['hr/data-gaps', 'نواقص بيانات الموظفين', 'hr']] },
+      { t: 'تقارير الرواتب', items: [['payroll/dept', 'الرواتب حسب القسم', 'payroll'], ['payroll/employee-sheet', 'رواتب الموظفين بالأشهر', 'payroll'], ['payroll/components', 'الرواتب حسب المكوّن', 'payroll'], ['payroll/trend', 'اتجاه تكلفة الرواتب', 'payroll']] } ] },
+    { id: 'set', title: 'الإعدادات والإدارة', groups: [
+      { t: 'المنشأة', items: [['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings']] },
+      { t: 'النظام', items: [['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري']] } ] },
   ];
   // الوحدة والمستوى اللازمان لكل صفحة (مفتاح المسار). صفحات الإنشاء/التنفيذ تتطلب كتابة. ما لا يُذكر هنا مفتوح لكل مستخدم مسجَّل
   const R = 'r', W = 'w';
@@ -90,16 +90,32 @@
     layout(); route();
   }
 
+  const NAV_PARENT = { 'invoice/view': 'sales', 'invoice/new': 'sales', 'party/statement': 'customers', 'payment/view': 'payments', 'payment/new': 'payments', 'note/view': 'notes', 'note/new': 'notes', 'entry/view': 'entries',
+    'po/view': 'po', 'po/edit': 'po', 'quote/view': 'quotes', 'quote/edit': 'quotes', 'assets/view': 'assets', 'employee/view': 'hr/employees', 'payroll/view': 'payroll', 'pos/sale': 'pos/sales', 'pos/shift': 'pos/shifts' };
+  // حالة طيّ الأقسام تُحفظ في المتصفح؛ القسم الذي فيه الصفحة الحالية يُفتح دائماً
+  const openSet = () => { try { return new Set(JSON.parse(localStorage.getItem('erp_nav_open') || '[]')); } catch (e) { return new Set(); } };
+  const saveOpen = (set) => { try { localStorage.setItem('erp_nav_open', JSON.stringify([...set])); } catch (e) { /* التخزين غير متاح */ } };
+  function revealActive(key) {
+    const a = E.$('nav.side a.on'); const d = a && a.closest('details.sec');
+    if (d && !d.open) d.open = true;
+  }
+
   function layout() {
-    const items = [];
-    NAV.forEach((n) => {
-      if (n.length === 1) items.push({ grp: n[0], kids: 0 });
-      else if (n.length === 2 || allowed(n)) { items.push({ n }); const g = items.filter((x) => x.grp).pop(); if (g) g.kids++; }
-    });
-    const html = items.filter((x) => !x.grp || x.kids > 0)
-      .map((x) => x.grp ? '<div class="grp">' + E.esc(x.grp) + '</div>' : '<a href="#/' + x.n[0] + '" data-r="' + x.n[0] + '">' + E.esc(x.n[1]) + '</a>').join('');
+    const open = openSet();
+    const link = (n) => '<a href="#/' + n[0] + '" data-r="' + n[0] + '">' + E.esc(n[1]) + '</a>';
+    const html = '<a href="#/" data-r="">الرئيسية</a><a href="#/search" data-r="search">الاستعلام</a>' + SECTIONS.map((sec) => {
+      const groups = sec.groups.map((g) => ({ t: g.t, items: g.items.filter((n) => allowed(n)) })).filter((g) => g.items.length);
+      if (!groups.length) return '';
+      const count = groups.reduce((s, g) => s + g.items.length, 0);
+      return '<details class="sec" data-s="' + sec.id + '"' + (open.has(sec.id) ? ' open' : '') + '><summary>' + E.esc(sec.title) + ' <span class="cnt">' + count + '</span></summary>' +
+        groups.map((g) => (g.t ? '<div class="grp">' + E.esc(g.t) + '</div>' : '') + g.items.map(link).join('')).join('') + '</details>';
+    }).join('');
     app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div><a href="#/settings/home" data-r="settings/home" style="background:rgba(255,255,255,.1)">⚙ الإعدادات والمستخدمون والصلاحيات</a>' + html +
       '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><div class="print-only" id="phead"></div><main id="main"></main><div class="print-only" id="pfoot"></div><button class="fab noprint" id="pbtn" title="طباعة هذه الشاشة" aria-label="طباعة">🖨 طباعة</button></div>';
+    E.$('nav.side').addEventListener('toggle', (ev) => {
+      const d = ev.target; if (!d || !d.matches || !d.matches('details.sec')) return;
+      const set = openSet(); if (d.open) set.add(d.dataset.s); else set.delete(d.dataset.s); saveOpen(set);
+    }, true);
     E.api('GET', '/version').then((v) => { const el = E.$('#ver'); if (el) el.textContent = 'الإصدار ' + v.version; }).catch(() => {});
     E.$('#pbtn').addEventListener('click', () => { const m = E.$('#main'); if (m && m._openDoc) m._openDoc(); else E.reportDoc(m); });
     E.$('#lo').addEventListener('click', async () => { try { await E.api('POST', '/logout'); } catch (e) { /* نتجاهل */ } loginView(); });
@@ -115,7 +131,10 @@
     let key = h, param = null;
     if (!(key in ROUTES) && parts.length >= 2) { key = parts.slice(0, 2).join('/'); param = parts[2]; }
     const name = ROUTES[key];
-    E.$$('nav.side a').forEach((a) => a.classList.toggle('on', a.dataset.r === key));
+    // صفحات العرض والإنشاء تُضيء بند قائمتها الأم في الشريط الجانبي
+    const act = NAV_PARENT[key] || key;
+    E.$$('nav.side a').forEach((a) => a.classList.toggle('on', a.dataset.r === act));
+    revealActive(act);
     const old = E.$('#main');
     const main = document.createElement('main'); // عنصر جديد لكل صفحة حتى لا تتراكم المستمعات
     main.id = 'main';
