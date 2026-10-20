@@ -2,7 +2,7 @@
 const express = require('express');
 const db = require('../db');
 const v = require('../validate');
-const { hashPassword, verifyPassword, MODULES, cleanPerms, LEVELS } = require('../security');
+const { hashPassword, verifyPassword, MODULES, ACTIONS, cleanPerms, LEVELS } = require('../security');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
@@ -16,7 +16,7 @@ function pw(x, label = 'كلمة السر') {
 module.exports = function adminRoutes(auth) {
   const r = express.Router();
 
-  r.get('/meta/modules', (req, res) => res.json({ modules: MODULES.map(([key, label]) => ({ key, label })), levels: LEVELS }));
+  r.get('/meta/modules', (req, res) => res.json({ modules: MODULES.map(([key, label]) => ({ key, label })), actions: ACTIONS.map(([key, label]) => ({ key, label })), levels: LEVELS }));
 
   // ---------- الأدوار ----------
   r.get('/roles', wrap(async (req, res) => {
@@ -29,6 +29,17 @@ module.exports = function adminRoutes(auth) {
     const id = v.str(b.id, 'رمز الدور', { max: 30 }).toLowerCase();
     if (!/^[a-z0-9_]{2,30}$/.test(id)) v.bad('رمز الدور: أحرف إنجليزية صغيرة وأرقام وشرطة سفلية');
     await db.run("INSERT INTO web_roles (role_id, name, perms, builtin) VALUES (:i, :n, :p, 'N')", { i: id, n: v.str(b.name, 'اسم الدور', { max: 80 }), p: JSON.stringify(cleanPerms(b.perms)) });
+    res.status(201).json({ id });
+  }));
+  // نسخ دور بصلاحياته إلى دور جديد (يبدأ غير جاهز وقابلاً للحذف)
+  r.post('/roles/:id/clone', wrap(async (req, res) => {
+    const b = req.body || {};
+    const id = v.str(b.id, 'رمز الدور', { max: 30 }).toLowerCase();
+    if (!/^[a-z0-9_]{2,30}$/.test(id)) v.bad('رمز الدور: أحرف إنجليزية صغيرة وأرقام وشرطة سفلية');
+    const src = (await db.query('SELECT perms AS "p" FROM web_roles WHERE role_id = :i', { i: req.params.id }))[0];
+    if (!src) throw new db.HttpError(404, 'الدور المصدر غير موجود');
+    const perms = req.params.id === 'admin' ? cleanPerms(Object.fromEntries(MODULES.map(([k]) => [k, 'w']))) : cleanPerms(JSON.parse(src.p));
+    await db.run("INSERT INTO web_roles (role_id, name, perms, builtin) VALUES (:i, :n, :p, 'N')", { i: id, n: v.str(b.name, 'اسم الدور', { max: 80 }), p: JSON.stringify(perms) });
     res.status(201).json({ id });
   }));
   r.patch('/roles/:id', wrap(async (req, res) => {

@@ -555,6 +555,45 @@ test('التنبيهات والاستيراد: بنية التنبيهات، و�
   assert.strictEqual(list.find((x) => x.code === 'IM' + st + '1').price, 12.5);
 });
 
+test('الصلاحيات الحساسة: الإلغاء والاعتماد علمان مستقلان عن كتابة الوحدة، ونسخ الدور', { skip: !hasDb || !canWrite }, async () => {
+  const st = Date.now().toString(36).slice(-6), rid = 'lim' + st;
+  // دور بكتابة التجارة والطلبات بلا إلغاء ولا اعتماد
+  assert.strictEqual((await call('POST', '/api/roles', { id: rid, name: 'محدود ' + st, perms: { trade: 'w', orders: 'w', inventory: 'r', _void: 'n', _approve: 'n' } })).status, 201);
+  const un = 'u' + st, pw = 'Password123';
+  assert.strictEqual((await call('POST', '/api/users', { username: un, roleId: rid, password: pw })).status, 201);
+  const adminCookie = cookie; cookie = '';
+  assert.strictEqual((await call('POST', '/api/login', { username: un, password: pw })).status, 200);
+  // يكتب في التجارة
+  const p = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل محدود ' + st });
+  assert.strictEqual(p.status, 201);
+  const inv = await call('POST', '/api/invoices', { kind: 'SALES', partyId: p.data.id, date: '2026-01-27', lines: [{ description: 'خدمة', qty: 1, price: 50, vatRate: 15, account: '4200' }] });
+  assert.strictEqual(inv.status, 201);
+  // لكن لا يلغي ولا يحذف
+  const v1 = await call('POST', `/api/invoices/${inv.data.invoice.id}/void`, {});
+  assert.strictEqual(v1.status, 403); assert.ok(/الإلغاء/.test(v1.data.error));
+  assert.strictEqual((await call('DELETE', `/api/parties/${p.data.id}`)).status, 403);
+  // ولا يعتمد أمر شراء
+  const sup = await call('POST', '/api/parties', { kind: 'SUPPLIER', name: 'مورد محدود ' + st });
+  const po = await call('POST', '/api/po', { partyId: sup.data.id, date: '2026-01-27', lines: [{ description: 'بند', qty: 1, price: 10, vatRate: 15, account: '5400' }] });
+  assert.strictEqual(po.status, 201);
+  const ap = await call('POST', `/api/po/${po.data.order ? po.data.order.id : po.data.id}/approve`, {});
+  assert.strictEqual(ap.status, 403); assert.ok(/الاعتماد/.test(ap.data.error));
+  assert.strictEqual((await call('POST', '/api/periods/close', { month: '2026-01-01' })).status, 403);
+  const me = await call('GET', '/api/me');
+  assert.strictEqual(me.data.perms._void, 'n'); assert.strictEqual(me.data.perms._approve, 'n');
+  cookie = adminCookie;
+  // المدير يستطيع، ونسخ الدور ينقل الأعلام
+  assert.strictEqual((await call('POST', `/api/roles/${rid}/clone`, { id: rid + 'c', name: 'نسخة ' + st })).status, 201);
+  const roles = (await call('GET', '/api/roles')).data.roles;
+  const cl = roles.find((x) => x.id === rid + 'c');
+  assert.strictEqual(cl.perms.trade, 'w'); assert.strictEqual(cl.perms._void, 'n'); assert.strictEqual(cl.builtin, 'N');
+  assert.strictEqual((await call('POST', `/api/roles/${rid}/clone`, { id: rid + 'c', name: 'مكرر' })).status, 409);
+  assert.strictEqual((await call('POST', '/api/roles/nope/clone', { id: 'zz' + st, name: 'x' })).status, 404);
+  // دور بلا أعلام صريحة (قديم) يُعامل كمسموح
+  assert.strictEqual(require('../server/security').cleanPerms({ trade: 'w' })._void, 'y');
+  assert.strictEqual(require('../server/security').cleanPerms({ trade: 'w', _void: 'n' })._void, 'n');
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

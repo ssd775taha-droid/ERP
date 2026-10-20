@@ -27,6 +27,18 @@ const RULES = [
 
 const rank = { n: 0, r: 1, w: 2 };
 
+// إجراءات حساسة: تتطلب علم الإجراء في الدور فوق كتابة الوحدة (المدير يملكها دائماً)
+const VOID_RE = /(\/(void|reverse|unconvert|unpay|cancel)|\/components\/\d+\/remove)$/;
+const APPROVE_RE = /^(\/po\/\d+\/approve|\/payroll\/runs\/\d+\/(post|pay)|\/periods\/(close|reopen)|\/years\/(close|reopen)|\/depreciation\/run)$/;
+function sensitive(req) {
+  if (req.method === 'DELETE') return '_void';
+  if (req.method !== 'POST') return null;
+  if (APPROVE_RE.test(req.path)) return '_approve';
+  if (VOID_RE.test(req.path)) return '_void';
+  return null;
+}
+const DENY_MSG = { _void: 'ليست لديك صلاحية الإلغاء والحذف والعكس', _approve: 'ليست لديك صلاحية الاعتماد والترحيل والإقفال' };
+
 function authorize(req, res, next) {
   const user = req.user;
   const need = req.method === 'GET' || req.method === 'HEAD' ? 'r' : 'w';
@@ -37,7 +49,10 @@ function authorize(req, res, next) {
   if (rule.module === 'admin') return user.isAdmin ? next() : deny();
   if (rule.readAny && need === 'r') return next();
   if (rule.module === 'summary') return rank[user.perms.reports] >= 1 || rank[user.perms.accounting] >= 1 ? next() : deny();
-  return rank[user.perms[rule.module] || 'n'] >= rank[need] ? next() : deny();
+  if (rank[user.perms[rule.module] || 'n'] < rank[need]) return deny();
+  const act = sensitive(req);
+  if (act && !user.isAdmin && user.perms[act] !== 'y') return next(new HttpError(403, DENY_MSG[act]));
+  return next();
 }
 
 // سجل العمليات: كل طلب معدِّل بعد اكتماله (اسم المستخدم والمسار والحالة، دون محتوى الطلب)

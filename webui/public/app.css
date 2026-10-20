@@ -271,3 +271,7 @@ button.fab svg { width: 16px; height: 16px; fill: none; stroke: currentColor; st
 button.btn.danger.sm { background: transparent; color: var(--bad); border-color: var(--bad); }
 button.btn.danger.sm:hover { background: var(--bad-bg); }
 td.noprint { white-space: nowrap; } td.noprint .btn + .btn, td.noprint a + .btn, td.noprint .btn + a { margin-inline-start: 4px; }
+
+table.matrix th { min-width: 130px; vertical-align: top; } table.matrix th.dirty { box-shadow: inset 0 -3px 0 var(--accent); }
+table.matrix select.preset { width: 100%; margin-top: 6px; font-size: 12px; padding: 2px 4px; font-weight: 400; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink); }

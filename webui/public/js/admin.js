@@ -57,29 +57,74 @@
   };
 
   // ---------- الأدوار والصلاحيات ----------
+  const LVS = { n: '—', r: 'قراءة', w: 'كتابة' };
   E.pages.adminRoles = async function (el) {
-    const [{ roles }, { modules }] = await Promise.all([api('GET', '/roles'), api('GET', '/meta/modules')]);
-    const sel = (r, m) => r.id === 'admin' ? '<td><span class="tag good">كتابة</span></td>' :
-      '<td><select data-role="' + esc(r.id) + '" data-mod="' + m.key + '">' + ['n', 'r', 'w'].map((l) => '<option value="' + l + '"' + (r.perms[m.key] === l ? ' selected' : '') + '>' + LV[l] + '</option>').join('') + '</select></td>';
-    el.innerHTML = E.head('الأدوار والصلاحيات', 'كل مستخدم له دور واحد. اضبط مستوى كل دور على كل وحدة ثم احفظ العمود') +
-      '<div style="overflow-x:auto"><table><thead><tr><th>الوحدة</th>' + roles.map((r) => '<th>' + esc(r.name) + '<div class="muted" style="font-weight:400">' + r.users + ' مستخدم' + (r.builtin === 'Y' ? '' : ' · مخصص') + '</div></th>').join('') + '</tr></thead><tbody>' +
-      modules.map((m) => '<tr><td>' + esc(m.label) + '</td>' + roles.map((r) => sel(r, m)).join('') + '</tr>').join('') +
-      '</tbody><tfoot><tr><td>إجراء</td>' + roles.map((r) => '<td>' + (r.id === 'admin' ? '' : '<button class="btn sm" data-act="save" data-id="' + esc(r.id) + '">حفظ</button>' +
+    const [{ roles }, { modules, actions }] = await Promise.all([api('GET', '/roles'), api('GET', '/meta/modules')]);
+    const cell = (r, m) => r.id === 'admin' ? '<td><span class="tag good">كتابة</span></td>' :
+      '<td><select data-role="' + esc(r.id) + '" data-mod="' + m.key + '">' + ['n', 'r', 'w'].map((l) => '<option value="' + l + '"' + (r.perms[m.key] === l ? ' selected' : '') + '>' + LVS[l] + '</option>').join('') + '</select></td>';
+    const flag = (r, a) => r.id === 'admin' ? '<td><span class="tag good">مسموح</span></td>' :
+      '<td><label class="chk"><input type="checkbox" data-role="' + esc(r.id) + '" data-flag="' + a.key + '"' + (r.perms[a.key] === 'y' ? ' checked' : '') + '> مسموح</label></td>';
+    el.innerHTML = E.head('الأدوار والصلاحيات', 'لكل مستخدم دور واحد. مستوى كل وحدة: لا شيء / قراءة / كتابة. والإجراءات الحساسة (الإلغاء والحذف، والاعتماد والإقفال) علمان مستقلان لا يكفي لهما مستوى الكتابة') +
+      '<div style="overflow-x:auto"><table class="matrix"><thead><tr><th>الوحدة</th>' + roles.map((r) => '<th data-col="' + esc(r.id) + '">' + esc(r.name) + '<div class="muted" style="font-weight:400">' + r.users + ' مستخدم' + (r.builtin === 'Y' ? ' · جاهز' : '') + '</div>' +
+        (r.id === 'admin' ? '' : '<select class="preset noprint" data-preset="' + esc(r.id) + '"><option value="">قالب سريع…</option><option value="n">لا شيء</option><option value="r">قراءة للكل</option><option value="w">كتابة للكل</option></select>') + '</th>').join('') + '</tr></thead><tbody>' +
+      modules.map((m) => '<tr><td>' + esc(m.label) + '</td>' + roles.map((r) => cell(r, m)).join('') + '</tr>').join('') +
+      '<tr class="head"><td colspan="' + (roles.length + 1) + '">الإجراءات الحساسة</td></tr>' +
+      actions.map((a) => '<tr><td>' + esc(a.label) + '</td>' + roles.map((r) => flag(r, a)).join('') + '</tr>').join('') +
+      '</tbody><tfoot><tr><td>إجراء</td>' + roles.map((r) => '<td class="noprint">' + (r.id === 'admin' ? '<button class="btn alt sm" data-act="clone" data-id="admin">نسخ</button>' :
+        '<button class="btn sm" data-act="save" data-id="' + esc(r.id) + '">حفظ</button> <button class="btn alt sm" data-act="clone" data-id="' + esc(r.id) + '">نسخ</button> <button class="btn alt sm" data-act="rename" data-id="' + esc(r.id) + '" data-n="' + esc(r.name) + '">تسمية</button>' +
         (r.builtin === 'Y' ? '' : ' <button class="btn danger sm" data-act="del" data-id="' + esc(r.id) + '">حذف</button>')) + '</td>').join('') + '</tr></tfoot></table></div>' +
-      '<div class="card" style="margin-top:14px"><h3>دور جديد</h3><form id="f" class="row"><label>الرمز (إنجليزي)<input name="i" required maxlength="30" size="14" dir="ltr"></label><label>الاسم<input name="n" required maxlength="80" size="20"></label><button class="btn">إنشاء (بلا صلاحيات ثم عدّلها)</button></form>' +
-      '<p class="muted">مدير النظام يملك كل شيء بما فيه المستخدمون وسجل العمليات، ودوره ثابت. الأدوار الجاهزة قابلة لتعديل صلاحياتها لا لحذفها.</p></div>' +
-      '<div class="card"><h3>حدود الصلاحيات</h3><ul><li>المستوى على مستوى الوحدة كاملة: «التجارة» تشمل العملاء والموردين وفواتير البيع والشراء وسنداتها معاً.</li><li>دليل الحسابات والأصناف والمخازن وإعدادات الضريبة تُقرأ لكل مستخدم لتعبئة القوائم.</li></ul></div>';
+      '<div class="card" style="margin-top:14px"><h3>دور جديد</h3><form id="f" class="row"><label>الرمز (إنجليزي)<input name="i" required maxlength="30" size="14" dir="ltr"></label><label>الاسم<input name="n" required maxlength="80" size="22"></label><button class="btn">إنشاء دور فارغ</button></form>' +
+      '<p class="muted">الدور الجديد يبدأ بلا أي صلاحية وبلا الإجراءات الحساسة. لإنشاء دور مشابه لدور قائم استخدم «نسخ» تحت عموده.</p></div>' +
+      '<div class="card"><h3>ما الذي تغطيه الصلاحيات</h3><ul><li>المستوى على الوحدة كاملة: «التجارة» تشمل العملاء والموردين والفواتير والسندات والإشعارات. «قراءة» تُخفي أدوات الإضافة والتعديل.</li>' +
+      '<li><b>الإلغاء والحذف:</b> إلغاء الفواتير والسندات والإشعارات، وعكس القيود، وحذف البيانات الأساسية، وإلغاء الاستلام والكشوف.</li>' +
+      '<li><b>الاعتماد والإقفال:</b> اعتماد أوامر الشراء، وترحيل الرواتب وصرفها، وإقفال الأشهر والسنوات وإعادة فتحها، وتشغيل الإهلاك.</li>' +
+      '<li>المستخدمون والأدوار وسجل العمليات والنسخ الاحتياطي لمدير النظام وحده. والصلاحية تسري خلال ثوانٍ دون إعادة دخول.</li></ul></div>';
+    const mark = (id) => { const th = E.$('th[data-col="' + id + '"]', el); if (th) th.classList.add('dirty'); };
+    el.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (t.dataset.preset !== undefined) {
+        const v = t.value; if (!v) return;
+        E.$$('select[data-role="' + t.dataset.preset + '"]', el).forEach((s) => { s.value = v; }); mark(t.dataset.preset); t.value = ''; return;
+      }
+      if (t.dataset.role) mark(t.dataset.role);
+    });
     E.$('#f', el).addEventListener('submit', async (ev) => {
       ev.preventDefault(); const f = new FormData(ev.target);
-      try { await api('POST', '/roles', { id: f.get('i').trim(), name: f.get('n').trim(), perms: {} }); E.toast('أُنشئ الدور'); E.pages.adminRoles(el); } catch (e) { E.toast(e.message, true); }
+      try { await api('POST', '/roles', { id: f.get('i').trim(), name: f.get('n').trim(), perms: { _void: 'n', _approve: 'n' } }); E.toast('أُنشئ الدور'); E.pages.adminRoles(el); } catch (e) { E.toast(e.message, true); }
     });
     E.bind(el, {
       save: async (b) => {
-        const perms = {}; E.$$('select[data-role="' + b.dataset.id + '"]', el).forEach((s) => { perms[s.dataset.mod] = s.value; });
+        const perms = {}; E.$$('select[data-role="' + b.dataset.id + '"][data-mod]', el).forEach((s) => { perms[s.dataset.mod] = s.value; });
+        E.$$('input[data-role="' + b.dataset.id + '"][data-flag]', el).forEach((c) => { perms[c.dataset.flag] = c.checked ? 'y' : 'n'; });
         await api('PATCH', '/roles/' + b.dataset.id, { perms }); E.toast('حُفظت الصلاحيات (تسري خلال ثوانٍ)');
+        const th = E.$('th[data-col="' + b.dataset.id + '"]', el); if (th) th.classList.remove('dirty');
+      },
+      clone: async (b) => {
+        const v = await E.dialog('نسخ الدور', [{ name: 'i', label: 'رمز الدور الجديد (إنجليزي)', value: '', max: 30 }, { name: 'n', label: 'اسم الدور الجديد', value: '', max: 80 }], 'نسخ');
+        if (!v) return;
+        await api('POST', '/roles/' + b.dataset.id + '/clone', { id: v.i.trim(), name: v.n.trim() }); E.toast('نُسخ الدور'); E.pages.adminRoles(el);
+      },
+      rename: async (b) => {
+        const v = await E.dialog('تسمية الدور', [{ name: 'n', label: 'الاسم', value: b.dataset.n, max: 80 }]);
+        if (!v || !v.n.trim()) return;
+        await api('PATCH', '/roles/' + b.dataset.id, { name: v.n.trim() }); E.toast('تغيّر الاسم'); E.pages.adminRoles(el);
       },
       del: async (b) => { if (confirm('حذف الدور؟')) { await api('DELETE', '/roles/' + b.dataset.id); E.toast('حُذف الدور'); E.pages.adminRoles(el); } },
     });
+  };
+
+  // ---------- مصفوفة صلاحيات المستخدمين الفعلية ----------
+  E.pages.adminAccess = async function (el) {
+    const [{ users, root }, { roles }, { modules, actions }] = await Promise.all([api('GET', '/users'), api('GET', '/roles'), api('GET', '/meta/modules')]);
+    const byRole = Object.fromEntries(roles.map((r) => [r.id, r]));
+    const lv = (r, k) => (r.id === 'admin' ? 'w' : r.perms[k]);
+    const tag = (l) => '<span class="tag ' + (l === 'w' ? 'good' : l === 'r' ? '' : 'bad') + '">' + LVS[l] + '</span>';
+    const yes = (r, k) => (r.id === 'admin' || r.perms[k] === 'y' ? '<span class="tag good">نعم</span>' : '<span class="tag bad">لا</span>');
+    const all = [{ username: root, fullName: 'المدير الأساسي', role: 'admin', active: 'Y' }].concat(users);
+    el.innerHTML = E.head('صلاحيات المستخدمين الفعلية', 'ما يستطيعه كل مستخدم الآن بحسب دوره: مستوى كل وحدة والإجراءات الحساسة. للتدقيق والمراجعة الدورية') +
+      '<table><thead><tr><th>المستخدم</th><th>الدور</th><th>الحالة</th>' + modules.map((m) => '<th>' + esc(m.label.split(' (')[0]) + '</th>').join('') + actions.map((a) => '<th>' + esc(a.label) + '</th>').join('') + '</tr></thead><tbody>' +
+      all.map((u) => { const r = byRole[u.role]; return '<tr><td dir="ltr" style="text-align:right">' + esc(u.username) + (u.fullName ? '<div class="muted" dir="rtl">' + esc(u.fullName) + '</div>' : '') + '</td><td>' + esc(r ? r.name : u.role) + '</td><td>' + (u.active === 'Y' ? 'فعّال' : '<span class="tag bad">معطَّل</span>') + '</td>' +
+        modules.map((m) => '<td>' + (r ? tag(lv(r, m.key)) : '') + '</td>').join('') + actions.map((a) => '<td>' + (r ? yes(r, a.key) : '') + '</td>').join('') + '</tr>'; }).join('') + '</tbody></table>';
   };
 
   // ---------- سجل العمليات ----------

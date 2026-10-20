@@ -35,7 +35,7 @@ function createAuth(cfg) {
   const rootName = cfg.webUser.trim();
   const rootFp = sha(cfg.webPassword.trim()).slice(0, 10);
 
-  const allW = Object.fromEntries(KEYS.map((k) => [k, 'w']));
+  const allW = { ...Object.fromEntries(KEYS.map((k) => [k, 'w'])), _void: 'y', _approve: 'y' };
   const rootUser = { username: rootName, fullName: 'المدير الأساسي', role: 'admin', roleName: 'مدير النظام', perms: allW, isAdmin: true, builtin: true, fp: rootFp };
 
   async function loadDbUser(username) {

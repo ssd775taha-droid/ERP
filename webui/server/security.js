@@ -25,6 +25,9 @@ const MODULES = [
   ['settings', 'إعدادات الضريبة والضوابط'],
 ];
 const KEYS = MODULES.map((m) => m[0]);
+// صلاحيات الإجراءات الحساسة (y/n) فوق مستوى الوحدة: لا تنفع كتابة الوحدة وحدها لإلغاء مستند أو اعتماده
+const ACTIONS = [['_void', 'الإلغاء والحذف والعكس'], ['_approve', 'الاعتماد والترحيل والإقفال']];
+const ACTION_KEYS = ACTIONS.map((a) => a[0]);
 const LEVELS = ['n', 'r', 'w'];
 
 const allOf = (lv) => Object.fromEntries(KEYS.map((k) => [k, lv]));
@@ -32,12 +35,12 @@ const some = (base, over) => ({ ...allOf(base), ...over });
 
 const BUILTIN_ROLES = [
   { id: 'admin', name: 'مدير النظام', perms: allOf('w') },
-  { id: 'accountant', name: 'محاسب', perms: some('n', { accounting: 'w', periods: 'w', reports: 'w', trade: 'w', inventory: 'r', assets: 'w', pos: 'r', orders: 'r', settings: 'r' }) },
-  { id: 'sales', name: 'مبيعات', perms: some('n', { reports: 'r', trade: 'w', inventory: 'r', pos: 'w', orders: 'w' }) },
-  { id: 'purchasing', name: 'مشتريات ومخازن', perms: some('n', { reports: 'r', trade: 'w', inventory: 'w', orders: 'w' }) },
-  { id: 'cashier', name: 'كاشير', perms: some('n', { pos: 'w' }) },
-  { id: 'hr', name: 'موارد بشرية ورواتب', perms: some('n', { hr: 'w', payroll: 'w' }) },
-  { id: 'viewer', name: 'مشاهدة فقط', perms: some('r', { hr: 'n', payroll: 'n', settings: 'n', periods: 'n' }) },
+  { id: 'accountant', name: 'محاسب', perms: some('n', { accounting: 'w', periods: 'w', reports: 'w', trade: 'w', inventory: 'r', assets: 'w', pos: 'r', orders: 'r', settings: 'r', _void: 'y', _approve: 'y' }) },
+  { id: 'sales', name: 'مبيعات', perms: some('n', { reports: 'r', trade: 'w', inventory: 'r', pos: 'w', orders: 'w', _void: 'n', _approve: 'n' }) },
+  { id: 'purchasing', name: 'مشتريات ومخازن', perms: some('n', { reports: 'r', trade: 'w', inventory: 'w', orders: 'w', _void: 'n', _approve: 'y' }) },
+  { id: 'cashier', name: 'كاشير', perms: some('n', { pos: 'w', _void: 'n', _approve: 'n' }) },
+  { id: 'hr', name: 'موارد بشرية ورواتب', perms: some('n', { hr: 'w', payroll: 'w', _void: 'n', _approve: 'y' }) },
+  { id: 'viewer', name: 'مشاهدة فقط', perms: some('r', { hr: 'n', payroll: 'n', settings: 'n', periods: 'n', _void: 'n', _approve: 'n' }) },
 ];
 
 function cleanPerms(p) {
@@ -46,7 +49,9 @@ function cleanPerms(p) {
     const lv = p && p[k];
     out[k] = LEVELS.includes(lv) ? lv : 'n';
   }
+  // غياب علم الإجراء يعني «مسموح» حتى لا تتغير أدوار قائمة قبل إضافة هذه الميزة؛ القيمة الصريحة تُحترم
+  for (const k of ACTION_KEYS) out[k] = p && p[k] === 'n' ? 'n' : 'y';
   return out;
 }
 
-module.exports = { hashPassword, verifyPassword, MODULES, KEYS, LEVELS, BUILTIN_ROLES, cleanPerms };
+module.exports = { hashPassword, verifyPassword, MODULES, KEYS, ACTIONS, ACTION_KEYS, LEVELS, BUILTIN_ROLES, cleanPerms };

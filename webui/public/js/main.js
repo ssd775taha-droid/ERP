@@ -31,7 +31,7 @@
       { t: 'تقارير الرواتب', items: [['payroll/dept', 'الرواتب حسب القسم', 'payroll'], ['payroll/employee-sheet', 'رواتب الموظفين بالأشهر', 'payroll'], ['payroll/components', 'الرواتب حسب المكوّن', 'payroll'], ['payroll/trend', 'اتجاه تكلفة الرواتب', 'payroll']] } ] },
     { id: 'set', title: 'الإعدادات والإدارة', groups: [
       { t: 'المنشأة', items: [['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings']] },
-      { t: 'النظام', items: [['settings/import', 'استيراد البيانات'], ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري']] } ] },
+      { t: 'النظام', items: [['settings/import', 'استيراد البيانات'], ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/access', 'صلاحيات المستخدمين الفعلية', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري']] } ] },
   ];
   // الوحدة والمستوى اللازمان لكل صفحة (مفتاح المسار). صفحات الإنشاء/التنفيذ تتطلب كتابة. ما لا يُذكر هنا مفتوح لكل مستخدم مسجَّل
   const R = 'r', W = 'w';
@@ -47,7 +47,7 @@
     'reports/trial-balance': ['reports', R], 'reports/ledger': ['reports', R], 'reports/income-statement': ['reports', R], 'reports/aging': ['reports', R], 'reports/vat': ['reports', R],
     'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], 'reports/open-invoices': ['reports', R], 'reports/party-balances': ['reports', R], 'reports/payments-summary': ['reports', R], 'reports/sales-comparison': ['reports', R], 'reports/notes-summary': ['reports', R], 'reports/monthly-pl': ['reports', R], 'reports/activity': ['reports', R], 'reports/cash-book': ['reports', R], 'reports/ratios': ['reports', R], 'reports/journal-audit': ['reports', R], 'reports/sales-analysis': ['reports', R], 'reports/item-profit': ['reports', R], 'reports/comparative': ['reports', R], periods: ['periods', R],
     settings: ['settings', R], 'tax/settings': ['settings', R],
-    'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'],
+    'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/access': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'],
   };
   const MODULE_LABEL = { accounting: 'المحاسبة', periods: 'إقفال الفترات', reports: 'التقارير', trade: 'المبيعات والمشتريات', inventory: 'المخزون', assets: 'الأصول الثابتة',
     hr: 'الموارد البشرية', payroll: 'الرواتب', pos: 'نقاط البيع', orders: 'الطلبات والعروض', settings: 'الإعدادات', admin: 'إدارة النظام' };
@@ -63,7 +63,7 @@
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters', 'pos/rep-daily': 'pos-daily', 'pos/rep-items': 'pos-items', 'pos/rep-cashiers': 'pos-cashiers', 'pos/rep-hourly': 'pos-hourly', 'pos/rep-shifts': 'pos-shifts', 'pos/rep-returns': 'pos-returns',
     'po/edit': 'poEdit', 'quote/edit': 'quoteEdit', po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
     'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
-    'settings/home': 'settingsHome', 'settings/import': 'importData', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
+    'settings/home': 'settingsHome', 'settings/import': 'importData', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/access': 'adminAccess', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
     notes: 'notes', 'note/new': 'noteNew', 'note/view': 'noteView',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
@@ -110,6 +110,18 @@
   function crumbFor(key) {
     for (const sec of SECTIONS) for (const g of sec.groups) if (g.items.some((n) => n[0] === key)) return sec.title + (g.t ? ' › ' + g.t : '');
     return '';
+  }
+  // يخفي أزرار الإلغاء/الحذف والاعتماد/الإقفال عمّن لا يملك علمها في دوره (الخادم يرفضها أيضاً)
+  const VOID_ACTS = new Set(['void', 'reverse', 'c-del', 'cancel', 'unconvert', 'unpay', 'vr', 'rev', 'unassign', 'del']);
+  const APPROVE_ACTS = new Set(['approve', 'post', 'closeYear', 'reopen', 'reopenYear']);
+  function hideRestricted(main, key) {
+    const noVoid = !E.canDo('_void'), noAppr = !E.canDo('_approve');
+    if (!noVoid && !noAppr) return;
+    const run = () => E.$$('[data-act]', main).forEach((b) => {
+      const a = b.dataset.act;
+      if ((noVoid && VOID_ACTS.has(a)) || (noAppr && (APPROVE_ACTS.has(a) || (a === 'close' && key === 'periods')))) { b.hidden = true; b.style.display = 'none'; }
+    });
+    run(); new MutationObserver(run).observe(main, { childList: true, subtree: true });
   }
   function decoratePage(main, key) {
     const run = () => {
@@ -193,6 +205,7 @@
     const pm = PAGE[key];
     if (pm && pm[0] !== 'admin' && !E.can(pm[0], 'w')) E.readOnly(main, MODULE_LABEL[pm[0]] || pm[0]);
     decoratePage(main, act);
+    hideRestricted(main, key);
     try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); return; }
     if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); (main._openDoc || (() => E.reportDoc(main)))(); }, 500);
   }

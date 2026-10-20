@@ -95,6 +95,8 @@ window.ERP = (function () {
   E.signBlock = (labels) => '<div class="sign">' + labels.map((l) => '<div><span>' + E.esc(l) + '</span><i></i></div>').join('') + '</div>';
   // صلاحيات المستخدم الحالي (من /api/me): E.can('trade', 'w')
   E.me = { perms: {}, isAdmin: false };
+  // علم إجراء حساس في الدور: E.canDo('_void') أو E.canDo('_approve')
+  E.canDo = (flag) => E.me.isAdmin || E.me.perms[flag] !== 'n';
   E.can = (mod, level) => E.me.isAdmin || ({ n: 0, r: 1, w: 2 }[E.me.perms[mod] || 'n'] >= { r: 1, w: 2 }[level || 'r']);
   // تصدير أي جدول إلى CSV (UTF-8 مع BOM ليفتحه Excel بالعربية). الأرقام المنسّقة (1,234.50) تُحوَّل إلى أرقام خام
   E.tableToCsv = (table) => {
