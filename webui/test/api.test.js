@@ -390,6 +390,35 @@ test('تقارير الرواتب: تطابق الأقسام والموظفين 
   assert.strictEqual((await call('GET', '/api/payroll/reports/trend')).status, 400);
 });
 
+test('تقارير الموارد البشرية: القوى العاملة والحركة ومدة الخدمة وتغيّرات الرواتب والسلف والنواقص', { skip: !hasDb || !canWrite }, async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const emps = (await call('GET', '/api/hr/employees')).data.employees;
+  const hc = (await call('GET', `/api/hr/reports/headcount?asof=${today}`)).data;
+  assert.strictEqual(hc.totals.active, emps.filter((e) => e.status === 'ACTIVE' && e.hireDate <= today).length);
+  const tn = (await call('GET', `/api/hr/reports/tenure?asof=${today}`)).data;
+  assert.strictEqual(tn.rows.length, hc.totals.active);
+  assert.strictEqual(tn.buckets.reduce((s, b) => s + b.count, 0), tn.rows.length);
+  // الحركة: أول الفترة + تعيينات − إنهاءات = آخر الفترة = على رأس العمل في نهايتها
+  const mv = (await call('GET', `/api/hr/reports/movements?from=2000-01-01&to=${today}`)).data;
+  assert.strictEqual(mv.totals.closing, mv.totals.opening + mv.totals.hires - mv.totals.terms);
+  assert.strictEqual(mv.totals.closing, hc.totals.active);
+  assert.strictEqual((await call('GET', '/api/hr/reports/movements?from=2026-05-01&to=2026-01-01')).status, 400);
+  // تغيّر راتب: موظف جديد بزيادة
+  const st = Date.now().toString(36).slice(-6);
+  const em = await call('POST', '/api/hr/employees', { code: 'H' + st, name: 'موظف تقرير', hireDate: '2025-01-15', basic: '3000' });
+  assert.strictEqual(em.status, 201);
+  assert.strictEqual((await call('POST', `/api/hr/employees/${em.data.id}/salary`, { basic: '3500', from: '2026-12-01' })).status, 200);
+  const sc = (await call('GET', '/api/hr/reports/salary-changes?from=2026-01-01&to=2026-12-31')).data;
+  const mine = sc.rows.find((x) => x.code === 'H' + st);
+  assert.ok(mine && mine.oldBasic === 3000 && mine.newBasic === 3500 && mine.diff === 500);
+  assert.ok(!sc.rows.some((x) => x.code === 'H' + st && x.oldBasic == null));
+  const gaps = (await call('GET', '/api/hr/reports/data-gaps')).data;
+  assert.ok(gaps.rows.some((x) => x.code === 'H' + st && x.noId === 1 && x.noBank === 1));
+  const adv = (await call('GET', '/api/hr/reports/advances')).data;
+  assert.ok(adv.totals.remaining >= 0 && adv.rows.every((x) => x.remaining > 0));
+  assert.strictEqual((await call('GET', '/api/hr/reports/headcount')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

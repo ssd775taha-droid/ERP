@@ -227,4 +227,58 @@
       r.rows.map((x) => '<tr><td>' + x.month + '</td><td>' + (x.status === 'PAID' ? 'مصروف' : 'مرحَّل') + '</td><td class="n">' + x.employees + '</td><td class="n">' + money(x.gross) + '</td><td class="n">' + money(x.deductions) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.employer) + '</td><td class="n">' + money(x.totalCost) + '</td><td class="noprint">' + bar(x.totalCost / max * 100) + '</td></tr>').join('') +
       '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(t.gross) + '</td><td class="n">' + money(t.deductions) + '</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.employer) + '</td><td class="n">' + money(t.totalCost) + '</td><td class="noprint"></td></tr></tfoot></table>' + note;
   });
+
+  // ---------- تقارير الموارد البشرية ----------
+  const asofF = () => dateF('asof', 'بتاريخ', E.today());
+  const rangeF = () => dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today());
+  const stat = (k, v) => '<div class="stat"><div class="muted">' + k + '</div><b>' + v + '</b></div>';
+
+  E.pages['hr-headcount'] = (el) => shell(el, 'القوى العاملة حسب القسم', 'من هم على رأس العمل في التاريخ المحدد، مع الأساسي الإجمالي والمتوسط والأدنى والأعلى (الراتب الأساسي الساري في ذلك التاريخ)', asofF(), async (f) => {
+    const r = await api('GET', '/hr/reports/headcount?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا موظفين على رأس العمل في هذا التاريخ</div>';
+    const max = Math.max(1, ...r.rows.map((x) => x.active));
+    return '<div class="cards">' + stat('على رأس العمل', t.active) + stat('إجمالي الأساسي', money(t.basic)) + stat('متوسط الأساسي', money(t.avg)) + stat('انتهت خدمتهم حتى التاريخ', t.left) + '</div>' +
+      '<table><thead><tr><th>القسم</th><th class="n">الموظفون</th><th class="n">إجمالي الأساسي</th><th class="n">المتوسط</th><th class="n">الأدنى</th><th class="n">الأعلى</th><th class="noprint"></th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.dept) + '</td><td class="n">' + x.active + '</td><td class="n">' + money(x.basic) + '</td><td class="n">' + money(x.avg) + '</td><td class="n">' + money(x.min) + '</td><td class="n">' + money(x.max) + '</td><td class="noprint">' + bar(x.active / max * 100) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + t.active + '</td><td class="n">' + money(t.basic) + '</td><td class="n">' + money(t.avg) + '</td><td colspan="3"></td></tr></tfoot></table>';
+  });
+
+  E.pages['hr-tenure'] = (el) => shell(el, 'مدة الخدمة', 'مدة خدمة كل موظف على رأس العمل منذ تاريخ التعيين حتى التاريخ المحدد، وتوزيعهم على الفئات', asofF(), async (f) => {
+    const r = await api('GET', '/hr/reports/tenure?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg warn">لا موظفين على رأس العمل في هذا التاريخ</div>';
+    return '<div class="cards">' + r.buckets.map((b) => stat(b.label, b.count)).join('') + stat('متوسط مدة الخدمة (سنة)', r.avgYears) + '</div>' +
+      '<table><thead><tr><th>الرمز</th><th>الموظف</th><th>القسم</th><th>الوظيفة</th><th>التعيين</th><th class="n">مدة الخدمة</th><th class="n">الأساسي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.dept) + '</td><td>' + esc(x.job || '') + '</td><td>' + esc(x.hireDate) + '</td><td class="n">' + x.years + ' سنة و ' + x.restMonths + ' شهر</td><td class="n">' + (x.basic ? money(x.basic) : '') + '</td></tr>').join('') + '</tbody></table>';
+  });
+
+  E.pages['hr-movements'] = (el) => shell(el, 'حركة الموظفين', 'التعيينات وإنهاءات الخدمة في الفترة، وعدد الموظفين أول الفترة وآخرها', rangeF(), async (f) => {
+    const r = await api('GET', '/hr/reports/movements?' + E.qs(f)), t = r.totals;
+    return '<div class="cards">' + stat('أول الفترة', t.opening) + stat('تعيينات', t.hires) + stat('إنهاءات خدمة', t.terms) + stat('آخر الفترة', t.closing) + '</div>' +
+      (r.rows.length ? '<table><thead><tr><th>التاريخ</th><th>الحركة</th><th>الرمز</th><th>الموظف</th><th>القسم</th><th>الوظيفة</th></tr></thead><tbody>' +
+        r.rows.map((x) => '<tr><td>' + esc(x.date) + '</td><td>' + (x.type === 'HIRE' ? '<span class="tag good">تعيين</span>' : '<span class="tag bad">إنهاء خدمة</span>') + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.dept) + '</td><td>' + esc(x.job || '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا حركة في هذه الفترة</div>');
+  });
+
+  E.pages['hr-salary-changes'] = (el) => shell(el, 'تغيّرات الرواتب', 'كل تعديل على الراتب الأساسي في الفترة: القديم والجديد والفرق والنسبة (راتب التعيين الأول لا يُعدّ تغييراً)', rangeF(), async (f) => {
+    const r = await api('GET', '/hr/reports/salary-changes?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا تغيّرات في الرواتب في هذه الفترة</div>';
+    return '<div class="cards">' + stat('عدد التعديلات', t.count) + stat('زيادات', t.raises) + stat('تخفيضات', t.cuts) + stat('صافي الفرق الشهري', money(t.net)) + '</div>' +
+      '<table><thead><tr><th>سارٍ من</th><th>الرمز</th><th>الموظف</th><th>القسم</th><th class="n">القديم</th><th class="n">الجديد</th><th class="n">الفرق</th><th class="n">%</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.month) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.dept) + '</td><td class="n">' + money(x.oldBasic) + '</td><td class="n">' + money(x.newBasic) + '</td><td class="n ' + (x.diff < 0 ? 'bad' : 'good') + '">' + money(x.diff) + '</td><td class="n">' + pctTxt(x.pct) + '</td></tr>').join('') + '</tbody></table>';
+  });
+
+  E.pages['hr-advances-report'] = (el) => shell(el, 'أرصدة سلف الموظفين', 'الموظفون الذين لهم سلف قائمة: المبلغ الممنوح والمسدّد والمتبقي', '', async () => {
+    const r = await api('GET', '/hr/reports/advances'), t = r.totals;
+    if (!r.rows.length) return '<div class="msg good">لا سلف قائمة</div>';
+    return '<table><thead><tr><th>الرمز</th><th>الموظف</th><th class="n">عدد السلف</th><th class="n">الممنوح</th><th class="n">المسدّد</th><th class="n">المتبقي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + x.count + '</td><td class="n">' + money(x.amount) + '</td><td class="n">' + money(x.repaid) + '</td><td class="n">' + money(x.remaining) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(t.amount) + '</td><td class="n">' + money(t.repaid) + '</td><td class="n">' + money(t.remaining) + '</td></tr></tfoot></table><p class="muted">المتبقي يطابق رصيد حساب سلف الموظفين (1350) ما لم تُرحَّل عليه قيود يدوية.</p>';
+  });
+
+  E.pages['hr-data-gaps'] = (el) => shell(el, 'نواقص بيانات الموظفين', 'موظفون على رأس العمل ينقصهم رقم هوية أو حساب بنكي أو قسم أو وظيفة (مهم قبل تحويل الرواتب)', '', async () => {
+    const r = await api('GET', '/hr/reports/data-gaps'), t = r.totals, no = (x) => (x ? '<span class="tag bad">ناقص</span>' : '<span class="tag good">✓</span>');
+    if (!r.rows.length) return '<div class="msg good">بيانات كل الموظفين (' + r.active + ') مكتملة</div>';
+    return '<div class="cards">' + stat('موظفون ناقصو بيانات', r.rows.length + ' من ' + r.active) + stat('بلا هوية', t.noId) + stat('بلا حساب بنكي', t.noBank) + stat('بلا قسم', t.noDept) + stat('بلا وظيفة', t.noJob) + '</div>' +
+      '<table><thead><tr><th>الرمز</th><th>الموظف</th><th>القسم</th><th>الهوية</th><th>الحساب البنكي</th><th>القسم</th><th>الوظيفة</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td><a href="#/hr/employees">' + esc(x.name) + '</a></td><td>' + esc(x.dept) + '</td><td>' + no(x.noId) + '</td><td>' + no(x.noBank) + '</td><td>' + no(x.noDept) + '</td><td>' + no(x.noJob) + '</td></tr>').join('') + '</tbody></table>';
+  });
 })(window.ERP);
