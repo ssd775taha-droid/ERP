@@ -4,6 +4,7 @@
 WHENEVER SQLERROR EXIT FAILURE ROLLBACK
 SET DEFINE OFF
 @sql/01b_notes_schema.sql
+@sql/01c_budget_schema.sql
 @sql/03_pkg_erp_gl.sql
 @sql/04_pkg_erp_inventory.sql
 @sql/05_pkg_erp_trade.sql

@@ -492,6 +492,99 @@
       r.rows.map((x) => '<tr' + (x.leaf ? '' : ' class="grp"') + '><td style="padding-right:' + (x.level * 1.4 + .5) + 'em">' + (x.leaf ? '' : '<b>') + esc(x.code) + ' ' + esc(x.name) + (x.leaf ? '' : '</b>') + '</td><td>' + TYPE_AR[x.type] + '</td><td class="n">' + money(x.open) + '</td><td class="n">' + money(x.debit) + '</td><td class="n">' + money(x.credit) + '</td><td class="n">' + money(x.close) + '</td></tr>').join('') + '</tbody></table>';
   });
 
+  // ---------- مراكز التكلفة والموازنات ----------
+  E.pages.costCenters = async function (el) {
+    const draw = async () => {
+      const { centers } = await api('GET', '/cost-centers');
+      el.innerHTML = E.head('مراكز التكلفة', 'وسم أسطر القيود بمركز (فرع، مشروع، قسم…) لتقارير الربحية والموازنة. المركز المستخدم يُعطَّل ولا يُحذف') +
+        '<form id="cf" class="row noprint"><label>الرمز<input name="code" maxlength="20" required></label><label>الاسم<input name="name" maxlength="120" required></label><button class="btn">إضافة</button></form><div id="msg"></div>' +
+        (centers.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th class="n">الأسطر الموسومة</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' +
+          centers.map((c) => '<tr><td>' + esc(c.code) + '</td><td>' + esc(c.name) + '</td><td class="n">' + c.lines + '</td><td>' + (c.active === 'Y' ? 'فعّال' : '<span class="muted">معطّل</span>') + '</td><td class="noprint"><button class="btn alt sm" data-act="cc-toggle" data-id="' + c.id + '" data-a="' + (c.active === 'Y' ? 'N' : 'Y') + '">' + (c.active === 'Y' ? 'تعطيل' : 'تفعيل') + '</button> ' + E.crudBtns('costcenter', { id: c.id, name: c.name }) + '</td></tr>').join('') + '</tbody></table>'
+          : '<div class="msg warn">لا مراكز بعد: أضف أول مركز أعلاه</div>');
+      E.$('#cf', el).addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        try { await api('POST', '/cost-centers', Object.fromEntries(new FormData(ev.target))); E.toast('أُضيف المركز'); draw(); } catch (e) { E.$('#msg', el).innerHTML = E.err(e.message); }
+      });
+      E.crudBind(el, draw);
+    };
+    if (!el._ccBound) { el._ccBound = true; E.bind(el, { 'cc-toggle': async (b) => { await api('PATCH', '/cost-centers/' + b.dataset.id, { active: b.dataset.a === 'Y' }); el._crudReload(); } }); }
+    draw();
+  };
+
+  const MON = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const ccSel = async (all) => {
+    let centers = []; try { centers = (await api('GET', '/cost-centers')).centers; } catch (e) { /* */ }
+    return sel('cc', 'مركز التكلفة', [['', all]].concat(centers.map((c) => [String(c.id), c.code + ' ' + c.name])), '');
+  };
+  const yearIn = () => '<label>السنة<input type="number" name="year" value="' + new Date().getFullYear() + '" min="2000" max="2200" style="width:6em"></label>';
+
+  E.pages.budgetEdit = async function (el) {
+    const csel = await ccSel('المنشأة كلها');
+    el.innerHTML = E.head('إدخال الموازنة', 'موازنة شهرية لكل حساب إيراد ومصروف. اكتب المبلغ السنوي ثم Enter لتوزيعه بالتساوي على الأشهر، أو عدّل كل شهر') +
+      '<form id="f" class="row noprint">' + yearIn() + csel + '<button class="btn">عرض</button> <button type="button" class="btn good" data-act="b-save">حفظ الموازنة</button></form><div id="msg"></div><div id="out"></div>';
+    let cur = null;
+    const num = (x) => { const n = parseFloat(String(x).replace(/,/g, '')); return isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0; };
+    const total = (tr) => E.$$('.bm', tr).reduce((s, i) => s + num(i.value), 0);
+    const load = async () => {
+      const f = Object.fromEntries(new FormData(E.$('#f', el)));
+      E.$('#out', el).innerHTML = '<p class="muted">جارٍ التحميل…</p>';
+      try {
+        cur = await api('GET', '/budgets/' + f.year + '?cc=' + (f.cc || 0));
+        E.$('#out', el).innerHTML = '<div style="overflow-x:auto"><table><thead><tr><th>الحساب</th><th>سنوي</th>' + MON.map((m, i) => '<th>' + (i + 1) + '</th>').join('') + '<th class="n">المجموع</th></tr></thead><tbody>' +
+          cur.rows.map((r, i) => (i && cur.rows[i - 1].type === r.type ? '' : '<tr class="grp"><td colspan="15"><b>' + (r.type === 'REVENUE' ? 'الإيرادات' : 'المصروفات') + '</b></td></tr>') +
+            '<tr data-code="' + esc(r.code) + '"><td style="min-width:13em">' + esc(r.code) + ' ' + esc(r.name) + '</td><td><input class="ba" inputmode="decimal" style="width:6.5em"></td>' +
+            r.months.map((a) => '<td><input class="bm" inputmode="decimal" style="width:5.5em" value="' + (a || '') + '"></td>').join('') + '<td class="n bt">' + money(r.months.reduce((s, a) => s + a, 0)) + '</td></tr>').join('') + '</tbody></table></div>';
+      } catch (e) { E.$('#out', el).innerHTML = E.err(e.message); }
+    };
+    E.$('#f', el).addEventListener('submit', (ev) => { ev.preventDefault(); load(); });
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' || !ev.target.classList.contains('ba')) return;
+      ev.preventDefault();
+      const tr = ev.target.closest('tr'), a = Math.round(num(ev.target.value) * 100), ins = E.$$('.bm', tr);
+      const each = Math.floor(a / 12);
+      ins.forEach((i, k) => { i.value = ((k === 11 ? a - each * 11 : each) / 100) || ''; });
+      E.$('.bt', tr).textContent = money(total(tr));
+    });
+    el.addEventListener('input', (ev) => { if (ev.target.classList.contains('bm')) E.$('.bt', ev.target.closest('tr')).textContent = money(total(ev.target.closest('tr'))); });
+    E.bind(el, { 'b-save': (b) => E.busy(b, async () => {
+      if (!cur) return;
+      const rows = E.$$('#out tbody tr[data-code]', el).map((tr) => ({ account: tr.dataset.code, months: E.$$('.bm', tr).map((i) => num(i.value)) }));
+      const r = await api('PUT', '/budgets/' + cur.year, { cc: cur.cc, rows });
+      E.toast('حُفظت الموازنة (' + r.cells + ' خلية)');
+    }) });
+    load();
+  };
+
+  E.pages['acc-budget'] = async function (el) {
+    const csel = await ccSel('المنشأة كلها (الأسطر كلها)');
+    const m = new Date().getMonth() + 1;
+    shell(el, 'الموازنة مقابل الفعلي', 'الفعلي من قيود الفترة (كقائمة الدخل) مقابل الموازنة: الإيراد الأعلى من الموازنة والمصروف الأقل منها مناسب',
+      yearIn() + sel('fromMonth', 'من شهر', MON.map((n, i) => [String(i + 1), (i + 1) + ' ' + n]), '1') + sel('month', 'إلى شهر', MON.map((n, i) => [String(i + 1), (i + 1) + ' ' + n]), String(m)) + csel, async (f) => {
+      const r = await api('GET', '/reports/budget-vs-actual?' + E.qs({ year: f.year, fromMonth: f.fromMonth, month: f.month, cc: f.cc || 0 })), T = r.totals;
+      if (!r.rows.length) return '<div class="msg warn">لا موازنة ولا حركة في هذه الفترة. أدخل الموازنة من «إدخال الموازنة»</div>';
+      const tag = (x) => '<span class="' + (x.favorable ? 'good' : 'bad') + '">' + money(x.diff) + '</span>';
+      const part = (type, title) => { const list = r.rows.filter((x) => x.type === type); return list.length ? '<h3>' + title + '</h3><table><thead><tr><th>الحساب</th><th class="n">الموازنة</th><th class="n">الفعلي</th><th class="n">الفرق</th><th class="n">نسبة التنفيذ</th><th></th></tr></thead><tbody>' +
+        list.map((x) => '<tr><td>' + esc(x.code) + ' ' + esc(x.name) + '</td><td class="n">' + money(x.budget) + '</td><td class="n">' + money(x.actual) + '</td><td class="n">' + tag(x) + '</td><td class="n">' + pctTxt(x.pct) + '</td><td>' + (x.pct == null ? '<span class="tag bad">بلا موازنة</span>' : bar(x.pct)) + '</td></tr>').join('') + '</tbody></table>' : ''; };
+      return '<div class="cards">' + stat('إيراد (موازنة / فعلي)', money(T.revBudget) + ' / ' + money(T.revActual)) + stat('مصروف (موازنة / فعلي)', money(T.expBudget) + ' / ' + money(T.expActual)) + stat('الصافي (موازنة / فعلي)', money(T.netBudget) + ' / ' + money(T.netActual)) + '</div>' +
+        part('REVENUE', 'الإيرادات') + part('EXPENSE', 'المصروفات') +
+        '<h3>شهرياً</h3><table><thead><tr><th>الشهر</th><th class="n">إيراد موازنة</th><th class="n">إيراد فعلي</th><th class="n">مصروف موازنة</th><th class="n">مصروف فعلي</th><th class="n">صافي موازنة</th><th class="n">صافي فعلي</th></tr></thead><tbody>' +
+        r.monthly.map((x) => '<tr><td>' + MON[x.month - 1] + '</td><td class="n">' + money(x.revBudget) + '</td><td class="n">' + money(x.revActual) + '</td><td class="n">' + money(x.expBudget) + '</td><td class="n">' + money(x.expActual) + '</td><td class="n">' + money(x.revBudget - x.expBudget) + '</td><td class="n">' + money(x.revActual - x.expActual) + '</td></tr>').join('') + '</tbody></table>';
+    });
+  };
+
+  E.pages['acc-cc-pl'] = async function (el) {
+    const csel = await ccSel('كل المراكز (ملخص)');
+    shell(el, 'ربحية مراكز التكلفة', 'إيرادات ومصروفات كل مركز في الفترة؛ الأسطر بلا مركز تظهر «غير موزّع». اختر مركزاً لتفصيل حساباته', yr() + csel, async (f) => {
+      const r = await api('GET', '/reports/cost-center-pl?' + E.qs({ from: f.from, to: f.to, cc: f.cc })), T = r.totals;
+      if (!r.summary.length) return '<div class="msg warn">لا حركة إيراد أو مصروف في هذه الفترة</div>';
+      return '<div class="cards">' + stat('الإيرادات', money(T.revenue)) + stat('المصروفات', money(T.expense)) + stat('الصافي', money(T.net)) + '</div>' +
+        '<table><thead><tr><th>المركز</th><th class="n">الإيرادات</th><th class="n">المصروفات</th><th class="n">الصافي</th><th class="n">الهامش</th></tr></thead><tbody>' +
+        r.summary.map((x) => '<tr><td>' + esc(x.code === '—' ? '' : x.code + ' ') + esc(x.name) + '</td><td class="n">' + money(x.revenue) + '</td><td class="n">' + money(x.expense) + '</td><td class="n">' + chg(x.net) + '</td><td class="n">' + pctTxt(x.margin) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(T.revenue) + '</td><td class="n">' + money(T.expense) + '</td><td class="n">' + money(T.net) + '</td><td></td></tr></tfoot></table>' +
+        (r.detail ? '<h3>تفصيل المركز المختار</h3><table><thead><tr><th>الحساب</th><th>النوع</th><th class="n">المبلغ</th></tr></thead><tbody>' + r.detail.map((x) => '<tr><td>' + esc(x.code) + ' ' + esc(x.name) + '</td><td>' + (x.type === 'REVENUE' ? 'إيراد' : 'مصروف') + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody></table>' : '');
+    });
+  };
+
   // ---------- تقارير المبيعات والمشتريات الإضافية ----------
   const kindSel = (opts, cur) => sel('kind', 'النوع', opts, cur);
 

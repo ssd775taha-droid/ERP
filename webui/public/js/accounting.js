@@ -96,15 +96,18 @@
   E.pages.entryNew = async function (el) {
     const accts = await E.loadAccounts();
     const opts = E.accountOptions(accts);
-    const line = () => '<tr class="ln"><td><select class="ac">' + opts + '</select></td><td><input class="dr" inputmode="decimal" size="12"></td>' +
+    let centers = []; try { centers = (await api('GET', '/cost-centers')).centers.filter((c) => c.active === 'Y'); } catch (e) { /* بلا صلاحية */ }
+    const ccOpts = '<option value="">—</option>' + centers.map((c) => '<option value="' + c.id + '">' + esc(c.code + ' ' + c.name) + '</option>').join('');
+    const ccCell = () => (centers.length ? '<td><select class="cc">' + ccOpts + '</select></td>' : '');
+    const line = () => '<tr class="ln"><td><select class="ac">' + opts + '</select></td>' + ccCell() + '<td><input class="dr" inputmode="decimal" size="12"></td>' +
       '<td><input class="cr" inputmode="decimal" size="12"></td><td><input class="nt" maxlength="200"></td><td><button type="button" class="btn alt sm" data-act="rm">×</button></td></tr>';
     el.innerHTML = E.head('قيد يومية جديد', 'يجب أن يتساوى مجموع المدين والدائن') +
       '<div id="out"></div><div class="card"><div class="row">' +
       '<label>التاريخ<input type="date" id="e-date" value="' + E.today() + '"></label>' +
       '<label>المرجع<input id="e-ref" maxlength="60"></label>' +
       '<label style="flex:1">البيان<input id="e-memo" maxlength="300"></label></div>' +
-      '<table><thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>ملاحظة</th><th></th></tr></thead><tbody id="lines">' + line() + line() + '</tbody>' +
-      '<tfoot><tr><td>الإجمالي <span id="bal"></span></td><td class="n" id="t-dr">0.00</td><td class="n" id="t-cr">0.00</td><td colspan="2"></td></tr></tfoot></table>' +
+      '<table><thead><tr><th>الحساب</th>' + (centers.length ? '<th>مركز التكلفة</th>' : '') + '<th>مدين</th><th>دائن</th><th>ملاحظة</th><th></th></tr></thead><tbody id="lines">' + line() + line() + '</tbody>' +
+      '<tfoot><tr><td' + (centers.length ? ' colspan="2"' : '') + '>الإجمالي <span id="bal"></span></td><td class="n" id="t-dr">0.00</td><td class="n" id="t-cr">0.00</td><td colspan="2"></td></tr></tfoot></table>' +
       '<p><button type="button" class="btn alt" data-act="add">+ سطر</button> <button type="button" class="btn" id="save" data-act="save">ترحيل القيد</button></p></div>';
     const tb = E.$('#lines', el);
     const num = (s) => { const n = parseFloat(String(s).replace(/,/g, '')); return isFinite(n) ? n : 0; };
@@ -141,7 +144,7 @@
       add: () => tb.insertAdjacentHTML('beforeend', line()),
       rm: (b) => { if (E.$$('.ln', tb).length > 2) { b.closest('tr').remove(); recalc(); } },
       save: (b) => E.busy(b, async () => {
-        const lines = E.$$('.ln', tb).map((r) => ({ account: E.$('.ac', r).value, debit: E.$('.dr', r).value.replace(/,/g, '').trim() || '0', credit: E.$('.cr', r).value.replace(/,/g, '').trim() || '0', note: E.$('.nt', r).value.trim() }))
+        const lines = E.$$('.ln', tb).map((r) => ({ account: E.$('.ac', r).value, debit: E.$('.dr', r).value.replace(/,/g, '').trim() || '0', credit: E.$('.cr', r).value.replace(/,/g, '').trim() || '0', note: E.$('.nt', r).value.trim(), cc: (E.$('.cc', r) || {}).value || null }))
           .filter((l) => l.account || num(l.debit) || num(l.credit));
         const r = await api('POST', '/entries', { date: E.$('#e-date', el).value, memo: E.$('#e-memo', el).value.trim(), ref: E.$('#e-ref', el).value.trim(), lines });
         E.toast('رُحّل القيد رقم ' + r.entry.id);
@@ -160,7 +163,7 @@
       '<span class="muted">أنشأه: ' + esc(e.createdBy || '—') + '</span></p>' +
       (e.memo ? '<div class="card"><b>البيان:</b> ' + esc(e.memo) + '</div>' : '') +
       '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
-      e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
+      e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + (l.costCenter ? ' <span class="muted">[' + esc(l.costCenter) + ']</span>' : '') + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
       '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(tc) + '</td><td></td></tr></tfoot></table>' + E.signBlock(['أعدّه', 'راجعه', 'اعتمده']) +
       '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة السند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <button class="btn alt" data-act="copy">نسخ كقيد جديد (للتصحيح)</button> <a href="#/entries">رجوع لدفتر اليومية</a></p>';
     el._openDoc = () => E.openDoc(E.docSpec.entry(e));
@@ -191,7 +194,7 @@
             '<span style="flex:1">' + esc(e.memo || '') + '</span>' +
             '<a class="noprint" href="#/entry/view/' + e.id + '?print=1">طباعة السند</a> ' + (!e.voidOf && !e.reversedBy ? '<button class="btn alt sm noprint" data-act="reverse" data-id="' + e.id + '">عكس</button>' : '') + '</div>' +
             '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
-            e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
+            e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + (l.costCenter ? ' <span class="muted">[' + esc(l.costCenter) + ']</span>' : '') + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
             '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(td) + '</td><td></td></tr></tfoot></table></div>';
         }).join('');
         E.$('#es', el).dispatchEvent(new Event('input'));

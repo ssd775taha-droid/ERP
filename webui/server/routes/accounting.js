@@ -58,8 +58,8 @@ module.exports = function accountingRoutes() {
     const binds = {}; const ph = ids.map((id, i) => { binds[`e${i}`] = id; return `:e${i}`; });
     const rows = await db.query(`
       SELECT l.entry_id AS "entryId", l.account_code AS "account", a.name AS "accountName",
-             l.debit AS "debit", l.credit AS "credit", l.note AS "note"
-        FROM erp_lines l JOIN erp_accounts a ON a.code = l.account_code
+             l.debit AS "debit", l.credit AS "credit", l.note AS "note", c.code AS "costCenter"
+        FROM erp_lines l JOIN erp_accounts a ON a.code = l.account_code LEFT JOIN erp_line_cc t ON t.line_id = l.line_id LEFT JOIN erp_cost_centers c ON c.cc_id = t.cc_id
        WHERE l.entry_id IN (${ph.join(',')}) ORDER BY l.line_id`, binds);
     const by = {};
     for (const x of rows) (by[x.entryId] = by[x.entryId] || []).push(x);
@@ -108,6 +108,7 @@ module.exports = function accountingRoutes() {
       debit: v.money(l.debit, `مدين السطر ${i + 1}`),
       credit: v.money(l.credit, `دائن السطر ${i + 1}`),
       note: v.str(l.note, 'ملاحظة السطر', { max: 200, optional: true }),
+      cc: l.cc === undefined || l.cc === null || l.cc === '' ? null : v.int(l.cc, `مركز تكلفة السطر ${i + 1}`),
     }));
     // الأسطر تُمرَّر JSON وتُحوَّل في القاعدة إلى ERP_LINE_TAB، والمبالغ تحتفظ بدقتها العشرية
     const out = await db.run(`
@@ -122,6 +123,9 @@ module.exports = function accountingRoutes() {
                  credit       NUMBER        PATH '$.credit',
                  note         VARCHAR2(200) PATH '$.note'));
         v_id := erp_gl.post_entry(TO_DATE(:d, 'YYYY-MM-DD'), :memo, :ref, v_lines);
+        INSERT INTO erp_line_cc (line_id, cc_id)
+          SELECT n.line_id, j.cc FROM (SELECT line_id, ROW_NUMBER() OVER (ORDER BY line_id) AS rn FROM erp_lines WHERE entry_id = v_id) n
+            JOIN JSON_TABLE(:lines, '$[*]' COLUMNS (rn FOR ORDINALITY, cc NUMBER PATH '$.cc')) j ON j.rn = n.rn WHERE j.cc IS NOT NULL;
         :id := v_id;
       END;`,
       { lines: JSON.stringify(lines), d: date, memo, ref, id: { dir: db.oracledb.BIND_OUT, type: db.oracledb.NUMBER } });

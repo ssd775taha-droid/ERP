@@ -8,6 +8,8 @@ const RULES = [
   R(/^\/(users|roles|audit|meta)(\/|$)/, 'admin'),
   R(/^\/accounts(\/|$)/, 'accounting', { readAny: true }),     // دليل الحسابات يُقرأ لتعبئة القوائم في كل الوحدات
   R(/^\/entries(\/|$)/, 'accounting'),
+  R(/^\/cost-centers(\/|$)/, 'accounting', { readAny: true }),
+  R(/^\/budgets(\/|$)/, 'accounting'),
   R(/^\/summary$/, 'summary'),
   R(/^\/reports\//, 'reports'),
   R(/^\/(periods|years)(\/|$)/, 'periods'),

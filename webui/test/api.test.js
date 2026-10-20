@@ -535,6 +535,50 @@ test('التقارير المحاسبية المتقدمة: اليومية وا�
   assert.strictEqual(cents(ag.totals.leafCredit), cents(tb.totals.credit));
 });
 
+test('مراكز التكلفة والموازنات: الوسم والعكس والموازنة مقابل الفعلي', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100), code = 'T' + String(Date.now()).slice(-8);
+  const c1 = await call('POST', '/api/cost-centers', { code, name: 'مركز اختبار' });
+  assert.strictEqual(c1.status, 201);
+  assert.strictEqual((await call('POST', '/api/cost-centers', { code, name: 'مكرر' })).status, 409);
+  const id = c1.data.id;
+  const e = await call('POST', '/api/entries', { date: '2026-12-05', memo: 'اختبار مركز', lines: [
+    { account: '1100', debit: '700', credit: '0', cc: id }, { account: '4100', debit: '0', credit: '700', cc: id } ] });
+  assert.strictEqual(e.status, 201);
+  assert.ok(e.data.entry.lines.some((l) => l.costCenter === code));
+  const pl = (await call('GET', `/api/reports/cost-center-pl?from=2026-12-01&to=2026-12-31&cc=${id}`)).data;
+  const mine = pl.summary.find((x) => x.id === id);
+  assert.strictEqual(cents(mine.revenue), 70000);
+  assert.strictEqual(cents(pl.detail.reduce((s, x) => s + x.amount, 0)), 70000);
+  // العكس يرث المركز فيصفّر أثره
+  assert.strictEqual((await call('POST', `/api/entries/${e.data.entry.id}/reverse`, {})).status, 201);
+  const pl2 = (await call('GET', `/api/reports/cost-center-pl?from=2026-12-01&to=2026-12-31`)).data;
+  assert.ok(!pl2.summary.find((x) => x.id === id));
+  // الملخص يطابق قائمة الدخل (مع غير الموزّع)
+  const is = (await call('GET', '/api/reports/income-statement?from=2026-01-01&to=2026-12-31')).data;
+  const pl3 = (await call('GET', '/api/reports/cost-center-pl?from=2026-01-01&to=2026-12-31')).data;
+  assert.strictEqual(cents(pl3.totals.revenue), cents(is.totalRevenue));
+  assert.strictEqual(cents(pl3.totals.expense), cents(is.totalExpense));
+  // الموازنة
+  const g = (await call('GET', '/api/budgets/2026')).data;
+  assert.ok(g.rows.length && g.rows.every((x) => x.months.length === 12));
+  const months = Array(12).fill(0); months[0] = 1000; months[1] = 500.5;
+  assert.strictEqual((await call('PUT', '/api/budgets/2026', { cc: 0, rows: [{ account: '4100', months }, { account: '5200', months: Array(12).fill(10) }] })).status, 200);
+  assert.strictEqual((await call('PUT', '/api/budgets/2026', { cc: 0, rows: [{ account: '1100', months }] })).status, 400);
+  assert.strictEqual((await call('PUT', '/api/budgets/2026', { cc: 0, rows: [{ account: '4100', months: [1] }] })).status, 400);
+  const bva = (await call('GET', '/api/reports/budget-vs-actual?year=2026&month=12')).data;
+  assert.strictEqual(cents(bva.totals.revBudget), 150050);
+  assert.strictEqual(cents(bva.totals.expBudget), 12000);
+  assert.strictEqual(cents(bva.totals.revActual), cents(is.totalRevenue));
+  assert.strictEqual(cents(bva.monthly.reduce((s, x) => s + x.revBudget, 0)), cents(bva.totals.revBudget));
+  const part = (await call('GET', '/api/reports/budget-vs-actual?year=2026&fromMonth=2&month=2')).data;
+  assert.strictEqual(cents(part.totals.revBudget), 50050);
+  assert.strictEqual((await call('GET', '/api/reports/budget-vs-actual?year=2026&month=13')).status, 400);
+  await call('PUT', '/api/budgets/2026', { cc: 0, rows: [] });
+  // مركز مستخدم لا يُحذف
+  assert.strictEqual((await call('DELETE', `/api/cost-centers/${id}`)).status, 409);
+  assert.strictEqual((await call('PATCH', `/api/cost-centers/${id}`, { active: false })).status, 200);
+});
+
 test('تقارير المبيعات والمشتريات الإضافية: المستحقات والأرصدة والمقبوضات والمقارنة والإشعارات', { skip: !hasDb || !canWrite }, async () => {
   const cents = (n) => Math.round(n * 100), far = '2099-12-31', q = 'from=2000-01-01&to=' + far;
   for (const kind of ['SALES', 'PURCHASE']) {
