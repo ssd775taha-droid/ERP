@@ -280,6 +280,23 @@
         sign: [['الكاشير', 'Cashier'], ['المشرف', 'Supervisor'], ['المحاسب', 'Accountant']],
       };
     },
+    // إشعار استلام بضاعة لأمر شراء
+    receipt(o, r) {
+      const rows = r.lines.map((l, k) => [k + 1, esc(l.description), q3(l.orderedQty), q3(l.qty), num(l.price), l.price !== l.poPrice ? '<span dir="ltr">' + money(l.poPrice) + '</span>' : '—', num(Math.round(l.qty * l.price * 100) / 100)]);
+      const sub = Math.round(r.lines.reduce((s, l) => s + l.qty * l.price, 0) * 100) / 100;
+      const vat = Math.round(r.lines.reduce((s, l) => s + l.qty * l.price * l.vatRate / 100, 0) * 100) / 100;
+      return {
+        titleAr: 'إشعار استلام بضاعة', titleEn: 'GOODS RECEIPT NOTE', no: 'GRN-' + r.id, windowTitle: 'إشعار استلام ' + r.id + ' — ' + o.no, phone: o.partyPhone, waAmount: sub + vat,
+        meta: [[['رقم الاستلام', 'Receipt No.', '<b dir="ltr">GRN-' + r.id + '</b>'], ['تاريخ الاستلام', 'Receipt Date', '<b dir="ltr">' + esc(r.date) + '</b>']],
+          [['أمر الشراء', 'PO No.', '<span dir="ltr">' + esc(o.no) + '</span>'], ['فاتورة المشتريات', 'Purchase Invoice', '<span dir="ltr">' + esc(r.invoiceNo) + '</span>']],
+          [['الحالة', 'Status', r.status === 'VOID' ? '<b>ملغى</b>' : 'ساري'], ['استلمه', 'Received by', esc(r.createdBy || '—')]]],
+        parties: [party(o.partyName, o.partyTaxNo, o.partyPhone, 'المورد', 'Supplier'), seller('المستلِم', 'Receiver')],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'البيان', en: 'Description' }, { ar: 'كمية الأمر', en: 'Ordered', n: 1 }, { ar: 'المستلم الآن', en: 'Received', n: 1 }, { ar: 'سعر الفاتورة', en: 'Invoice Price', n: 1 }, { ar: 'سعر الأمر', en: 'PO Price', n: 1 }, { ar: 'القيمة', en: 'Value', n: 1 }], rows },
+        totals: [['قيمة المستلم قبل الضريبة', 'Subtotal', num(sub)], ['الضريبة', 'VAT', num(vat)], ['الإجمالي', 'Total SAR', num(sub + vat), 1]], words: sub + vat, note: r.note,
+        sign: [['أمين المخزن — الاستلام', 'Storekeeper'], ['المحاسب', 'Accountant'], ['المورد / المندوب', 'Supplier rep.']],
+        actions: [{ label: 'فتح فاتورة المشتريات', href: '#/invoice/view/' + r.invoiceId }, ...(E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [])],
+      };
+    },
     // أمر شراء
     po(o, statusText) {
       return {

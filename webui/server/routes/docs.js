@@ -64,9 +64,11 @@ module.exports = function docRoutes() {
     if (!h.length) throw new db.HttpError(404, 'أمر الشراء غير موجود');
     const lines = await db.query(`SELECT line_id AS "id", line_no AS "no", item_id AS "itemId", wh_id AS "whId", description AS "description", qty AS "qty", price AS "price",
       vat_rate AS "vatRate", account_code AS "account", net AS "net", vat AS "vat", received_qty AS "received" FROM erp_po_lines WHERE po_id = :id ORDER BY line_no`, { id });
-    const rcpts = await db.query(`SELECT receipt_id AS "id", invoice_id AS "invoiceId", TO_CHAR(receipt_date, 'YYYY-MM-DD') AS "date", status AS "status", note AS "note"
-      FROM erp_po_receipts WHERE po_id = :id ORDER BY receipt_id`, { id });
-    return { ...h[0], lines, receipts: rcpts };
+    const rcpts = await db.query(`SELECT r.receipt_id AS "id", r.invoice_id AS "invoiceId", i.invoice_no AS "invoiceNo", TO_CHAR(r.receipt_date, 'YYYY-MM-DD') AS "date", r.status AS "status", r.note AS "note", r.created_by AS "createdBy"
+      FROM erp_po_receipts r JOIN erp_invoices i ON i.invoice_id = r.invoice_id WHERE r.po_id = :id ORDER BY r.receipt_id`, { id });
+    const rlines = await db.query(`SELECT rl.receipt_id AS "receiptId", pl.line_no AS "no", pl.description AS "description", pl.qty AS "orderedQty", rl.qty AS "qty", rl.price AS "price", rl.po_price AS "poPrice", pl.vat_rate AS "vatRate"
+      FROM erp_po_receipt_lines rl JOIN erp_po_lines pl ON pl.line_id = rl.po_line_id JOIN erp_po_receipts r ON r.receipt_id = rl.receipt_id WHERE r.po_id = :id ORDER BY rl.receipt_id, pl.line_no`, { id });
+    return { ...h[0], lines, receipts: rcpts.map((r) => ({ ...r, lines: rlines.filter((x) => x.receiptId === r.id) })) };
   }
 
   r.get('/po', wrap(async (req, res) => {

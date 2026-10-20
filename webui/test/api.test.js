@@ -150,6 +150,10 @@ test('أمر شراء: اعتماد واستلام جزئي وفاتورة، ث�
   assert.strictEqual((await call('POST', `/api/po/${id}/approve`, {})).status, 200);
   assert.strictEqual((await call('POST', `/api/po/${id}/receive`, { date: '2026-01-11', lines: [{ lineId, qty: 5 }] })).status, 400); // يتجاوز المتبقي
   const rc = await call('POST', `/api/po/${id}/receive`, { date: '2026-01-11', ref: 'S-1', lines: [{ lineId, qty: 2 }] });
+  {
+    const po = (await call('GET', `/api/po/${id}`)).data.order;
+    assert.ok(po.receipts[0].lines.length >= 1 && po.receipts[0].lines[0].qty === 2 && po.receipts[0].invoiceNo);   // أسطر الاستلام لإشعار الاستلام
+  }
   assert.strictEqual(rc.status, 201);
   assert.strictEqual(rc.data.order.status, 'PARTIAL');
   assert.strictEqual((await call('POST', `/api/po/receipts/${rc.data.receiptId}/void`, {})).data.order.status, 'APPROVED');
