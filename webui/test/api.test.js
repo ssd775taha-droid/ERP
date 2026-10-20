@@ -248,3 +248,21 @@ test('الأدوار: دور المدير ثابت، ولا يُحذف دور ج
   assert.strictEqual((await call('PATCH', `/api/roles/${id}`, { perms: { pos: 'w' } })).status, 200);
   assert.strictEqual((await call('DELETE', `/api/roles/${id}`)).status, 200);
 });
+
+test('لوحة المؤشرات: ستة أشهر ومستحقات، وتعديل بنود مسودة أمر شراء', { skip: !hasDb || !canWrite }, async () => {
+  const d = await call('GET', '/api/reports/dashboard');
+  assert.strictEqual(d.status, 200);
+  assert.strictEqual(d.data.months.length, 6);
+  assert.ok(d.data.months.every((m) => /^\d{4}-\d{2}$/.test(m.month) && typeof m.sales === 'number'));
+  assert.ok(d.data.receivable >= d.data.receivableOverdue);
+
+  const sup = await call('POST', '/api/parties', { kind: 'SUPPLIER', name: 'مورد تعديل المسودة' });
+  const po = await call('POST', '/api/po', { partyId: sup.data.id, date: '2026-01-10', lines: [{ description: 'أ', qty: 1, price: 10, account: '5400' }] });
+  assert.strictEqual(po.status, 201);
+  const upd = await call('PUT', `/api/po/${po.data.order.id}/lines`, { lines: [{ description: 'أ', qty: 2, price: 10, account: '5400', vatRate: 15 }, { description: 'ب', qty: 1, price: 5, account: '5400', vatRate: 0 }] });
+  assert.strictEqual(upd.status, 200);
+  assert.strictEqual(upd.data.order.lines.length, 2);
+  assert.strictEqual(upd.data.order.total, 28);        // 20 + 3 ضريبة + 5
+  assert.strictEqual((await call('POST', `/api/po/${po.data.order.id}/approve`, {})).status, 200);
+  assert.strictEqual((await call('PUT', `/api/po/${po.data.order.id}/lines`, { lines: [{ description: 'ج', qty: 1, price: 1, account: '5400' }] })).status, 400);   // بعد الاعتماد
+});

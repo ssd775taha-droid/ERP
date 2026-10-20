@@ -15,7 +15,27 @@
       '<div class="cards">' +
       stat('الحسابات', s.accounts) + stat('القيود', s.entries) + stat('رصيد النقدية والبنوك', money(s.cash)) +
       stat('أرباح لم تُقفل', money(s.unclosedEarnings)) + stat('أشهر مقفلة', s.closedMonths) + '</div>' +
+      '<div id="dash"></div>' +
       '<div class="card"><a href="#/entry/new">+ قيد يومية جديد</a> · <a href="#/reports/trial-balance">ميزان المراجعة</a> · <a href="#/reports/balance-sheet">الميزانية</a></div>';
+    // مؤشرات إضافية: مستحقات ومتأخرات ورسم المبيعات والمشتريات لآخر 6 أشهر وأكبر العملاء (تظهر لمن يملك صلاحية التقارير)
+    if (E.can('reports', 'r')) {
+      api('GET', '/reports/dashboard').then((d) => {
+        const mx = Math.max(1, ...d.months.map((m) => Math.max(m.sales, m.purchases)));
+        const W = 58, H = 120;
+        const bars = d.months.map((m, i) => {
+          const hs = Math.round(m.sales / mx * H), hp = Math.round(m.purchases / mx * H), x = i * (W + 14) + 10;
+          return '<rect class="bs" x="' + x + '" y="' + (H - hs) + '" width="22" height="' + hs + '"><title>مبيعات ' + esc(m.month) + ': ' + money(m.sales) + '</title></rect>' +
+                 '<rect class="bp" x="' + (x + 26) + '" y="' + (H - hp) + '" width="22" height="' + hp + '"><title>مشتريات ' + esc(m.month) + ': ' + money(m.purchases) + '</title></rect>' +
+                 '<text class="bl" x="' + (x + 24) + '" y="' + (H + 16) + '" text-anchor="middle">' + esc(m.month.slice(2)) + '</text>';
+        }).join('');
+        const el2 = E.$('#dash', el); if (!el2) return;
+        el2.innerHTML = '<div class="cards">' + stat('مستحق على العملاء', money(d.receivable)) + stat('منها متأخر (' + d.receivableOverdueCount + ' فاتورة)', money(d.receivableOverdue)) +
+          stat('مستحق للموردين', money(d.payable)) + stat('منها متأخر للموردين', money(d.payableOverdue)) + '</div>' +
+          '<div class="card"><h3>المبيعات والمشتريات (آخر 6 أشهر، قبل الضريبة)</h3><svg class="chart" viewBox="0 0 ' + (d.months.length * (W + 14) + 10) + ' ' + (H + 24) + '" role="img" aria-label="رسم المبيعات والمشتريات">' + bars + '</svg>' +
+          '<div class="muted"><span class="lg bs"></span> مبيعات (فواتير + نقاط البيع) <span class="lg bp"></span> مشتريات</div></div>' +
+          (d.topCustomers.length ? '<div class="card"><h3>أكبر العملاء هذه السنة</h3><table><tbody>' + d.topCustomers.map((c) => '<tr><td>' + esc(c.name) + '</td><td class="n">' + money(c.sales) + '</td></tr>').join('') + '</tbody></table></div>' : '');
+      }).catch(() => {});
+    }
     function stat(k, v) { return '<div class="stat"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div></div>'; }
   };
 

@@ -24,6 +24,9 @@ Section "Install"
   CreateShortcut "$SMPROGRAMS\ERP\Start ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\start-erp.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\Stop ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\stop-erp.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\ERP Password.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\show-password.ps1"' "" 0
+  CreateShortcut "$SMPROGRAMS\ERP\ERP Backup now.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\backup-erp.ps1"' "" 0
+  CreateShortcut "$SMPROGRAMS\ERP\ERP Restore backup.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\restore-erp.ps1"' "" 0
+  CreateShortcut "$SMPROGRAMS\ERP\ERP Daily backup (on-off).lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\schedule-backup.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\ERP Setup (reinstall).lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup-all.ps1"' "" 0
   CreateShortcut "$DESKTOP\ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\start-erp.ps1"' "" 0
   WriteUninstaller "$INSTDIR\Uninstall.exe"

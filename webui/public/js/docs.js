@@ -34,7 +34,23 @@
           if (it) { E.$('.ds', r).value = it.name; if (kind === 'Q') E.$('.pr', r).value = it.price; E.$('.vt', r).value = it.vat; E.$('.ac', r).value = ''; E.$('.ac', r).disabled = true; } else E.$('.ac', r).disabled = false;
           recalc();
         });
-        return { add: () => tb.insertAdjacentHTML('beforeend', line()), rm: (b) => { if (E.$$('.ln', tb).length > 1) { b.closest('tr').remove(); recalc(); } } };
+        const handlers = { add: () => tb.insertAdjacentHTML('beforeend', line()), rm: (b) => { if (E.$$('.ln', tb).length > 1) { b.closest('tr').remove(); recalc(); } } };
+        // تعبئة البنود من أمر/عرض محفوظ (للتعديل)
+        handlers.fill = (lines) => {
+          tb.innerHTML = '';
+          lines.forEach((l) => {
+            tb.insertAdjacentHTML('beforeend', line());
+            const r = tb.lastElementChild, it = items.find((i) => i.id === l.itemId);
+            E.$('.it', r).value = l.itemId || '';
+            E.$('.ds', r).value = l.description || '';
+            if (it && it.trackStock === 'Y') { E.$('.wh', r).disabled = false; if (l.whId) E.$('.wh', r).value = l.whId; }
+            if (it) E.$('.ac', r).disabled = true; else E.$('.ac', r).value = l.account || '';
+            E.$('.q', r).value = l.qty; E.$('.pr', r).value = l.price; E.$('.vt', r).value = l.vatRate;
+            if (kind === 'Q') E.$('.dc', r).value = l.discountPct || 0;
+          });
+          recalc();
+        };
+        return handlers;
       },
       read() {
         return E.$$('.ln', E.$('#lines', el)).map((r) => {
@@ -90,7 +106,7 @@
         (o.notes ? '<p>' + esc(o.notes) + '</p>' : '') +
         (canRecv ? '<div class="card noprint" style="margin-top:12px"><h3>استلام</h3><form id="fr" class="row"><label>تاريخ الاستلام<input type="date" name="d" value="' + E.today() + '"></label><label>رقم فاتورة المورد<input name="r" maxlength="60"></label><label style="flex:1">ملاحظة<input name="n" maxlength="300"></label><button class="btn">استلام وإنشاء الفاتورة</button></form><p class="muted">اكتب الكميات المستلمة في الجدول أعلاه؛ اترك سعر الفاتورة فارغاً لاستخدام سعر الأمر.</p></div>' : '') +
         (o.receipts.length ? '<h3>الاستلامات</h3><table><tbody>' + o.receipts.map((r) => '<tr><td>استلام ' + r.id + '</td><td>' + esc(r.date) + '</td><td><a href="#/invoice/view/' + r.invoiceId + '">فاتورة ' + r.invoiceId + '</a></td><td>' + (r.status === 'VOID' ? '<span class="tag bad">ملغى</span>' : '<span class="tag good">فعّال</span>') + '</td><td class="noprint">' + (r.status === 'ACTIVE' ? '<button class="btn alt sm" data-act="vr" data-r="' + r.id + '">إلغاء الاستلام</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '') +
-        '<div class="card noprint" style="margin-top:12px">' + (o.status === 'DRAFT' ? '<button class="btn" data-act="approve">اعتماد</button> ' : '') + (['DRAFT', 'APPROVED'].includes(o.status) && !o.receipts.some((r) => r.status === 'ACTIVE') ? '<button class="btn danger sm" data-act="cancel">إلغاء الأمر</button> ' : '') +
+        '<div class="card noprint" style="margin-top:12px">' + (o.status === 'DRAFT' ? '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/po/edit/' + o.id + '">تعديل البنود</a> <button class="btn" data-act="approve">اعتماد</button> ' : '') + (['DRAFT', 'APPROVED'].includes(o.status) && !o.receipts.some((r) => r.status === 'ACTIVE') ? '<button class="btn danger sm" data-act="cancel">إلغاء الأمر</button> ' : '') +
         (o.status === 'PARTIAL' ? '<button class="btn alt" data-act="close">إغلاق ما تبقى</button> ' : '') + '<button class="btn alt" data-act="print">طباعة</button> <a href="#/po">رجوع</a></div>';
       const fr = E.$('#fr', el);
       if (fr) fr.addEventListener('submit', async (ev) => {
@@ -103,6 +119,16 @@
     E.bind(el, { print: () => window.print(), approve: act('approve', 'اعتُمد الأمر'), cancel: act('cancel', 'أُلغي الأمر', 'إلغاء الأمر؟'), close: act('close', 'أُغلق الأمر', 'إغلاق ما تبقى من الأمر؟'),
       vr: async (b) => { if (confirm('إلغاء الاستلام؟ تُلغى فاتورته وتعود الكميات.')) { await api('POST', '/po/receipts/' + b.dataset.r + '/void'); E.toast('أُلغي الاستلام'); await load(); } } });
     await load();
+  };
+
+  E.pages.poEdit = async function (el, id) {
+    const [{ order: o }, refs] = await Promise.all([api('GET', '/po/' + encodeURIComponent(id)), loadRefs()]);
+    if (o.status !== 'DRAFT') { el.innerHTML = E.head('تعديل ' + o.no) + E.err('لا يُعدَّل إلا الأمر في حالة مسودة'); return; }
+    const ed = lineEditor(el, 'PO', ...refs);
+    el.innerHTML = E.head('تعديل بنود أمر الشراء ' + o.no, o.partyName + ' — المورد والتاريخ لا يتغيران؛ للتغيير ألغِ المسودة وأنشئ أمراً جديداً') + '<div class="card">' + ed.html +
+      '<p><button type="button" class="btn" data-act="save">حفظ البنود</button> <a href="#/po/view/' + o.id + '">رجوع دون حفظ</a></p></div>';
+    const h = ed.wire(); h.fill(o.lines);
+    E.bind(el, { add: h.add, rm: h.rm, save: (b) => E.busy(b, async () => { await api('PUT', '/po/' + o.id + '/lines', { lines: ed.read() }); E.toast('حُفظت البنود'); location.hash = '#/po/view/' + o.id; }) });
   };
 
   // ======================= عروض الأسعار =======================
@@ -136,6 +162,19 @@
     }) });
   };
 
+  E.pages.quoteEdit = async function (el, id) {
+    const [{ quote: q }, refs] = await Promise.all([api('GET', '/quotes/' + encodeURIComponent(id)), loadRefs()]);
+    if (q.status !== 'DRAFT') { el.innerHTML = E.head('تعديل ' + q.no) + E.err('لا يُعدَّل إلا العرض في حالة مسودة (بعد الإرسال: عرض معدَّل)'); return; }
+    const ed = lineEditor(el, 'Q', ...refs);
+    el.innerHTML = E.head('تعديل بنود عرض السعر ' + q.no, q.partyName) + '<div class="card">' + ed.html +
+      '<p><button type="button" class="btn" data-act="save">حفظ البنود</button> <a href="#/quote/view/' + q.id + '">رجوع دون حفظ</a></p></div>';
+    const h = ed.wire();
+    // العرض المحفوظ يخزّن السعر بعد الخصم؛ نستعيد السعر قبل الخصم (قد يختلف هللة عن الأصلي)
+    h.fill(q.lines.map((l) => ({ ...l, price: l.discountPct > 0 ? Math.round(l.unitNetPrice / (1 - l.discountPct / 100) * 100) / 100 : l.unitNetPrice })));
+    if (q.lines.some((l) => l.discountPct > 0)) E.toast('السعر قبل الخصم أُعيد حسابه من المحفوظ؛ راجعه قبل الحفظ');
+    E.bind(el, { add: h.add, rm: h.rm, save: (b) => E.busy(b, async () => { await api('PUT', '/quotes/' + q.id + '/lines', { lines: ed.read() }); E.toast('حُفظت البنود'); location.hash = '#/quote/view/' + q.id; }) });
+  };
+
   E.pages.quoteView = async function (el, id) {
     async function load() {
       const { quote: q } = await api('GET', '/quotes/' + encodeURIComponent(id));
@@ -147,7 +186,7 @@
         '</tbody><tfoot><tr><td colspan="6">المجموع · الضريبة</td><td class="n">' + money(q.subtotal) + '</td><td class="n">' + money(q.vat) + '</td></tr><tr><td colspan="6">الإجمالي</td><td class="n" colspan="2">' + money(q.total) + '</td></tr></tfoot></table>' +
         (q.notes ? '<p>' + esc(q.notes) + '</p>' : '') + (q.terms ? '<p class="muted">الشروط: ' + esc(q.terms) + '</p>' : '') +
         (s === 'ACCEPTED' ? '<div class="card noprint" style="margin-top:12px"><h3>تحويل إلى فاتورة مبيعات</h3><form id="fc" class="row"><label>تاريخ الفاتورة<input type="date" name="d" value="' + E.today() + '"></label><label>الاستحقاق<input type="date" name="du"></label><button class="btn">تحويل</button></form><p class="muted">تخرج البضاعة من المخزن وتُرحَّل التكلفة تلقائياً.</p></div>' : '') +
-        '<div class="card noprint" style="margin-top:12px">' + (s === 'DRAFT' ? '<button class="btn" data-act="send">إرسال للعميل</button> ' : '') + (s === 'SENT' ? '<button class="btn" data-act="accept">قبول</button> <button class="btn alt" data-act="reject">رفض</button> ' : '') +
+        '<div class="card noprint" style="margin-top:12px">' + (s === 'DRAFT' ? '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/quote/edit/' + q.id + '">تعديل البنود</a> <button class="btn" data-act="send">إرسال للعميل</button> ' : '') + (s === 'SENT' ? '<button class="btn" data-act="accept">قبول</button> <button class="btn alt" data-act="reject">رفض</button> ' : '') +
         (['SENT', 'REJECTED'].includes(s) ? '<button class="btn alt" data-act="revise">عرض معدَّل</button> ' : '') + (['DRAFT', 'SENT'].includes(s) ? '<button class="btn danger sm" data-act="cancel">إلغاء</button> ' : '') +
         (s === 'CONVERTED' ? '<button class="btn danger sm" data-act="unconvert">إلغاء التحويل (يلغي الفاتورة)</button> ' : '') + '<button class="btn alt" data-act="print">طباعة</button> <a href="#/quotes">رجوع</a></div>';
       const fc = E.$('#fc', el);

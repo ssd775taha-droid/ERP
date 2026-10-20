@@ -118,6 +118,27 @@ module.exports = function reportRoutes() {
     res.json({ ...row, reconciled: Math.round((row.opening + row.operating + row.investing + row.financing - row.closing) * 100) === 0 });
   }));
 
+  // مؤشرات اللوحة: آخر 6 أشهر (مبيعات من الفواتير ونقاط البيع صافي المرتجعات، ومشتريات)، المستحقات والمتأخرات، وأكبر العملاء هذه السنة
+  r.get('/reports/dashboard', wrap(async (req, res) => {
+    const months = await db.query(`
+      SELECT TO_CHAR(m.mon, 'YYYY-MM') AS "month",
+             NVL((SELECT SUM(i.subtotal) FROM erp_invoices i WHERE i.kind = 'SALES' AND i.status = 'OPEN' AND TRUNC(i.invoice_date, 'MM') = m.mon), 0)
+           + NVL((SELECT SUM(CASE WHEN s.kind = 'SALE' THEN s.subtotal ELSE -s.subtotal END) FROM erp_pos_sales s WHERE s.status = 'COMPLETED' AND TRUNC(s.sale_date, 'MM') = m.mon), 0) AS "sales",
+             NVL((SELECT SUM(i.subtotal) FROM erp_invoices i WHERE i.kind = 'PURCHASE' AND i.status = 'OPEN' AND TRUNC(i.invoice_date, 'MM') = m.mon), 0) AS "purchases"
+        FROM (SELECT ADD_MONTHS(TRUNC(SYSDATE, 'MM'), 1 - LEVEL) AS mon FROM dual CONNECT BY LEVEL <= 6) m ORDER BY m.mon`);
+    const open = await db.query(`
+      SELECT i.kind AS "kind", NVL(SUM(i.total - i.paid), 0) AS "remaining",
+             NVL(SUM(CASE WHEN i.due_date < TRUNC(SYSDATE) THEN i.total - i.paid ELSE 0 END), 0) AS "overdue",
+             COUNT(CASE WHEN i.due_date < TRUNC(SYSDATE) THEN 1 END) AS "overdueCount"
+        FROM erp_invoices i WHERE i.status = 'OPEN' AND i.total > i.paid GROUP BY i.kind`);
+    const get = (k, f) => (open.find((x) => x.kind === k) || {})[f] || 0;
+    const top = await db.query(`
+      SELECT p.name AS "name", SUM(i.subtotal) AS "sales" FROM erp_invoices i JOIN erp_parties p ON p.party_id = i.party_id
+       WHERE i.kind = 'SALES' AND i.status = 'OPEN' AND i.invoice_date >= TRUNC(SYSDATE, 'YYYY') GROUP BY p.name ORDER BY SUM(i.subtotal) DESC FETCH FIRST 5 ROWS ONLY`);
+    res.json({ months, receivable: get('SALES', 'remaining'), receivableOverdue: get('SALES', 'overdue'), receivableOverdueCount: get('SALES', 'overdueCount'),
+      payable: get('PURCHASE', 'remaining'), payableOverdue: get('PURCHASE', 'overdue'), topCustomers: top });
+  }));
+
   // ملخص اللوحة الرئيسية
   r.get('/summary', wrap(async (req, res) => {
     const row = (await db.query(`

@@ -46,6 +46,39 @@ window.ERP = (function () {
   // صلاحيات المستخدم الحالي (من /api/me): E.can('trade', 'w')
   E.me = { perms: {}, isAdmin: false };
   E.can = (mod, level) => E.me.isAdmin || ({ n: 0, r: 1, w: 2 }[E.me.perms[mod] || 'n'] >= { r: 1, w: 2 }[level || 'r']);
+  // تصدير أي جدول إلى CSV (UTF-8 مع BOM ليفتحه Excel بالعربية). الأرقام المنسّقة (1,234.50) تُحوَّل إلى أرقام خام
+  E.tableToCsv = (table) => {
+    const cell = (c) => {
+      let t = c.innerText.replace(/\s+/g, ' ').trim();
+      if (/^-?[\d,]+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '');
+      return '"' + t.replace(/"/g, '""') + '"';
+    };
+    return '\ufeff' + E.$$('tr', table).filter((r) => !r.classList.contains('noprint')).map((r) =>
+      E.$$('th,td', r).filter((c) => !c.classList.contains('noprint')).map(cell).join(',')).join('\r\n');
+  };
+  E.downloadCsv = (table, name) => {
+    const blob = new Blob([E.tableToCsv(table)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  // يضيف زر «تصدير» تلقائياً قبل كل جدول فيه أكثر من صف في الصفحة الحالية (يراقب ما يُحمَّل لاحقاً)
+  E.autoExport = (main) => {
+    // اسم الملف بحروف لاتينية من مسار الصفحة (بعض المتصفحات تُسقط الأسماء العربية فيصير الملف download)
+    const title = () => 'erp_' + (location.hash.replace(/^#\/?/, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'export');
+    const scan = () => E.$$('table', main).forEach((t) => {
+      if (t.dataset.x || E.$$('tbody tr', t).length < 2) return;
+      t.dataset.x = '1';
+      const b = document.createElement('p');
+      b.className = 'noprint'; b.style.margin = '0 0 6px';
+      b.innerHTML = '<button type="button" class="btn alt sm">⬇ تصدير Excel/CSV</button>';
+      b.firstChild.addEventListener('click', () => E.downloadCsv(t, title() + '_' + E.today()));
+      t.parentNode.insertBefore(b, t);
+    });
+    new MutationObserver(scan).observe(main, { childList: true, subtree: true });
+    scan();
+  };
   E.qs = (o) => Object.keys(o).filter((k) => o[k] !== '' && o[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o[k])).join('&');
 
   E.toast = function (msg, bad) {

@@ -27,7 +27,7 @@
     ['periods', 'الفترات والإقفال', 'periods'],
     ['الإعدادات'],
     ['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings'],
-    ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/password', 'كلمة سري'],
+    ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/password', 'كلمة سري'],
   ];
   const allowed = (n) => !n[2] || (n[2] === 'admin' ? E.me.isAdmin : E.can(n[2], 'r'));
   const ROUTES = {
@@ -38,9 +38,9 @@
     'hr/employees': 'hrEmployees', 'employee/view': 'hrEmployee', 'hr/components': 'hrComponents', 'hr/adjustments': 'hrAdjustments', 'hr/advances': 'hrAdvances',
     payroll: 'payroll', 'payroll/view': 'payrollView',
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters',
-    po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
+    'po/edit': 'poEdit', 'quote/edit': 'quoteEdit', po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
     'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
-    'settings/home': 'settingsHome', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/password': 'myPassword',
+    'settings/home': 'settingsHome', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
     'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow',
@@ -94,6 +94,7 @@
     const main = document.createElement('main'); // عنصر جديد لكل صفحة حتى لا تتراكم المستمعات
     main.id = 'main';
     old.replaceWith(main);
+    E.autoExport(main);
     if (!name || !E.pages[name]) { main.innerHTML = E.err('الصفحة غير موجودة'); return; }
     try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); }
   }
