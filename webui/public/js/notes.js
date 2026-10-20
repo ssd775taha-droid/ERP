@@ -101,8 +101,10 @@
 
   // ---------- عرض إشعار ----------
   E.pages.noteView = async function (el, id) {
+    let cur = null;
     async function load() {
       const { note: n } = await api('GET', '/notes/' + encodeURIComponent(id));
+      cur = n; el._openDoc = () => E.openDoc(E.docSpec.note(n));
       const sales = n.docKind === 'SALES', credit = n.type === 'CREDIT';
       el.innerHTML = E.head(TYPE[n.type] + ' ' + KIND[n.docKind] + ' ' + n.no, n.partyName + ' — ' + n.date) +
         E.taxHeader(TYPE[n.type] + (n.partyTaxNo ? '' : ' مبسط'), n.partyName, n.partyTaxNo, n.date, n.total, n.vat, sales && n.status === 'OPEN') +
@@ -112,10 +114,11 @@
         n.lines.map((l) => '<tr><td>' + esc(l.description) + (l.itemId ? ' <span class="tag">مخزني</span>' : '') + '</td><td class="n">' + q3(l.qty) + '</td><td class="n">' + money(l.price) + '</td><td>' + l.vatRate + '</td><td class="n">' + money(l.net) + '</td><td class="n">' + money(l.vat) + '</td></tr>').join('') +
         '</tbody><tfoot><tr><td colspan="4">المجموع · الضريبة</td><td class="n">' + money(n.subtotal) + '</td><td class="n">' + money(n.vat) + '</td></tr><tr><td colspan="4">الإجمالي</td><td class="n" colspan="2">' + (credit ? '−' : '') + money(n.total) + '</td></tr></tfoot></table>' +
         (n.refund > 0 ? '<p>مردود ' + (n.refundMethod === 'CASH' ? 'نقداً' : 'بنكياً') + ': <b>' + money(n.refund) + '</b></p>' : '') +
-        '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> ' + (n.status === 'OPEN' ? '<button class="btn danger sm" data-act="void">إلغاء الإشعار (قيد عكسي)</button>' : '') + ' <a href="#/notes">رجوع للإشعارات</a></p>';
+        '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة المستند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> ' + (n.status === 'OPEN' ? '<button class="btn danger sm" data-act="void">إلغاء الإشعار (قيد عكسي)</button>' : '') + ' <a href="#/notes">رجوع للإشعارات</a></p>';
     }
     E.bind(el, {
       print: () => window.print(),
+      doc: () => E.openDoc(E.docSpec.note(cur)),
       void: async () => { if (confirm('إلغاء الإشعار بقيود عكسية؟ (يُرفض إن صار المدفوع أكبر من قيمة الفاتورة بعد إلغائه)')) { await api('POST', '/notes/' + encodeURIComponent(id) + '/void'); E.toast('أُلغي الإشعار'); await load(); } },
     });
     await load();

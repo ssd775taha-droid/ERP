@@ -35,10 +35,11 @@
   E.pages.partyStatement = async function (el, id) {
     const { party, rows } = await api('GET', '/parties/' + encodeURIComponent(id) + '/statement');
     el.innerHTML = E.head('كشف حساب: ' + party.name, PKIND[party.kind] + ' — الرصيد الحالي ' + money(party.balance)) +
-      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/payment/new/' + party.id + '">+ سند ' + (party.kind === 'CUSTOMER' ? 'قبض' : 'صرف') + '</a></p>' +
+      '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة الكشف</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <a href="#/payment/new/' + party.id + '">+ سند ' + (party.kind === 'CUSTOMER' ? 'قبض' : 'صرف') + '</a></p>' +
       '<table><thead><tr><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th><th class="n">الرصيد</th></tr></thead><tbody>' +
       (rows.length ? rows.map((m) => '<tr><td>' + esc(m.date) + '</td><td>' + (m.type === 'INVOICE' ? '<a href="#/invoice/view/' + m.id + '">فاتورة ' + esc(m.no) + '</a>' : m.type === 'NOTE' ? '<a href="#/note/view/' + m.id + '">إشعار ' + esc(m.no) + '</a>' : 'سند رقم ' + esc(m.no)) + '</td><td class="n">' + money(m.amount) + '</td><td class="n">' + money(m.balance) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">لا حركة</td></tr>') + '</tbody></table>';
-    E.bind(el, { print: () => window.print() });
+    el._openDoc = () => E.openDoc(E.docSpec.statement(party, rows));
+    E.bind(el, { print: () => window.print(), doc: () => E.openDoc(E.docSpec.statement(party, rows)) });
   };
 
   // ---------- قائمة الفواتير ----------
@@ -142,7 +143,7 @@
     async function load() {
       const { invoice: i } = await api('GET', '/invoices/' + encodeURIComponent(id));
       const sales = i.kind === 'SALES';
-      cur = i;
+      cur = i; el._openDoc = () => E.openDoc(E.docSpec.invoice(cur, cur.partyPhone));
       el.innerHTML = E.head('فاتورة ' + KIND[i.kind] + ' ' + i.no, i.partyName + ' — ' + i.date) +
         (sales ? E.taxHeader(i.partyTaxNo ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة', i.partyName, i.partyTaxNo, i.date, i.total, i.vat, i.status === 'OPEN') : '') +
         '<p>' + stTag(i) + ' <span class="muted">القيد ' + i.entryId + (i.cogsEntryId ? ' · قيد التكلفة ' + i.cogsEntryId : '') + (i.voidEntryId ? ' · القيد العكسي ' + i.voidEntryId : '') + '</span></p>' +
@@ -158,7 +159,7 @@
           (i.paid === 0 && !i.notes.some((n) => n.status === 'OPEN') ? '<button class="btn danger sm" data-act="void">إلغاء الفاتورة (قيد عكسي)</button>' : '<span class="muted">لا تُلغى فاتورة عليها مدفوعات أو إشعارات سارية</span>') + '</div>' +
           '<div class="card noprint"><h3>تصحيح بعد الإصدار</h3><a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/note/new/' + i.id + '-CREDIT">إشعار دائن (مرتجع / خصم لاحق)</a> ' +
           '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/note/new/' + i.id + '-DEBIT">إشعار مدين (رسوم / فرق سعر)</a></div>' : '') +
-        '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <button class="btn alt" data-act="copy">نسخ كفاتورة جديدة (للتصحيح)</button> <a href="#/' + (sales ? 'sales' : 'purchases') + '">رجوع للقائمة</a></p>';
+        '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة المستند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <button class="btn alt" data-act="copy">نسخ كفاتورة جديدة (للتصحيح)</button> <a href="#/' + (sales ? 'sales' : 'purchases') + '">رجوع للقائمة</a></p>';
       const pf = E.$('#pf', el);
       if (pf) pf.addEventListener('submit', async (ev) => {
         ev.preventDefault();
@@ -169,6 +170,7 @@
     }
     E.bind(el, {
       print: () => window.print(),
+      doc: () => E.openDoc(E.docSpec.invoice(cur, cur.partyPhone)),
       copy: () => { E.prefill = { invoice: { kind: cur.kind, partyId: cur.partyId, note: cur.note, ref: cur.ref, lines: cur.lines } }; location.hash = '#/invoice/new/' + cur.kind; },
       void: async () => { if (confirm('إلغاء الفاتورة؟ سيُنشأ قيد عكسي (وتُعاد البضاعة للمخزن إن وُجدت).')) { await api('POST', '/invoices/' + encodeURIComponent(id) + '/void'); E.toast('أُلغيت الفاتورة'); await load(); } },
     });
@@ -198,8 +200,9 @@
       (p.note ? '<tr><th>ملاحظة</th><td>' + esc(p.note) + '</td></tr>' : '') +
       '<tr><th>القيد المحاسبي</th><td>' + (p.entryId ? '<a href="#/entry/view/' + p.entryId + '">قيد ' + p.entryId + '</a>' : '—') + '</td></tr>' +
       '</tbody></table></div>' + E.signBlock([rec ? 'المستلم' : 'المستلم (المستفيد)', 'المحاسب', 'المدير']) +
-      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> ' + E.crudBtns('payment', { id: p.id, no: p.id }) + ' <a href="#/payments">رجوع للسندات</a></p>';
-    E.bind(el, { print: () => window.print() });
+      '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة السند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> ' + E.crudBtns('payment', { id: p.id, no: p.id }) + ' <a href="#/payments">رجوع للسندات</a></p>';
+    el._openDoc = () => E.openDoc(E.docSpec.payment(p));
+    E.bind(el, { print: () => window.print(), doc: () => E.openDoc(E.docSpec.payment(p)) });
     E.crudBind(el, async () => { location.hash = '#/payments'; });
   };
 

@@ -33,25 +33,29 @@
       text: c.innerText.replace(/\s+/g, ' ').trim(), num: c.classList.contains('n'), head: c.tagName === 'TH' || c.closest('thead') !== null, foot: c.closest('tfoot') !== null,
     })));
     const widths = [];
-    const body = grid.map((cells, ri) => {
+    // كتلة عنوان أعلى الورقة: المنشأة، عنوان التقرير، تاريخ التصدير
+    const metaTxt = [E.tax.sellerName || 'ERP', title || '', 'تاريخ التصدير: ' + new Date().toLocaleString('en-CA', { hour12: false }).replace(',', '')];
+    const off = metaTxt.length + 1;
+    const metaRows = metaTxt.map((t, k) => '<row r="' + (k + 1) + '"><c r="A' + (k + 1) + '" t="inlineStr" s="' + (k < 2 ? 6 : 0) + '"><is><t xml:space="preserve">' + xml(t) + '</t></is></c></row>').join('');
+    const body = metaRows + grid.map((cells, ri) => {
       let cx = '';
       cells.forEach((c, ci) => {
-        const ref = colName(ci) + (ri + 1);
+        const ref = colName(ci) + (ri + 1 + off);
         widths[ci] = Math.min(60, Math.max(widths[ci] || 8, c.text.length + 2));
         const raw = c.text.replace(/,/g, '').replace(/^−/, '-');
         if (c.num && /^-?\d+(\.\d+)?$/.test(raw)) cx += '<c r="' + ref + '" s="' + (c.foot ? 4 : 2) + '"><v>' + raw + '</v></c>';
-        else cx += '<c r="' + ref + '" t="inlineStr" s="' + (c.head ? 1 : c.foot ? 3 : 0) + '"><is><t xml:space="preserve">' + xml(c.text) + '</t></is></c>';
+        else cx += '<c r="' + ref + '" t="inlineStr" s="' + (c.head ? 5 : c.foot ? 3 : 0) + '"><is><t xml:space="preserve">' + xml(c.text) + '</t></is></c>';
       });
-      return '<row r="' + (ri + 1) + '">' + cx + '</row>';
+      return '<row r="' + (ri + 1 + off) + '">' + cx + '</row>';
     }).join('');
     const cols = widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('');
-    const sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' + cols + '</cols><sheetData>' + body + '</sheetData></worksheet>';
+    const sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="' + (off + 1) + '" topLeftCell="A' + (off + 2) + '" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' + cols + '</cols><sheetData>' + body + '</sheetData></worksheet>';
     const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>' +
-      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
-      '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDE7F2"/></patternFill></fill></fills>' +
+      '<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDE7F2"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1D2735"/></patternFill></fill></fills>' +
       '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-      '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
-      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+      '<cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
     const sheetName = xml((title || 'ERP').replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31) || 'ERP');
     return zip([
       { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
@@ -82,13 +86,14 @@
       return l + ': ' + (x.tagName === 'SELECT' ? x.options[x.selectedIndex].text : x.value);
     });
     const who = E.me && (E.me.fullName || E.me.user);
-    ph.innerHTML = '<div class="ph-top">' + E.companyBlock() +
+    ph.innerHTML = E.companyHead() +
+      '<div class="pp-titlebar"><div class="pp-title"><h1>' + E.esc(title) + '</h1>' + (sub ? '<div class="sub" style="text-transform:none;letter-spacing:0">' + E.esc(sub) + '</div>' : '') + '</div>' +
       '<div class="ph-meta">طُبع في ' + new Date().toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) + (who ? '<br>بواسطة ' + E.esc(who) : '') + '</div></div>' +
-      '<h2 class="ph-title">' + E.esc(title) + '</h2>' + (sub ? '<div class="ph-sub">' + E.esc(sub) + '</div>' : '') + (filters.length ? '<div class="ph-sub">' + E.esc(filters.join(' — ')) + '</div>' : '');
-    const pf = E.$('#pfoot'); if (pf) pf.textContent = E.lh.footerNote || '';
+      (filters.length ? '<div class="ph-sub">' + E.esc(filters.join(' — ')) + '</div>' : '');
+    const pf = E.$('#pfoot'); if (pf) pf.innerHTML = '<span>' + E.esc(E.tax.sellerName || '') + '</span><span>' + E.esc(E.lh.footerNote || title) + '</span><span>' + new Date().toLocaleDateString('en-CA') + '</span>';
     const widest = Math.max(0, ...E.$$('table', main).map((tb) => Math.max(0, ...E.$$('tr', tb).map((r) => E.$$('th,td', r).filter((c) => c.offsetParent !== null).length))));
-    const thermal = document.body.classList.contains('thermal');
-    pageStyle.textContent = thermal ? '@page { size: 80mm 297mm; margin: 3mm; }' : '@page { size: A4 ' + (widest > 7 ? 'landscape' : 'portrait') + '; margin: 12mm 10mm 14mm; }';
+    const thermal = document.body.classList.contains('thermal') && !document.body.classList.contains('pm');
+    pageStyle.textContent = document.body.classList.contains('pm') ? '@page { size: A4 portrait; margin: 9mm; }' : thermal ? '@page { size: 80mm 297mm; margin: 3mm; }' : '@page { size: A4 ' + (widest > 7 ? 'landscape' : 'portrait') + '; margin: 12mm 10mm 14mm; }';
   });
   // إيصال حراري 80مم: يُبنى محتوى مستقل في #thermal ويُطبع وحده (بقية الصفحة مخفية بصنف على body أثناء الطباعة فقط)
   E.printThermal = (html) => {

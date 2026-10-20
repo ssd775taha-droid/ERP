@@ -134,7 +134,7 @@
     const pm = PAGE[key];
     if (pm && pm[0] !== 'admin' && !E.can(pm[0], 'w')) E.readOnly(main, MODULE_LABEL[pm[0]] || pm[0]);
     try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); return; }
-    if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); window.print(); }, 500);
+    if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); (main._openDoc || window.print.bind(window))(); }, 500);
   }
 
   E.onUnauth = () => loginView('انتهت الجلسة، سجّل الدخول من جديد');

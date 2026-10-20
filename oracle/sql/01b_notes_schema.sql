@@ -126,7 +126,14 @@ BEGIN
     EXECUTE IMMEDIATE 'CREATE TABLE erp_company_profile (
       id NUMBER(1) CONSTRAINT erp_company_profile_pk PRIMARY KEY CONSTRAINT erp_company_profile_ck CHECK (id = 1),
       name_en VARCHAR2(120), cr_no VARCHAR2(30), phone VARCHAR2(40), email VARCHAR2(120), website VARCHAR2(120),
-      footer_note VARCHAR2(500), logo CLOB)';
+      footer_note VARCHAR2(500), logo CLOB, addr_en VARCHAR2(200), bank_info VARCHAR2(500), stamp CLOB)';
+  ELSE
+    SELECT COUNT(*) INTO v FROM user_tab_columns WHERE table_name = 'ERP_COMPANY_PROFILE' AND column_name = 'ADDR_EN';
+    IF v = 0 THEN EXECUTE IMMEDIATE 'ALTER TABLE erp_company_profile ADD (addr_en VARCHAR2(200))'; END IF;
+    SELECT COUNT(*) INTO v FROM user_tab_columns WHERE table_name = 'ERP_COMPANY_PROFILE' AND column_name = 'BANK_INFO';
+    IF v = 0 THEN EXECUTE IMMEDIATE 'ALTER TABLE erp_company_profile ADD (bank_info VARCHAR2(500))'; END IF;
+    SELECT COUNT(*) INTO v FROM user_tab_columns WHERE table_name = 'ERP_COMPANY_PROFILE' AND column_name = 'STAMP';
+    IF v = 0 THEN EXECUTE IMMEDIATE 'ALTER TABLE erp_company_profile ADD (stamp CLOB)'; END IF;
   END IF;
 END;
 /

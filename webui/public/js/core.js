@@ -25,7 +25,7 @@ window.ERP = (function () {
   };
   // إعدادات الضريبة السعودية (النسبة الافتراضية وبيانات المنشأة)
   E.tax = { vatRate: 15, sellerName: '', sellerVatNo: '', sellerAddress: '' };
-  E.lh = { nameEn: '', crNo: '', phone: '', email: '', website: '', footerNote: '', logo: '' };   // ترويسة المستندات (الشعار وبيانات الاتصال والتذييل)
+  E.lh = { nameEn: '', crNo: '', phone: '', email: '', website: '', footerNote: '', logo: '', addrEn: '', bankInfo: '', stamp: '' };   // ترويسة المستندات (الشعار وبيانات الاتصال والتذييل)
   E.loadTax = async () => {
     try { Object.assign(E.tax, await E.api('GET', '/tax/settings')); } catch (e) { /* تبقى الافتراضيات */ }
     try { Object.assign(E.lh, await E.api('GET', '/letterhead')); } catch (e) { /* تبقى الافتراضيات */ }

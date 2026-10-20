@@ -20,8 +20,11 @@
       '<label>الهاتف<input name="phone" maxlength="40" size="14" dir="ltr" value="' + esc(E.lh.phone) + '"></label>' +
       '<label>البريد<input name="email" maxlength="120" size="22" dir="ltr" value="' + esc(E.lh.email) + '"></label>' +
       '<label>الموقع<input name="website" maxlength="120" size="20" dir="ltr" value="' + esc(E.lh.website) + '"></label>' +
+      '<label>العنوان بالإنجليزية<input name="addrEn" maxlength="200" size="34" dir="ltr" value="' + esc(E.lh.addrEn) + '"></label>' +
+      '<label style="flex:1;min-width:260px">بيانات التحويل البنكي (تظهر في صندوق على الفاتورة)<textarea name="bankInfo" maxlength="500" rows="2" style="width:100%">' + esc(E.lh.bankInfo) + '</textarea></label>' +
       '<label style="flex:1;min-width:260px">تذييل المطبوعات (حساب بنكي، شروط…)<textarea name="footerNote" maxlength="500" rows="2" style="width:100%">' + esc(E.lh.footerNote) + '</textarea></label>' +
       '<div><div>الشعار</div><div id="lp"></div><input type="file" id="lfile" accept="image/png,image/jpeg"> <button type="button" class="btn alt sm" id="lrm">إزالة الشعار</button></div>' +
+      '<div><div>الختم / التوقيع</div><div id="sp"></div><input type="file" id="sfile" accept="image/png,image/jpeg"> <button type="button" class="btn alt sm" id="srm">إزالة الختم</button></div>' +
       '<button class="btn">حفظ الترويسة</button></form>' +
       '<h4>معاينة</h4><div id="lprev" class="card"></div></div>' +
       '<div class="card"><h3>ما يغطيه النظام وما لا يغطيه</h3><ul>' +
@@ -33,40 +36,44 @@
       catch (e) { E.toast(e.message, true); }
     });
     // الترويسة: الشعار يُصغَّر في المتصفح (حد أقصى 400×200) ثم يُرسل data URL
-    let logo = E.lh.logo || '';
+    const img = { logo: E.lh.logo || '', stamp: E.lh.stamp || '' };
     const lf = E.$('#lf', el);
+    const g = (n) => lf.elements[n].value.trim();
     const preview = () => {
-      E.$('#lp', el).innerHTML = logo ? '<img class="logo-prev" alt="" src="' + logo + '">' : '<span class="muted">لا شعار</span>';
+      E.$('#lp', el).innerHTML = img.logo ? '<img class="logo-prev" alt="" src="' + img.logo + '">' : '<span class="muted">لا شعار</span>';
+      E.$('#sp', el).innerHTML = img.stamp ? '<img class="logo-prev" alt="" src="' + img.stamp + '">' : '<span class="muted">لا ختم</span>';
       const keep = Object.assign({}, E.lh);
-      const g = (n) => lf.elements[n].value.trim();
-      Object.assign(E.lh, { nameEn: g('nameEn'), crNo: g('crNo'), phone: g('phone'), email: g('email'), website: g('website'), logo });
+      Object.assign(E.lh, { nameEn: g('nameEn'), crNo: g('crNo'), phone: g('phone'), email: g('email'), website: g('website'), logo: img.logo });
       E.$('#lprev', el).innerHTML = E.companyBlock({ fallback: 'اسم المنشأة' });
       Object.assign(E.lh, keep);
     };
     preview();
     lf.addEventListener('input', preview);
-    E.$('#lrm', el).addEventListener('click', () => { logo = ''; E.$('#lfile', el).value = ''; preview(); });
-    E.$('#lfile', el).addEventListener('change', (ev) => {
-      const file = ev.target.files[0]; if (!file) return;
-      if (file.size > 5e6) { E.toast('الصورة كبيرة جداً', true); return; }
-      const img = new Image(), url = URL.createObjectURL(file);
-      img.onload = () => {
-        const k = Math.min(1, 400 / img.width, 200 / img.height), c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
-        const x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        logo = c.toDataURL('image/png');
-        if (logo.length > 280000) logo = c.toDataURL('image/jpeg', 0.85);
-        if (logo.length > 280000) { logo = E.lh.logo || ''; E.toast('الصورة معقّدة جداً، اختر صورة أبسط', true); }
-        preview();
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); E.toast('تعذّرت قراءة الصورة', true); };
-      img.src = url;
-    });
+    // الصورة تُصغَّر في المتصفح (حد أقصى 400×200) ثم تُرسل data URL
+    const bindImage = (key, fileId, rmId) => {
+      E.$('#' + rmId, el).addEventListener('click', () => { img[key] = ''; E.$('#' + fileId, el).value = ''; preview(); });
+      E.$('#' + fileId, el).addEventListener('change', (ev) => {
+        const file = ev.target.files[0]; if (!file) return;
+        if (file.size > 5e6) { E.toast('الصورة كبيرة جداً', true); return; }
+        const im = new Image(), url = URL.createObjectURL(file);
+        im.onload = () => {
+          const k = Math.min(1, 400 / im.width, 200 / im.height), c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          let out = c.toDataURL('image/png');
+          if (out.length > 280000) out = c.toDataURL('image/jpeg', 0.85);
+          if (out.length > 280000) { E.toast('الصورة معقّدة جداً، اختر صورة أبسط', true); return; }
+          img[key] = out; preview();
+        };
+        im.onerror = () => { URL.revokeObjectURL(url); E.toast('تعذّرت قراءة الصورة', true); };
+        im.src = url;
+      });
+    };
+    bindImage('logo', 'lfile', 'lrm'); bindImage('stamp', 'sfile', 'srm');
     lf.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const g = (n) => lf.elements[n].value.trim();
-      try { await api('POST', '/letterhead', { nameEn: g('nameEn'), crNo: g('crNo'), phone: g('phone'), email: g('email'), website: g('website'), footerNote: g('footerNote'), logo }); await E.loadTax(); E.toast('حُفظت الترويسة'); }
+      try { await api('POST', '/letterhead', { nameEn: g('nameEn'), crNo: g('crNo'), phone: g('phone'), email: g('email'), website: g('website'), addrEn: g('addrEn'), bankInfo: g('bankInfo'), footerNote: g('footerNote'), logo: img.logo, stamp: img.stamp }); await E.loadTax(); E.toast('حُفظت الترويسة'); }
       catch (e) { E.toast(e.message, true); }
     });
   };

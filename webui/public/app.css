@@ -94,6 +94,41 @@ dialog.dlg { border: 1px solid var(--line); border-radius: 12px; background: var
 button.fab { position: fixed; bottom: 18px; left: 18px; z-index: 40; border-radius: 999px; padding: 9px 16px; background: var(--brand); color: #fff; border: 0; box-shadow: 0 4px 14px rgba(0,0,0,.28); cursor: pointer; font: inherit; }
 button.fab:hover { filter: brightness(1.1); }
 
+/* ---------- ورقة المستند (فاتورة/سند/كشف) ونافذة المعاينة ---------- */
+/* ألوان ورقة المستند تُستعمل أيضاً في ترويسة طباعة التقارير */
+:root { --gold: #c9a227; --ink2: #1d2735; }
+.paper { background: #fff; color: #111; font-size: 12px; line-height: 1.5; padding: 26px 32px 18px; width: 100%; max-width: 794px; margin: 0 auto; box-shadow: 0 2px 14px rgba(0,0,0,.25); box-sizing: border-box; }
+.paper small { display: block; font-size: 9.5px; color: #555; font-weight: 400; }
+.pp-head { display: grid; grid-template-columns: 1fr 110px 1fr; gap: 14px; align-items: start; direction: rtl; }
+.pp-co { font-size: 10.5px; line-height: 1.45; color: #222; } .pp-co b { display: block; font-size: 15px; color: #000; margin-bottom: 2px; }
+.pp-co.en { text-align: left; } .pp-co.ar { text-align: right; }
+.pp-logo { text-align: center; } .pp-logo img { max-width: 100px; max-height: 76px; object-fit: contain; }
+.pp-titlebar { display: flex; justify-content: space-between; align-items: flex-end; margin: 14px 0 10px; padding-bottom: 4px; border-bottom: 1.5px solid var(--ink2); }
+.pp-title h1 { margin: 0; font-size: 21px; position: relative; display: inline-block; padding-bottom: 3px; } .pp-title h1::after { content: ''; position: absolute; right: 0; left: 0; bottom: -1px; height: 3px; background: var(--gold); }
+.paper.pp-en .pp-title h1::after { right: 0; left: 0; }
+.pp-title .sub { font-size: 11px; letter-spacing: .08em; color: #333; margin-top: 4px; text-transform: uppercase; }
+.pp-qr svg { width: 112px; height: 112px; display: block; }
+.pp-meta { width: 100%; border-collapse: collapse; margin: 8px 0; border: 1.5px solid var(--ink2); } .pp-meta th, .pp-meta td { padding: 4px 8px; border: 1px solid #aab; text-align: start; font-size: 11px; vertical-align: middle; }
+.pp-meta th { width: 17%; font-weight: 600; background: #fff; }
+.pp-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; } .pp-box { border: 1px solid #99a; padding: 6px 10px; font-size: 11px; } .pp-box-h { font-weight: 700; border-bottom: 1px solid #ccd; margin-bottom: 4px; padding-bottom: 2px; } .pp-box .k { color: #444; }
+.pp-lines { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11px; } .pp-lines th { background: var(--ink2); color: #fff; padding: 5px 6px; font-weight: 600; text-align: start; border: 1px solid var(--ink2); } .pp-lines th small { color: #cbd; }
+.pp-lines td { padding: 5px 6px; border: 1px solid #99a; } .pp-lines .n { text-align: left; direction: ltr; white-space: nowrap; } .pp-lines tfoot td { font-weight: 700; background: #f1f3f6; }
+.pp-mid { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin: 8px 0; flex-direction: row; }
+.pp-words { flex: 1 1 0; min-width: 0; border-inline-start: 3px solid var(--gold); background: #f6f1de; padding: 7px 10px; font-weight: 600; font-size: 11.5px; }
+.pp-tot { border-collapse: collapse; flex: 0 0 260px; width: 260px; border: 1.5px solid var(--ink2); } .pp-tot th { padding: 4px 8px; text-align: start; font-weight: 600; background: #f1f3f6; border: 1px solid #aab; font-size: 11px; } .pp-tot td { padding: 4px 8px; text-align: left; border: 1px solid #aab; white-space: nowrap; direction: ltr; } .pp-tot .grand th, .pp-tot .grand td { background: #e5e8ee; font-weight: 800; font-size: 12.5px; }
+.pp-note { border: 1px solid #ccd; padding: 6px 10px; margin: 6px 0; font-size: 11px; }
+.pp-bank { border: 1px solid #99a; padding: 6px 10px; margin: 8px 0; font-size: 11px; } .pp-bank b { display: block; margin-bottom: 2px; }
+.pp-seal { text-align: center; margin: 10px 0 0; } .pp-stamp { max-width: 120px; max-height: 120px; object-fit: contain; display: block; margin: 0 auto 2px; } .pp-sealname { font-weight: 700; font-size: 11px; border-top: 1px solid #333; display: inline-block; padding-top: 2px; min-width: 160px; }
+.pp-sign { display: flex; gap: 22px; margin-top: 24px; } .pp-sign > div { flex: 1; text-align: center; } .pp-sign i { display: block; border-bottom: 1px solid #333; height: 30px; } .pp-sign span { font-size: 10.5px; color: #333; }
+.pp-foot { display: flex; justify-content: space-between; border-top: 1px solid #99a; margin-top: 18px; padding-top: 4px; font-size: 9.5px; color: #444; }
+.paper.pp-en { font-size: 12px; }
+dialog.docdlg { width: min(900px, 96vw); max-height: 94vh; padding: 0; border: 0; border-radius: 12px; background: var(--surface); color: var(--ink); overflow: hidden; } dialog.docdlg[open] { display: flex; flex-direction: column; } dialog.docdlg::backdrop { background: rgba(0,0,0,.55); }
+.dd-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 16px; }
+.dd-tools { display: flex; gap: 10px; align-items: center; padding: 8px 18px; font-size: 12px; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; } .seg button { border: 0; background: transparent; color: var(--ink); padding: 4px 14px; cursor: pointer; font: inherit; } .seg button.on { background: var(--nav); color: #fff; }
+.dd-view { flex: 1; overflow: auto; background: #cfd5dc; padding: 18px; } .dd-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
+.btn.gold { background: #d79a16; border-color: #d79a16; color: #fff; } .btn.dark { background: #1d2735; border-color: #1d2735; color: #fff; }
+
 /* ---------- الاستعلام والسندات ---------- */
 .sign { display: flex; gap: 24px; margin-top: 36px; } .sign > div { flex: 1; text-align: center; } .sign span { display: block; color: var(--muted); font-size: 12px; } .sign i { display: block; border-bottom: 1px solid var(--ink); height: 34px; }
 .qf { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; } .qf input[name=q] { min-width: 240px; }
@@ -117,14 +152,18 @@ button.fab:hover { filter: brightness(1.1); }
   .taxhead svg { width: 90px; height: 90px; }
   .sign i { border-color: #000; }
   .ph-top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
+  .paper, .paper * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  main table thead th { background: var(--ink2); color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .taxhead .lh { display: none; }                                 /* هوية المنشأة تظهر في ترويسة الطباعة فلا تتكرر في بطاقة الفاتورة */
   .ph-top .lh { margin: 0; } .lh-logo { max-width: 110px; max-height: 60px; } .lh-en { color: #333; }
-  #pfoot:not(:empty) { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #999; padding-top: 3px; font-size: 10px; text-align: center; color: #333; background: #fff; white-space: pre-line; }
+  #pfoot:not(:empty) { display: flex !important; justify-content: space-between; position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #999; padding-top: 3px; font-size: 10px; text-align: center; color: #333; background: #fff; white-space: pre-line; }
   @page { @bottom-left { content: counter(page) " / " counter(pages); font-size: 9px; color: #555; } }
   .ph-meta { font-size: 11px; text-align: left; color: #333; }
   .ph-title { font-size: 18px; margin: 4px 0; } .ph-sub { font-size: 12px; color: #333; }
   main > h1, main > h1 + .sub { display: none; }                 /* العنوان يتكرر في الترويسة المطبوعة */
-  body.thermal .layout, body.thermal .print-only, body.thermal #toasts { display: none !important; }
+  body.thermal .layout, body.thermal .print-only, body.thermal #toasts, body.thermal #docdlg, body.thermal #pbtn { display: none !important; }
+  body.thermal.pm #thermal { width: auto !important; font-size: 12px; line-height: 1.5; } body.thermal.pm #thermal .paper { box-shadow: none; max-width: none; padding: 0; } body.thermal.pm #thermal svg { width: auto; } body.thermal.pm #thermal .pp-qr svg { width: 104px; height: 104px; margin: 0; } body.thermal.pm #thermal .pp-stamp { margin: 0 auto 2px; } body.thermal.pm #thermal .pp-logo img { max-width: 100px; }
+  .paper small { color: #444; }
   body.thermal #thermal { display: block; width: 72mm; font-size: 11px; line-height: 1.35; color: #000; background: #fff; }
   #thermal .c { text-align: center; } #thermal hr { border: 0; border-top: 1px dashed #000; margin: 4px 0; }
   #thermal .rl { display: flex; justify-content: space-between; gap: 6px; } #thermal .rl b { font-size: 13px; }

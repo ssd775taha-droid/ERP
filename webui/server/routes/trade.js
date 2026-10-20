@@ -87,7 +87,7 @@ module.exports = function tradeRoutes() {
 
   // ---------- الفواتير ----------
   const INV_SQL = `
-    SELECT i.invoice_id AS "id", i.kind AS "kind", i.invoice_no AS "no", i.ref AS "ref", i.party_id AS "partyId", p.name AS "partyName",
+    SELECT i.invoice_id AS "id", i.kind AS "kind", i.invoice_no AS "no", i.ref AS "ref", i.party_id AS "partyId", p.name AS "partyName", p.phone AS "partyPhone",
            TO_CHAR(i.invoice_date, 'YYYY-MM-DD') AS "date", TO_CHAR(i.due_date, 'YYYY-MM-DD') AS "due",
            i.subtotal AS "subtotal", i.vat_amount AS "vat", i.total AS "total", i.paid AS "paid", i.total + erp_note_net(i.invoice_id) - i.paid AS "remaining", i.total + (SELECT NVL(SUM(CASE n.note_type WHEN 'DEBIT' THEN n.total ELSE -n.total END), 0) FROM erp_notes n WHERE n.invoice_id = i.invoice_id AND n.status = 'OPEN') AS "effectiveTotal",
            i.status AS "status", p.tax_no AS "partyTaxNo", i.note AS "note", i.entry_id AS "entryId", i.cogs_entry_id AS "cogsEntryId", i.void_entry_id AS "voidEntryId"
@@ -201,7 +201,7 @@ module.exports = function tradeRoutes() {
   r.get('/payments/:id', wrap(async (req, res) => {
     const id = v.int(req.params.id, 'رقم السند');
     const rows = await db.query(`
-      SELECT y.payment_id AS "id", y.kind AS "kind", y.party_id AS "partyId", p.name AS "partyName", p.tax_no AS "partyTaxNo", y.invoice_id AS "invoiceId",
+      SELECT y.payment_id AS "id", y.kind AS "kind", y.party_id AS "partyId", p.name AS "partyName", p.tax_no AS "partyTaxNo", p.phone AS "partyPhone", y.invoice_id AS "invoiceId",
              i.invoice_no AS "invoiceNo", TO_CHAR(y.pay_date, 'YYYY-MM-DD') AS "date", y.amount AS "amount", y.method AS "method", y.note AS "note", y.entry_id AS "entryId"
         FROM erp_payments y JOIN erp_parties p ON p.party_id = y.party_id LEFT JOIN erp_invoices i ON i.invoice_id = y.invoice_id WHERE y.payment_id = :id`, { id });
     if (!rows.length) throw new db.HttpError(404, 'السند غير موجود');

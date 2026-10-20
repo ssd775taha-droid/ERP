@@ -149,8 +149,9 @@
       '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
       e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
       '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(tc) + '</td><td></td></tr></tfoot></table>' + E.signBlock(['أعدّه', 'راجعه', 'اعتمده']) +
-      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <button class="btn alt" data-act="copy">نسخ كقيد جديد (للتصحيح)</button> <a href="#/entries">رجوع لدفتر اليومية</a></p>';
-    E.bind(el, { print: () => window.print(), copy: () => { E.prefill = { entry: { memo: e.memo, ref: e.ref, lines: e.lines.map((l) => ({ account: l.account, debit: l.debit, credit: l.credit, note: l.note })) } }; location.hash = '#/entry/new'; } });
+      '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة السند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <button class="btn alt" data-act="copy">نسخ كقيد جديد (للتصحيح)</button> <a href="#/entries">رجوع لدفتر اليومية</a></p>';
+    el._openDoc = () => E.openDoc(E.docSpec.entry(e));
+    E.bind(el, { print: () => window.print(), doc: () => E.openDoc(E.docSpec.entry(e)), copy: () => { E.prefill = { entry: { memo: e.memo, ref: e.ref, lines: e.lines.map((l) => ({ account: l.account, debit: l.debit, credit: l.credit, note: l.note })) } }; location.hash = '#/entry/new'; } });
   };
 
   E.pages.entries = async function (el) {
