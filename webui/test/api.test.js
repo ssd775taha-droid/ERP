@@ -500,6 +500,41 @@ test('تقارير المحاسبة الإضافية: تطابق الشهري م
   assert.strictEqual((await call('GET', '/api/reports/monthly-pl?from=2026-05-01&to=2026-01-01')).status, 400);
 });
 
+test('التقارير المحاسبية المتقدمة: اليومية والأستاذ العام والمقارنات وتجميع الحسابات', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100), q = 'from=2000-01-01&to=2099-12-31';
+  const gj = (await call('GET', `/api/reports/general-journal?${q}`)).data;
+  assert.strictEqual(cents(gj.totals.debit), cents(gj.totals.credit));
+  assert.ok(gj.entries.every((e) => cents(e.lines.reduce((s, l) => s + l.debit, 0)) === cents(e.lines.reduce((s, l) => s + l.credit, 0))));
+  const gjc = (await call('GET', `/api/reports/general-journal?${q}&kind=CLOSING`)).data;
+  assert.ok(gjc.entries.every((e) => e.kind === 'CLOSING'));
+  assert.strictEqual((await call('GET', `/api/reports/general-journal?${q}&kind=BAD`)).status, 400);
+  assert.strictEqual((await call('GET', `/api/reports/general-journal?${q}&min=-5`)).status, 400);
+  // الأستاذ العام يطابق ميزان المراجعة وكشف الحساب
+  const gl = (await call('GET', `/api/reports/general-ledger?${q}`)).data;
+  const tb = (await call('GET', `/api/reports/trial-balance?to=2099-12-31`)).data;
+  assert.strictEqual(cents(gl.totals.debit), cents(tb.totals.debit));
+  assert.strictEqual(cents(gl.totals.credit), cents(tb.totals.credit));
+  assert.strictEqual(cents(gl.totals.close), 0);
+  const a0 = gl.accounts[0], lg = (await call('GET', `/api/reports/ledger/${a0.code}?${q}`)).data;
+  assert.strictEqual(cents(a0.close), cents(lg.closing * (['ASSET', 'EXPENSE'].includes(lg.account.type) ? 1 : -1)));
+  // مقارنة الميزان: الفترتان المتطابقتان بلا فروق ومجموعها صفر
+  const tc = (await call('GET', `/api/reports/tb-compare?from1=2000-01-01&to1=2099-12-31&from2=2000-01-01&to2=2099-12-31`)).data;
+  assert.strictEqual(cents(tc.totals.absDiff), 0);
+  assert.strictEqual(cents(tc.totals.p1), 0);
+  assert.strictEqual((await call('GET', '/api/reports/tb-compare?from1=2026-05-01&to1=2026-01-01&from2=2026-01-01&to2=2026-02-01')).status, 400);
+  // مقارنة الميزانية تطابق الميزانية العادية في كل تاريخ
+  const bc = (await call('GET', '/api/reports/bs-compare?asof1=2026-01-31&asof2=2099-12-31')).data;
+  const b2 = (await call('GET', '/api/reports/balance-sheet?asof=2099-12-31')).data, b1 = (await call('GET', '/api/reports/balance-sheet?asof=2026-01-31')).data;
+  assert.strictEqual(cents(bc.totals.assets.b2), cents(b2.totalAssets));
+  assert.strictEqual(cents(bc.totals.assets.b1), cents(b1.totalAssets));
+  assert.strictEqual(cents(bc.totals.equity.b2), cents(b2.totalEquity));
+  assert.ok(bc.balanced);
+  // تجميع الحسابات: مجموع الأوراق يطابق ميزان المراجعة، والجذور الخمسة أو أقل تحمل مجموع أبنائها
+  const ag = (await call('GET', `/api/reports/account-groups?${q}`)).data;
+  assert.strictEqual(cents(ag.totals.leafDebit), cents(tb.totals.debit));
+  assert.strictEqual(cents(ag.totals.leafCredit), cents(tb.totals.credit));
+});
+
 test('تقارير المبيعات والمشتريات الإضافية: المستحقات والأرصدة والمقبوضات والمقارنة والإشعارات', { skip: !hasDb || !canWrite }, async () => {
   const cents = (n) => Math.round(n * 100), far = '2099-12-31', q = 'from=2000-01-01&to=' + far;
   for (const kind of ['SALES', 'PURCHASE']) {

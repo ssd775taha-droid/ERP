@@ -433,6 +433,65 @@
       '<h3>قيود الإقفال</h3>' + (r.closing.length ? '<table><thead><tr><th>القيد</th><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th></tr></thead><tbody>' + r.closing.map((x) => '<tr><td><a href="#/entry/view/' + x.id + '">' + x.id + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.memo || '') + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا قيود إقفال</p>');
   });
 
+  // ---------- تقارير محاسبية متقدمة ----------
+  const TYPE_AR = { ASSET: 'أصول', LIABILITY: 'خصوم', EQUITY: 'حقوق ملكية', REVENUE: 'إيرادات', EXPENSE: 'مصروفات' };
+  const typeSel = () => sel('type', 'نوع الحساب', [['', 'كل الأنواع']].concat(Object.entries(TYPE_AR)), '');
+  const chg = (x) => (x ? '<span class="' + (x > 0 ? 'good' : 'bad') + '">' + money(x) + '</span>' : '');
+  const txt = (n, label, ph) => '<label>' + label + '<input name="' + n + '" placeholder="' + (ph || '') + '"></label>';
+  const lim = (r) => (r.truncated ? '<div class="msg warn">النتائج مقطوعة عند ' + r.limit + ' — ضيّق الفترة أو أضف شروط بحث</div>' : '');
+
+  E.pages['acc-journal'] = (el) => shell(el, 'اليومية العامة', 'القيود بسطورها حسب التاريخ مع بحث بالبيان أو المرجع أو الحساب ونطاق مبلغ ونوع القيد',
+    yr() + sel('kind', 'النوع', [['', 'الكل'], ['NORMAL', 'عادي'], ['REVERSAL', 'عكسي'], ['CLOSING', 'إقفال']], '') + txt('q', 'بحث', 'بيان / مرجع / حساب') +
+    '<label>مبلغ من<input type="number" name="min" min="0" step="0.01" style="width:7em"></label><label>إلى<input type="number" name="max" min="0" step="0.01" style="width:7em"></label>', async (f) => {
+    const r = await api('GET', '/reports/general-journal?' + E.qs(f)), T = r.totals, KIND = { CLOSING: 'إقفال' };
+    if (!r.entries.length) return '<div class="msg warn">لا قيود مطابقة</div>';
+    return '<div class="cards">' + stat('عدد القيود', T.count) + stat('إجمالي المدين', money(T.debit)) + stat('إجمالي الدائن', money(T.credit)) + '</div>' + lim(r) +
+      '<table><thead><tr><th>القيد</th><th>التاريخ</th><th>الحساب</th><th>البيان</th><th class="n">مدين</th><th class="n">دائن</th></tr></thead><tbody>' +
+      r.entries.map((e) => '<tr class="grp"><td><a href="#/entry/view/' + e.id + '">' + e.id + '</a></td><td>' + esc(e.date) + '</td><td colspan="4"><b>' + esc(e.memo || '') + '</b> ' + (e.ref ? '<span class="muted">' + esc(e.ref) + '</span> ' : '') +
+        (e.voidOf ? '<span class="muted">(عكس القيد ' + e.voidOf + ')</span> ' : '') + (KIND[e.kind] ? '<span class="muted">(' + KIND[e.kind] + ')</span>' : '') + '</td></tr>' +
+        e.lines.map((l) => '<tr><td></td><td></td><td>' + esc(l.code) + ' ' + esc(l.name) + '</td><td>' + esc(l.note || '') + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td></tr>').join('')).join('') +
+      '</tbody><tfoot><tr><td colspan="4">الإجمالي</td><td class="n">' + money(T.debit) + '</td><td class="n">' + money(T.credit) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['acc-gl'] = (el) => shell(el, 'الأستاذ العام', 'كل الحسابات التي عليها حركة: الرصيد الافتتاحي ثم الحركات برصيد جارٍ (مدين − دائن) ثم الختامي', yr() + typeSel(), async (f) => {
+    const r = await api('GET', '/reports/general-ledger?' + E.qs(f)), T = r.totals;
+    if (!r.accounts.length) return '<div class="msg warn">لا حركة في هذه الفترة</div>';
+    const bal = (x) => money(Math.abs(x)) + (x < 0 ? ' د' : x > 0 ? ' م' : '');
+    return '<div class="cards">' + stat('عدد الحسابات', r.accounts.length) + stat('إجمالي المدين', money(T.debit)) + stat('إجمالي الدائن', money(T.credit)) + '</div>' + lim(r) +
+      r.accounts.map((a) => '<h3>' + esc(a.code) + ' — ' + esc(a.name) + ' <span class="muted">(' + TYPE_AR[a.type] + ')</span></h3><table><thead><tr><th>التاريخ</th><th>القيد</th><th>البيان</th><th>المرجع</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">الرصيد</th></tr></thead><tbody>' +
+        '<tr><td colspan="6"><i>رصيد افتتاحي</i></td><td class="n">' + bal(a.open) + '</td></tr>' +
+        a.rows.map((x) => '<tr><td>' + esc(x.date) + '</td><td><a href="#/entry/view/' + x.entryId + '">' + x.entryId + '</a></td><td>' + esc(x.memo || '') + '</td><td>' + esc(x.ref || '') + '</td><td class="n">' + (x.debit ? money(x.debit) : '') + '</td><td class="n">' + (x.credit ? money(x.credit) : '') + '</td><td class="n">' + bal(x.balance) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td colspan="4">إجمالي الحركة والرصيد الختامي</td><td class="n">' + money(a.debit) + '</td><td class="n">' + money(a.credit) + '</td><td class="n">' + bal(a.close) + '</td></tr></tfoot></table>').join('');
+  });
+
+  E.pages['acc-tb-compare'] = (el) => shell(el, 'مقارنة ميزان المراجعة', 'صافي حركة كل حساب (مدين − دائن) في فترتين مع الفرق والنسبة',
+    dateF('from1', 'الفترة 1 من', E.yearStart()) + dateF('to1', 'إلى', E.today()) + dateF('from2', 'الفترة 2 من', E.yearStart()) + dateF('to2', 'إلى', E.today()) + typeSel(), async (f) => {
+    const r = await api('GET', '/reports/tb-compare?' + E.qs(f)), T = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا حركة في الفترتين</div>';
+    return '<div class="cards">' + stat('صافي الفترة 1', money(T.p1)) + stat('صافي الفترة 2', money(T.p2)) + stat('مجموع الفروق المطلقة', money(T.absDiff)) + '</div>' +
+      '<table><thead><tr><th>الرمز</th><th>الحساب</th><th>النوع</th><th class="n">الفترة 1</th><th class="n">الفترة 2</th><th class="n">الفرق</th><th class="n">%</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + TYPE_AR[x.type] + '</td><td class="n">' + money(x.p1) + '</td><td class="n">' + money(x.p2) + '</td><td class="n">' + chg(x.diff) + '</td><td class="n">' + pctTxt(x.pct) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(T.p1) + '</td><td class="n">' + money(T.p2) + '</td><td class="n">' + money(T.diff) + '</td><td></td></tr></tfoot></table>';
+  });
+
+  E.pages['acc-bs-compare'] = (el) => shell(el, 'مقارنة الميزانية', 'أرصدة الأصول والخصوم وحقوق الملكية في تاريخين مع التغيّر',
+    dateF('asof1', 'بتاريخ 1', E.yearStart()) + dateF('asof2', 'بتاريخ 2', E.today()), async (f) => {
+    const r = await api('GET', '/reports/bs-compare?' + E.qs(f)), T = r.totals;
+    const rows = (list) => list.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + money(x.b1) + '</td><td class="n">' + money(x.b2) + '</td><td class="n">' + chg(x.diff) + '</td><td class="n">' + pctTxt(x.pct) + '</td></tr>').join('');
+    const part = (title, list, t, extra) => '<h3>' + title + '</h3><table><thead><tr><th>الرمز</th><th>الحساب</th><th class="n">' + esc(f.asof1) + '</th><th class="n">' + esc(f.asof2) + '</th><th class="n">التغيّر</th><th class="n">%</th></tr></thead><tbody>' + rows(list) + (extra || '') +
+      '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(t.b1) + '</td><td class="n">' + money(t.b2) + '</td><td class="n">' + chg(Math.round((t.b2 - t.b1) * 100) / 100) + '</td><td></td></tr></tfoot></table>';
+    const un = r.unclosed, unRow = (un.b1 || un.b2) ? '<tr><td></td><td>أرباح غير مقفلة</td><td class="n">' + money(un.b1) + '</td><td class="n">' + money(un.b2) + '</td><td class="n">' + chg(Math.round((un.b2 - un.b1) * 100) / 100) + '</td><td></td></tr>' : '';
+    return '<div class="cards">' + stat('الأصول', money(T.assets.b1) + ' ← ' + money(T.assets.b2)) + stat('الخصوم', money(T.liabilities.b1) + ' ← ' + money(T.liabilities.b2)) + stat('حقوق الملكية', money(T.equity.b1) + ' ← ' + money(T.equity.b2)) + '</div>' +
+      (r.balanced ? '' : '<div class="msg warn">الميزانية غير متوازنة في أحد التاريخين</div>') + part('الأصول', r.assets, T.assets) + part('الخصوم', r.liabilities, T.liabilities) + part('حقوق الملكية', r.equity, T.equity, unRow);
+  });
+
+  E.pages['acc-groups'] = (el) => shell(el, 'تجميع الحسابات', 'شجرة الحسابات بمجاميع الحسابات الأب: رصيد أول الفترة وحركتها والرصيد الختامي على الجانب الطبيعي', yr(), async (f) => {
+    const r = await api('GET', '/reports/account-groups?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg warn">لا حركة</div>';
+    return '<table><thead><tr><th>الحساب</th><th>النوع</th><th class="n">أول الفترة</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">الرصيد الختامي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr' + (x.leaf ? '' : ' class="grp"') + '><td style="padding-right:' + (x.level * 1.4 + .5) + 'em">' + (x.leaf ? '' : '<b>') + esc(x.code) + ' ' + esc(x.name) + (x.leaf ? '' : '</b>') + '</td><td>' + TYPE_AR[x.type] + '</td><td class="n">' + money(x.open) + '</td><td class="n">' + money(x.debit) + '</td><td class="n">' + money(x.credit) + '</td><td class="n">' + money(x.close) + '</td></tr>').join('') + '</tbody></table>';
+  });
+
   // ---------- تقارير المبيعات والمشتريات الإضافية ----------
   const kindSel = (opts, cur) => sel('kind', 'النوع', opts, cur);
 
