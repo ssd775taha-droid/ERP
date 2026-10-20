@@ -141,7 +141,7 @@
     let cur = null;
     async function load() {
       const { sale: s } = await api('GET', '/pos/sales/' + encodeURIComponent(id));
-      cur = s;
+      cur = s; el._openDoc = () => E.openDoc(E.docSpec.pos(s));
       const { shifts } = await api('GET', '/pos/shifts?status=OPEN');
       const canReturn = s.kind === 'SALE' && s.status === 'COMPLETED' && s.lines.some((l) => l.returnable > 0);
       el.innerHTML = E.head('إيصال ' + s.no, SK[s.kind] + ' — ' + s.date) + E.taxHeader(s.kind === 'SALE' ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)', null, null, s.date, s.total, s.vat, s.kind === 'SALE' && s.status === 'COMPLETED') +
@@ -152,7 +152,7 @@
         '</tbody><tfoot><tr><td colspan="4">المجموع قبل الضريبة · الضريبة</td><td class="n">' + money(s.subtotal) + '</td><td class="n">' + money(s.vat) + '</td>' + (canReturn ? '<td></td>' : '') + '</tr><tr><td colspan="4">الإجمالي</td><td class="n" colspan="2">' + money(s.total) + '</td>' + (canReturn ? '<td></td>' : '') + '</tr></tfoot></table>' +
         '<p>' + s.payments.map((p) => (p.method === 'CASH' ? 'نقداً' : 'بطاقة') + ' ' + money(p.amount)).join(' · ') + (s.changeDue ? ' · الباقي ' + money(s.changeDue) : '') + '</p>' +
         (canReturn ? '<div class="card noprint"><h3>مرتجع</h3>' + (shifts.length ? '<form id="fr" class="row"><label>على وردية<select name="sh">' + shifts.map((x) => '<option value="' + x.id + '">' + x.id + ' — ' + esc(x.regName) + '</option>').join('') + '</select></label><label>رد المبلغ<select name="m"><option value="CASH">نقداً</option><option value="CARD">بطاقة</option></select></label><button class="btn">تنفيذ المرتجع</button></form><p class="muted">اكتب الكميات في عمود «إرجاع» أعلاه.</p>' : '<div class="msg warn">افتح وردية أولاً لتنفيذ مرتجع</div>') + '</div>' : '') +
-        '<p class="noprint"><button class="btn alt" data-act="print">طباعة A4</button> <button class="btn alt" data-act="thermal">إيصال حراري 80مم</button> ' + (s.status === 'COMPLETED' ? '<button class="btn danger sm" data-act="void">إلغاء العملية</button>' : '') + ' <a href="#/pos/sales">رجوع</a></p>';
+        '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة A4</button> <button class="btn alt" data-act="thermal">إيصال حراري 80مم</button> ' + (s.status === 'COMPLETED' ? '<button class="btn danger sm" data-act="void">إلغاء العملية</button>' : '') + ' <a href="#/pos/sales">رجوع</a></p>';
       const fr = E.$('#fr', el);
       if (fr) fr.addEventListener('submit', async (ev) => {
         ev.preventDefault();
@@ -163,7 +163,7 @@
       });
     }
     E.bind(el, {
-      print: () => window.print(), thermal: () => E.printThermal(receiptHtml(cur)),
+      print: () => window.print(), doc: () => E.openDoc(E.docSpec.pos(cur)), thermal: () => E.printThermal(receiptHtml(cur)),
       void: async () => { if (confirm('إلغاء العملية؟ مسموح فقط في وردية مفتوحة وبلا مرتجعات سارية.')) { await api('POST', '/pos/sales/' + encodeURIComponent(id) + '/void'); E.toast('أُلغيت العملية'); await load(); } },
     });
     await load();

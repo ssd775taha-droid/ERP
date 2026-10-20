@@ -185,6 +185,25 @@
         actions: E.can('trade', 'w') ? [{ label: rec ? 'إلغاء السند' : 'إلغاء السند', cls: 'danger', fn: (close) => { close(); const b = document.querySelector('[data-act=c-del]'); if (b) b.click(); } }] : [],
       };
     },
+    // إيصال نقطة بيع على A4 (فاتورة مبسطة أو إشعار دائن لمرتجع)
+    pos(s) {
+      const sale = s.kind === 'SALE', tt = sale ? ['فاتورة ضريبية مبسطة', 'SIMPLIFIED TAX INVOICE'] : ['إشعار دائن (مرتجع)', 'CREDIT NOTE (RETURN)'];
+      const pay = s.payments.map((p) => (p.method === 'CASH' ? 'نقداً' : 'بطاقة') + ' ' + money(p.amount)).join(' + ');
+      return {
+        titleAr: tt[0], titleEn: tt[1], no: s.no, windowTitle: tt[0] + ' ' + s.no, waAmount: s.total,
+        qr: sale && s.status === 'COMPLETED' ? E.zatcaQr(s.date, s.total, s.vat) : '',
+        meta: [[['رقم العملية', 'Receipt No.', '<b dir="ltr">' + esc(s.no) + '</b>'], ['التاريخ', 'Date', '<b dir="ltr">' + esc(s.date) + '</b>']],
+          [['طريقة الدفع', 'Payment', esc(pay || '—')], ['العملة', 'Currency', 'ريال سعودي SAR']],
+          ...(s.origSaleId ? [[['مرتجع على عملية', 'Return of', '<span dir="ltr">' + s.origSaleId + '</span>'], ['الحالة', 'Status', s.status === 'VOID' ? 'ملغاة' : 'سارية']]] : [])],
+        parties: [seller('البائع', 'Seller'), { ar: 'العميل', en: 'Customer', rows: [['الاسم', 'Name', 'عميل نقدي / Cash customer']] }],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'البيان', en: 'Description' }, { ar: 'الكمية', en: 'Qty', n: 1 }, { ar: 'سعر الوحدة', en: 'Unit Price', n: 1 }, { ar: 'الخصم %', en: 'Disc. %', n: 1 }, { ar: 'الضريبة %', en: 'VAT %', n: 1 }, { ar: 'الصافي', en: 'Net', n: 1 }, { ar: 'الإجمالي', en: 'Amount', n: 1 }],
+          rows: s.lines.map((l, k) => [k + 1, esc(l.description), q3(l.qty), num(l.price), (l.discountPct || 0) + '%', l.vatRate + '%', num(l.net), num(l.net + l.vat)]) },
+        totals: [['الإجمالي قبل الضريبة', 'Subtotal', num(s.subtotal)], ['ضريبة القيمة المضافة', 'VAT', num(s.vat)], ['الإجمالي', 'Total SAR', num(s.total), 1],
+          ...(sale && s.tendered ? [['المدفوع', 'Tendered', num(s.tendered)]] : []), ...(s.changeDue ? [['الباقي', 'Change', num(s.changeDue)]] : [])],
+        words: s.total, note: E.lh.footerNote || '', sign: [['أمين الصندوق', 'Cashier'], ['المدير', 'Manager']],
+        actions: E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [],
+      };
+    },
     // أمر شراء
     po(o, statusText) {
       return {
