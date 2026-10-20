@@ -132,6 +132,13 @@ dialog.docdlg { width: min(900px, 96vw); max-height: 94vh; padding: 0; border: 0
 .dd-view { flex: 1; overflow: auto; background: #cfd5dc; padding: 18px; } .dd-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
 .btn.gold { background: #d79a16; border-color: #d79a16; color: #fff; } .btn.dark { background: #1d2735; border-color: #1d2735; color: #fff; }
 
+.th { font-size: 11px; line-height: 1.4; color: #000; background: #fff; direction: rtl; } .th .c { text-align: center; } .th small { display: block; font-size: 8.5px; color: #444; font-weight: 400; } .th .rl small { display: inline; margin-inline-start: 3px; }
+.th .nm { font-size: 14px; display: block; } .th-logo { display: block; margin: 0 auto 4px; max-width: 120px; max-height: 56px; object-fit: contain; }
+.th hr { border: 0; border-top: 1px solid #000; margin: 5px 0; } .th hr.dd { border-top: 1px dashed #000; }
+.th .rl { display: flex; justify-content: space-between; gap: 6px; } .th .rl.big { font-size: 14px; font-weight: 800; } .th .rl.sub { color: #222; } .th .it { font-weight: 600; margin-top: 3px; }
+.th .ttl { font-weight: 800; font-size: 12px; margin: 2px 0; } .th .qr svg { width: 96px; height: 96px; display: block; margin: 6px auto; } .th .ft { margin-top: 6px; }
+.th-paper { width: 302px; margin: 0 auto; background: #fff; padding: 12px 10px; box-shadow: 0 2px 14px rgba(0,0,0,.25); } dialog.thdlg { width: min(420px, 96vw); }
+
 /* ---------- الاستعلام والسندات ---------- */
 .sign { display: flex; gap: 24px; margin-top: 36px; } .sign > div { flex: 1; text-align: center; } .sign span { display: block; color: var(--muted); font-size: 12px; } .sign i { display: block; border-bottom: 1px solid var(--ink); height: 34px; }
 .qf { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; } .qf input[name=q] { min-width: 240px; }
@@ -171,4 +178,5 @@ dialog.docdlg { width: min(900px, 96vw); max-height: 94vh; padding: 0; border: 0
   #thermal .c { text-align: center; } #thermal hr { border: 0; border-top: 1px dashed #000; margin: 4px 0; }
   #thermal .rl { display: flex; justify-content: space-between; gap: 6px; } #thermal .rl b { font-size: 13px; }
   #thermal svg { width: 70px; height: 70px; display: block; margin: 4px auto; }
+  #thermal .th .qr svg { width: 96px; height: 96px; } #thermal .th .rl b { font-size: inherit; } #thermal .th hr { margin: 5px 0; }
 }

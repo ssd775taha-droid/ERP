@@ -1,6 +1,6 @@
 {
   "name": "erp-webui",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "description": "واجهة ويب عربية لنظام ERP على Oracle: تستدعي حزم PL/SQL ولا تكرر منطقها",
   "main": "server/index.js",

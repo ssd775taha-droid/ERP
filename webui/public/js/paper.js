@@ -104,6 +104,38 @@
   const seller = (ar, en) => ({ ar, en, rows: [['الاسم', 'Name', '<b>' + esc(E.tax.sellerName || '') + '</b>'], ['الرقم الضريبي', 'VAT No.', '<span dir="ltr">' + esc(E.tax.sellerVatNo || '') + '</span>'], ...(E.lh.crNo ? [['السجل التجاري', 'C.R.', '<span dir="ltr">' + esc(E.lh.crNo) + '</span>']] : []), ...(E.tax.sellerAddress ? [['العنوان', 'Address', esc(E.tax.sellerAddress)]] : [])] });
   E.companyHead = companyHead;
 
+  // ---------- الإيصال الحراري 80مم بالتصميم الموحّد (ثنائي اللغة) ----------
+  E.thermalHtml = (s) => {
+    const t = E.tax, l = E.lh, sale = s.kind === 'SALE';
+    const row = (ar, en, val, big) => '<div class="rl' + (big ? ' big' : '') + '"><span>' + ar + (en ? ' <small>' + en + '</small>' : '') + '</span><b dir="ltr">' + val + '</b></div>';
+    const logo = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(l.logo || '') ? '<img class="th-logo" src="' + l.logo + '" alt="">' : '';
+    const qr = sale && s.status === 'COMPLETED' ? E.zatcaQr(s.date, s.total, s.vat) : '';
+    const pay = s.payments.map((p) => row(p.method === 'CASH' ? 'نقداً' : 'بطاقة', p.method === 'CASH' ? 'Cash' : 'Card', money(p.amount))).join('');
+    const dis = s.lines.some((x) => x.discountPct);
+    return '<div class="th">' + logo +
+      '<div class="c"><b class="nm">' + esc(t.sellerName || 'نظام ERP') + '</b>' + (l.nameEn ? '<div dir="ltr">' + esc(l.nameEn) + '</div>' : '') +
+      (t.sellerVatNo ? '<div>الرقم الضريبي <span dir="ltr">' + esc(t.sellerVatNo) + '</span></div>' : '') + (l.crNo ? '<div>السجل التجاري <span dir="ltr">' + esc(l.crNo) + '</span></div>' : '') +
+      (t.sellerAddress ? '<div>' + esc(t.sellerAddress) + '</div>' : '') + (l.phone ? '<div dir="ltr">' + esc(l.phone) + '</div>' : '') + '</div><hr class="dd">' +
+      '<div class="c ttl">' + (sale ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)') + '<small>' + (sale ? 'Simplified Tax Invoice' : 'Credit Note (Return)') + '</small></div>' +
+      row('رقم', 'No.', esc(s.no)) + row('التاريخ', 'Date', esc(s.date)) + (s.origSaleId ? row('مرتجع على', 'Return of', String(s.origSaleId)) : '') + '<hr class="dd">' +
+      s.lines.map((x) => '<div class="it">' + esc(x.description) + '</div><div class="rl sub"><span dir="ltr">' + q3(x.qty) + ' × ' + money(x.price) + (dis && x.discountPct ? ' (−' + x.discountPct + '%)' : '') + '</span><b dir="ltr">' + money(x.net) + '</b></div>').join('') + '<hr class="dd">' +
+      row('المجموع قبل الضريبة', 'Subtotal', money(s.subtotal)) + row('ضريبة القيمة المضافة', 'VAT', money(s.vat)) + '<hr>' + row('الإجمالي', 'Total SAR', money(s.total), true) + '<hr class="dd">' +
+      pay + (s.changeDue ? row('الباقي', 'Change', money(s.changeDue)) : '') +
+      (qr ? '<div class="qr">' + qr + '</div>' : '') + (s.status === 'VOID' ? '<div class="c ttl">*** ملغاة / VOID ***</div>' : '') +
+      '<div class="c ft">' + (l.footerNote ? esc(l.footerNote).replace(/\n/g, '<br>') : 'شكراً لزيارتكم') + '<small>Thank you for your visit</small></div></div>';
+  };
+  // معاينة الإيصال قبل الطباعة
+  E.openThermal = (s) => {
+    const dlg = document.createElement('dialog'); dlg.className = 'docdlg thdlg'; dlg.id = 'docdlg';
+    dlg.innerHTML = '<div class="dd-bar"><b>إيصال حراري 80مم — <span dir="ltr">' + esc(s.no) + '</span></b><button type="button" class="btn alt sm" data-x="close">✕</button></div><div class="dd-view"><div class="th-paper">' + E.thermalHtml(s) + '</div></div>' +
+      '<div class="dd-actions"><button type="button" class="btn gold" data-x="print">طباعة الإيصال</button> <button type="button" class="btn alt" data-x="close">إغلاق</button></div>';
+    document.body.appendChild(dlg);
+    const close = () => { dlg.close(); dlg.remove(); };
+    dlg.addEventListener('click', (ev) => { const t = ev.target.closest('button'); if (!t) return; if (t.dataset.x === 'close') close(); else if (t.dataset.x === 'print') E.printThermal(E.thermalHtml(s)); });
+    dlg.addEventListener('cancel', () => dlg.remove());
+    dlg.showModal();
+  };
+
   // معاينة تقرير: يُبنى من الصفحة الحالية (العنوان، المرشِّحات، البطاقات، الجداول) بنفس ورقة المستند
   const EN_TITLES = { 'trial-balance': 'TRIAL BALANCE', ledger: 'ACCOUNT LEDGER', 'income-statement': 'INCOME STATEMENT', 'balance-sheet': 'BALANCE SHEET', 'cash-flow': 'CASH FLOW STATEMENT', aging: 'AGING REPORT', vat: 'VAT RETURN',
     'sales-analysis': 'SALES / PURCHASES ANALYSIS', 'item-profit': 'ITEM PROFITABILITY', comparative: 'COMPARATIVE INCOME STATEMENT', valuation: 'INVENTORY VALUATION', card: 'ITEM CARD', movement: 'STOCK MOVEMENT SUMMARY', slow: 'SLOW-MOVING STOCK', shortage: 'STOCK SHORTAGE & COVER',

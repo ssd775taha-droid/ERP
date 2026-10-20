@@ -22,9 +22,11 @@
       return;
     }
     const cart = [];
+    let lastSale = null;
+    const autoPrint = () => { try { return localStorage.getItem('erp_pos_autoprint') === '1'; } catch (e) { return false; } };
     const incl = reg.pricesIncludeVat === 'Y';
     el.innerHTML = E.head('نقطة البيع — ' + reg.name, 'وردية رقم ' + reg.openShiftId + (incl ? ' · الأسعار شاملة الضريبة' : ' · الأسعار قبل الضريبة')) + head +
-      '<div id="done"></div><div class="card"><div class="row"><label style="flex:1">الباركود أو الرمز (Enter)<input id="bc" autocomplete="off" autofocus></label>' +
+      '<div id="done"></div><label class="noprint" style="display:block;margin-bottom:6px"><input type="checkbox" id="ap"' + (autoPrint() ? ' checked' : '') + '> طباعة الإيصال الحراري تلقائياً بعد كل عملية بيع</label><div class="card"><div class="row"><label style="flex:1">الباركود أو الرمز (Enter)<input id="bc" autocomplete="off" autofocus></label>' +
       '<label>أو بحث بالاسم<input id="q" size="16" placeholder="اكتب ثم اختر"></label><label>الصنف<select id="pick"><option value="">—</option></select></label></div>' +
       '<table><thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>خصم %</th><th class="n">الإجمالي</th><th></th></tr></thead><tbody id="cart"></tbody>' +
       '<tfoot><tr><td colspan="4">الإجمالي التقريبي (النهائي من الخادم)</td><td class="n" id="tot">0.00</td><td></td></tr></tfoot></table></div>' +
@@ -72,9 +74,12 @@
       render();
     });
     el.addEventListener('input', (ev) => { if (ev.target.id === 'cash' || ev.target.id === 'card') calcChange(); });
+    E.$('#ap', el).addEventListener('change', (ev) => { try { localStorage.setItem('erp_pos_autoprint', ev.target.checked ? '1' : '0'); } catch (e) { /* التخزين غير متاح */ } });
     E.bind(el, {
       rm: (b) => { cart.splice(Number(b.dataset.i), 1); render(); },
       clear: () => { cart.length = 0; render(); },
+      th: () => lastSale && E.openThermal(lastSale),
+      a4: () => lastSale && E.openDoc(E.docSpec.pos(lastSale)),
       sell: (b) => E.busy(b, async () => {
         const payments = [];
         const cash = num(E.$('#cash', el).value), card = num(E.$('#card', el).value);
@@ -83,7 +88,9 @@
         const r = await api('POST', '/pos/sales', { shiftId: reg.openShiftId, date: E.today(), lines: cart.map((l) => ({ itemId: l.id, qty: l.qty, discountPct: l.disc || null })), payments });
         E.toast('تمت العملية ' + r.sale.no);
         cart.length = 0; E.$('#cash', el).value = ''; E.$('#card', el).value = ''; render();
-        E.$('#done', el).innerHTML = '<div class="msg good">تم ' + esc(r.sale.no) + ' — الإجمالي <strong>' + money(r.sale.total) + '</strong>' + (r.sale.changeDue ? ' — الباقي للعميل <strong>' + money(r.sale.changeDue) + '</strong>' : '') + ' · <a href="#/pos/sale/' + r.sale.id + '">الإيصال</a></div>';
+        E.$('#done', el).innerHTML = '<div class="msg good">تم ' + esc(r.sale.no) + ' — الإجمالي <strong>' + money(r.sale.total) + '</strong>' + (r.sale.changeDue ? ' — الباقي للعميل <strong>' + money(r.sale.changeDue) + '</strong>' : '') + ' · <a href="#/pos/sale/' + r.sale.id + '">الإيصال</a> <button type="button" class="btn alt sm" data-act="th" data-sid="' + r.sale.id + '">إيصال حراري</button> <button type="button" class="btn alt sm" data-act="a4" data-sid="' + r.sale.id + '">إيصال A4</button></div>';
+        lastSale = r.sale;
+        if (autoPrint()) E.printThermal(E.thermalHtml(r.sale));
         E.$('#bc', el).focus();
       }),
     });
@@ -130,15 +137,7 @@
 
   // ---------- الإيصال + إلغاء + مرتجع ----------
   // إيصال حراري 80مم: ترويسة البائع، البنود (اسم، ثم كمية × سعر والصافي)، المجاميع، الدفع، رمز QR للمبيعات
-  function receiptHtml(s) {
-    const t = E.tax, row = (a, b, bold) => '<div class="rl">' + (bold ? '<b>' + a + '</b><b>' + b + '</b>' : '<span>' + a + '</span><span>' + b + '</span>') + '</div>';
-    return '<div class="c"><b>' + esc(t.sellerName || 'نظام ERP') + '</b>' + (t.sellerVatNo ? '<br>الرقم الضريبي ' + esc(t.sellerVatNo) : '') + (E.lh.crNo ? '<br>س.ت ' + esc(E.lh.crNo) : '') + (t.sellerAddress ? '<br>' + esc(t.sellerAddress) : '') + (E.lh.phone ? '<br>' + esc(E.lh.phone) : '') +
-      '<br>' + (s.kind === 'SALE' ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)') + '<br>' + esc(s.no) + ' — ' + esc(s.date) + '</div><hr>' +
-      s.lines.map((l) => '<div>' + esc(l.description) + '</div>' + row(q3(l.qty) + ' × ' + money(l.price) + (l.discountPct ? ' (−' + l.discountPct + '%)' : ''), money(l.net))).join('') + '<hr>' +
-      row('المجموع قبل الضريبة', money(s.subtotal)) + row('الضريبة', money(s.vat)) + row('الإجمالي', money(s.total), true) + '<hr>' +
-      s.payments.map((p) => row(p.method === 'CASH' ? 'نقداً' : 'بطاقة', money(p.amount))).join('') + (s.changeDue ? row('الباقي', money(s.changeDue)) : '') +
-      (s.kind === 'SALE' && s.status === 'COMPLETED' ? E.zatcaQr(s.date, s.total, s.vat) : '') + '<div class="c">' + (E.lh.footerNote ? esc(E.lh.footerNote).replace(/\n/g, '<br>') : 'شكراً لزيارتكم') + '</div>';
-  }
+  const receiptHtml = (x) => E.thermalHtml(x);
 
   E.pages.posSale = async function (el, id) {
     let cur = null;
@@ -166,7 +165,7 @@
       });
     }
     E.bind(el, {
-      print: () => window.print(), doc: () => E.openDoc(E.docSpec.pos(cur)), thermal: () => E.printThermal(receiptHtml(cur)),
+      print: () => window.print(), doc: () => E.openDoc(E.docSpec.pos(cur)), thermal: () => E.openThermal(cur),
       void: async () => { if (confirm('إلغاء العملية؟ مسموح فقط في وردية مفتوحة وبلا مرتجعات سارية.')) { await api('POST', '/pos/sales/' + encodeURIComponent(id) + '/void'); E.toast('أُلغيت العملية'); await load(); } },
     });
     await load();
