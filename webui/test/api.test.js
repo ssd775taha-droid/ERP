@@ -220,6 +220,34 @@ test('الاستعلام الموحَّد: بحث بنص ونوع ومبلغ، �
   assert.ok((await call('GET', '/api/search?q=' + encodeURIComponent('دفعة ' + stamp))).data.rows.some((x) => x.type === 'PAYMENT'));
 });
 
+test('التقارير المتقدمة: تطابق إجمالي التحليل بين الطرف والصنف والشهر، وربحية الأصناف، والمقارنة', { skip: !hasDb || !canWrite }, async () => {
+  const q = 'from=2000-01-01&to=2099-12-31';
+  for (const kind of ['SALES', 'PURCHASE']) {
+    const tot = {};
+    for (const by of ['party', 'item', 'month']) {
+      const r = await call('GET', `/api/reports/sales-analysis?${q}&kind=${kind}&by=${by}`);
+      assert.strictEqual(r.status, 200);
+      tot[by] = r.data.total;
+      assert.strictEqual(Math.round(r.data.rows.reduce((s, x) => s + x.net, 0) * 100), Math.round(r.data.total * 100));
+    }
+    assert.strictEqual(tot.party, tot.item); assert.strictEqual(tot.party, tot.month);
+  }
+  // المبيعات الصافية تطابق إيرادات المبيعات الظاهرة في ضريبة المخرجات (net) بعد الإشعارات ونقاط البيع
+  const vr = (await call('GET', `/api/reports/vat-return?${q}`)).data;
+  const sales = (await call('GET', `/api/reports/sales-analysis?${q}&kind=SALES&by=month`)).data.total;
+  const vnet = [...vr.sales, ...vr.pos, ...vr.salesNotes].reduce((s, x) => s + x.net, 0);
+  assert.strictEqual(Math.round(sales * 100), Math.round(vnet * 100));
+  const ip = await call('GET', `/api/reports/item-profit?${q}`);
+  assert.strictEqual(ip.status, 200);
+  assert.strictEqual(Math.round((ip.data.totals.revenue - ip.data.totals.cost) * 100), Math.round(ip.data.totals.margin * 100));
+  const cmp = await call('GET', '/api/reports/comparative?f1=2000-01-01&t1=2099-12-31&f2=2000-01-01&t2=2099-12-31');
+  assert.strictEqual(cmp.status, 200);
+  const is = (await call('GET', `/api/reports/income-statement?${q}`)).data;
+  assert.strictEqual(cmp.data.totals.net.current, is.netIncome);
+  assert.strictEqual(cmp.data.totals.net.current, cmp.data.totals.net.previous);
+  assert.strictEqual((await call('GET', '/api/reports/comparative?f1=x')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

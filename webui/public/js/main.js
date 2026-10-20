@@ -23,6 +23,7 @@
     ['التقارير'],
     ['reports/trial-balance', 'ميزان المراجعة', 'reports'], ['reports/ledger', 'كشف حساب', 'reports'], ['reports/income-statement', 'قائمة الدخل', 'reports'],
     ['reports/aging', 'أعمار الديون', 'reports'], ['reports/vat', 'إقرار الضريبة', 'reports'], ['reports/balance-sheet', 'الميزانية', 'reports'], ['reports/cash-flow', 'التدفقات النقدية', 'reports'],
+    ['reports/sales-analysis', 'تحليل المبيعات والمشتريات', 'reports'], ['reports/item-profit', 'ربحية الأصناف', 'reports'], ['reports/comparative', 'قائمة الدخل المقارنة', 'reports'],
     ['الإقفال'],
     ['periods', 'الفترات والإقفال', 'periods'],
     ['الإعدادات'],
@@ -41,7 +42,7 @@
     'pos/sell': ['pos', W], 'pos/sales': ['pos', R], 'pos/sale': ['pos', R], 'pos/shifts': ['pos', R], 'pos/shift': ['pos', R], 'pos/registers': ['pos', R],
     po: ['orders', R], 'po/new': ['orders', W], 'po/view': ['orders', R], 'po/edit': ['orders', W], quotes: ['orders', R], 'quote/new': ['orders', W], 'quote/view': ['orders', R], 'quote/edit': ['orders', W],
     'reports/trial-balance': ['reports', R], 'reports/ledger': ['reports', R], 'reports/income-statement': ['reports', R], 'reports/aging': ['reports', R], 'reports/vat': ['reports', R],
-    'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], periods: ['periods', R],
+    'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], 'reports/sales-analysis': ['reports', R], 'reports/item-profit': ['reports', R], 'reports/comparative': ['reports', R], periods: ['periods', R],
     settings: ['settings', R], 'tax/settings': ['settings', R],
     'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'],
   };
@@ -63,7 +64,7 @@
     notes: 'notes', 'note/new': 'noteNew', 'note/view': 'noteView',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
-    'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow',
+    'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow', 'reports/sales-analysis': 'sales-analysis', 'reports/item-profit': 'item-profit', 'reports/comparative': 'comparative',
   };
 
   function loginView(msg) {

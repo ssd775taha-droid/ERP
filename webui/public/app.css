@@ -86,6 +86,8 @@ input.tf { width: min(260px, 100%); margin-inline-end: 8px; } .tf-n { margin-inl
 input.ss { display: block; width: 100%; margin-bottom: 3px; font-size: 12px; padding: 3px 6px; }
 td input.ss { min-width: 120px; }
 
+.mbar { display: inline-block; width: 120px; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; } .mbar i { display: block; height: 100%; background: var(--brand); }
+
 /* ---------- الاستعلام والسندات ---------- */
 .sign { display: flex; gap: 24px; margin-top: 36px; } .sign > div { flex: 1; text-align: center; } .sign span { display: block; color: var(--muted); font-size: 12px; } .sign i { display: block; border-bottom: 1px solid var(--ink); height: 34px; }
 .qf { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; } .qf input[name=q] { min-width: 240px; }
@@ -109,6 +111,7 @@ td input.ss { min-width: 120px; }
   .taxhead svg { width: 90px; height: 90px; }
   .sign i { border-color: #000; }
   .ph-top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
+  .taxhead .lh { display: none; }                                 /* هوية المنشأة تظهر في ترويسة الطباعة فلا تتكرر في بطاقة الفاتورة */
   .ph-top .lh { margin: 0; } .lh-logo { max-width: 110px; max-height: 60px; } .lh-en { color: #333; }
   #pfoot:not(:empty) { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #999; padding-top: 3px; font-size: 10px; text-align: center; color: #333; background: #fff; white-space: pre-line; }
   @page { @bottom-left { content: counter(page) " / " counter(pages); font-size: 9px; color: #555; } }
