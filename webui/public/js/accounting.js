@@ -46,7 +46,8 @@
     const rows = accts.map((a) => '<tr' + (a.children ? ' class="head"' : '') + '><td class="indent' + Math.min(depth(a), 3) + '">' + esc(a.code) + '</td><td>' + esc(a.name) +
       '</td><td>' + esc(E.typeName[a.type] || a.type) + '</td><td>' + (a.active === 'Y' ? '<span class="tag good">فعّال</span>' : '<span class="tag bad">موقوف</span>') +
       '</td><td class="noprint"><button class="btn alt sm" data-act="rename" data-code="' + esc(a.code) + '" data-name="' + esc(a.name) + '">تعديل الاسم</button> ' +
-      '<button class="btn alt sm" data-act="toggle" data-code="' + esc(a.code) + '" data-active="' + esc(a.active) + '">' + (a.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button></td></tr>').join('');
+      '<button class="btn alt sm" data-act="toggle" data-code="' + esc(a.code) + '" data-active="' + esc(a.active) + '">' + (a.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button> ' + E.crudBtns('account', { id: a.code, name: a.name }) + '</td></tr>').join('');
+    E.crudBind(el, () => E.pages.accounts(el));
     el.innerHTML = E.head('دليل الحسابات', 'الحسابات التجميعية لا تقبل الترحيل؛ الحساب الذي عليه حركة لا يصبح أباً لحساب جديد') +
       '<div class="card"><h3>حساب جديد</h3><form id="f-acc" class="row">' +
       '<label>الرمز<input name="code" required maxlength="12" size="8"></label>' +
@@ -111,6 +112,18 @@
       if (r && ev.target.classList.contains('cr') && ev.target.value) E.$('.dr', r).value = '';
       recalc();
     });
+    // نسخ قيد سابق (للتصحيح): تُملأ الأسطر ويراجعها المستخدم قبل الترحيل
+    if (E.prefill && E.prefill.entry) {
+      const pf = E.prefill.entry; E.prefill = null;
+      E.$('#e-memo', el).value = pf.memo || ''; E.$('#e-ref', el).value = pf.ref || '';
+      tb.innerHTML = '';
+      pf.lines.forEach((l) => {
+        tb.insertAdjacentHTML('beforeend', line());
+        const r = tb.lastElementChild;
+        E.$('.ac', r).value = l.account; E.$('.dr', r).value = l.debit || ''; E.$('.cr', r).value = l.credit || ''; E.$('.nt', r).value = l.note || '';
+      });
+      recalc(); E.toast('نُسخ القيد — راجعه ثم رحّله');
+    }
     E.bind(el, {
       add: () => tb.insertAdjacentHTML('beforeend', line()),
       rm: (b) => { if (E.$$('.ln', tb).length > 2) { b.closest('tr').remove(); recalc(); } },
@@ -136,8 +149,8 @@
       '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
       e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
       '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(tc) + '</td><td></td></tr></tfoot></table>' + E.signBlock(['أعدّه', 'راجعه', 'اعتمده']) +
-      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/entries">رجوع لدفتر اليومية</a></p>';
-    E.bind(el, { print: () => window.print() });
+      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <button class="btn alt" data-act="copy">نسخ كقيد جديد (للتصحيح)</button> <a href="#/entries">رجوع لدفتر اليومية</a></p>';
+    E.bind(el, { print: () => window.print(), copy: () => { E.prefill = { entry: { memo: e.memo, ref: e.ref, lines: e.lines.map((l) => ({ account: l.account, debit: l.debit, credit: l.credit, note: l.note })) } }; location.hash = '#/entry/new'; } });
   };
 
   E.pages.entries = async function (el) {

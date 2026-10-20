@@ -172,13 +172,14 @@
   // ---------- نقاط البيع ----------
   E.pages.posRegisters = async function (el) {
     const [{ registers }, { warehouses }, accts] = await Promise.all([api('GET', '/pos/registers'), api('GET', '/warehouses'), E.loadAccounts()]);
+    E.crudBind(el, () => E.pages.posRegisters(el));
     el.innerHTML = E.head('نقاط البيع', 'كل نقطة مرتبطة بمخزن وبحساب صندوق، وبوردية مفتوحة واحدة كحد أقصى') +
       '<div class="card"><form id="f" class="row"><label>الرمز<input name="c" required maxlength="12" size="8"></label><label>الاسم<input name="n" required maxlength="120" size="18"></label>' +
       '<label>المخزن<select name="w">' + warehouses.map((w) => '<option value="' + w.id + '">' + esc(w.name) + '</option>').join('') + '</select></label>' +
       '<label>حساب الصندوق<select name="a">' + accts.filter((a) => a.active === 'Y' && !a.children).map((a) => '<option value="' + esc(a.code) + '"' + (a.code === '1100' ? ' selected' : '') + '>' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('') + '</select></label>' +
       '<label>الأسعار شاملة الضريبة<select name="v"><option value="">لا</option><option value="1">نعم</option></select></label><button class="btn">إضافة</button></form></div>' +
-      '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>المخزن</th><th>الصندوق</th><th>الأسعار</th><th>الوردية</th></tr></thead><tbody>' +
-      registers.map((r) => '<tr><td>' + esc(r.code) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.whName) + '</td><td>' + esc(r.cashAccount) + '</td><td>' + (r.pricesIncludeVat === 'Y' ? 'شاملة الضريبة' : 'قبل الضريبة') + '</td><td>' + (r.openShiftId ? '<a href="#/pos/shift/' + r.openShiftId + '">مفتوحة ' + r.openShiftId + '</a>' : '—') + '</td></tr>').join('') + '</tbody></table>';
+      '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>المخزن</th><th>الصندوق</th><th>الأسعار</th><th>الوردية</th><th class="noprint"></th></tr></thead><tbody>' +
+      registers.map((r) => '<tr><td>' + esc(r.code) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.whName) + '</td><td>' + esc(r.cashAccount) + '</td><td>' + (r.pricesIncludeVat === 'Y' ? 'شاملة الضريبة' : 'قبل الضريبة') + '</td><td>' + (r.openShiftId ? '<a href="#/pos/shift/' + r.openShiftId + '">مفتوحة ' + r.openShiftId + '</a>' : '—') + '</td><td class="noprint">' + E.crudBtns('register', { id: r.id, name: r.name }) + '</td></tr>').join('') + '</tbody></table>';
     E.$('#f', el).addEventListener('submit', async (ev) => {
       ev.preventDefault(); const f = new FormData(ev.target);
       try { await api('POST', '/pos/registers', { code: f.get('c').trim(), name: f.get('n').trim(), whId: Number(f.get('w')), cashAccount: f.get('a'), pricesIncludeVat: !!f.get('v') }); E.toast('أُضيفت النقطة'); E.pages.posRegisters(el); }

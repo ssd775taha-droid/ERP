@@ -18,7 +18,7 @@
       (items.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>الوحدة</th><th class="n">السعر</th><th>ضريبة %</th><th class="n">الكمية</th><th class="n">القيمة</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' +
         items.map((i) => '<tr><td>' + esc(i.code) + '</td><td>' + esc(i.name) + (i.trackStock === 'N' ? ' <span class="tag">خدمة</span>' : '') + '</td><td>' + esc(i.unit) + '</td><td class="n">' + money(i.price) + '</td><td>' + i.vat + '</td><td class="n">' + (i.trackStock === 'Y' ? q3(i.qty) : '') + '</td><td class="n">' + (i.trackStock === 'Y' ? money(i.value) : '') + '</td>' +
           '<td>' + (i.active === 'Y' ? '<span class="tag good">فعّال</span>' : '<span class="tag bad">موقوف</span>') + '</td><td class="noprint"><button class="btn alt sm" data-act="price" data-id="' + i.id + '" data-price="' + i.price + '" data-vat="' + i.vat + '">السعر</button> ' +
-          '<button class="btn alt sm" data-act="toggle" data-id="' + i.id + '" data-active="' + i.active + '">' + (i.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button></td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا أصناف بعد</div>');
+          '<button class="btn alt sm" data-act="toggle" data-id="' + i.id + '" data-active="' + i.active + '">' + (i.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button> ' + E.crudBtns('item', { id: i.id, name: i.name, price: i.price, vat: i.vat }) + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا أصناف بعد</div>');
     E.$('#f', el).addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);
@@ -28,6 +28,7 @@
         E.toast('أُضيف الصنف'); E.pages.invItems(el);
       } catch (e) { E.toast(e.message, true); }
     });
+    E.crudBind(el, () => E.pages.invItems(el));
     if (!el._b) {
       el._b = true;
       E.bind(el, {
@@ -47,11 +48,12 @@
     el.innerHTML = E.head('المخازن') + '<div class="card"><h3>مخزن جديد</h3><form id="f" class="row"><label>الرمز<input name="code" required maxlength="12" size="8"></label><label>الاسم<input name="name" required maxlength="120" size="24"></label><button class="btn">إضافة</button></form></div>' +
       '<table><thead><tr><th>الرمز</th><th>الاسم</th><th class="n">قيمة المخزون</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' +
       warehouses.map((w) => '<tr><td>' + esc(w.code) + '</td><td>' + esc(w.name) + '</td><td class="n">' + money(w.value) + '</td><td>' + (w.active === 'Y' ? '<span class="tag good">فعّال</span>' : '<span class="tag bad">موقوف</span>') +
-        '</td><td class="noprint"><button class="btn alt sm" data-act="toggle" data-id="' + w.id + '" data-active="' + w.active + '">' + (w.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button></td></tr>').join('') + '</tbody></table>';
+        '</td><td class="noprint"><button class="btn alt sm" data-act="toggle" data-id="' + w.id + '" data-active="' + w.active + '">' + (w.active === 'Y' ? 'إيقاف' : 'تفعيل') + '</button> ' + E.crudBtns('warehouse', { id: w.id, name: w.name }) + '</td></tr>').join('') + '</tbody></table>';
     E.$('#f', el).addEventListener('submit', async (ev) => {
       ev.preventDefault(); const f = new FormData(ev.target);
       try { await api('POST', '/inventory/warehouses', { code: f.get('code').trim(), name: f.get('name').trim() }); E.toast('أُضيف المخزن'); E.pages.invWarehouses(el); } catch (e) { E.toast(e.message, true); }
     });
+    E.crudBind(el, () => E.pages.invWarehouses(el));
     E.bind(el, { toggle: async (b) => { await api('PATCH', '/inventory/warehouses/' + b.dataset.id, { active: b.dataset.active !== 'Y' }); E.toast('تم التحديث'); E.pages.invWarehouses(el); } });
   };
 

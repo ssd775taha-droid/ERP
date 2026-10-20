@@ -33,8 +33,10 @@ module.exports = function hrRoutes() {
   r.get('/hr/employees', wrap(async (req, res) => {
     res.json({ employees: await db.query(`
       SELECT emp_id AS "id", code AS "code", name AS "name", job_title AS "jobTitle", dept_name AS "deptName",
-             TO_CHAR(hire_date, 'YYYY-MM-DD') AS "hireDate", TO_CHAR(term_date, 'YYYY-MM-DD') AS "termDate", status AS "status", current_basic AS "basic"
-        FROM v_erp_employee ORDER BY code`) });
+             TO_CHAR(hire_date, 'YYYY-MM-DD') AS "hireDate", TO_CHAR(term_date, 'YYYY-MM-DD') AS "termDate", status AS "status", current_basic AS "basic",
+             (SELECT x.national_id FROM erp_employees x WHERE x.emp_id = v.emp_id) AS "nationalId", (SELECT x.bank_account FROM erp_employees x WHERE x.emp_id = v.emp_id) AS "bankAccount",
+             (SELECT x.dept_id FROM erp_employees x WHERE x.emp_id = v.emp_id) AS "deptId"
+        FROM v_erp_employee v ORDER BY code`) });
   }));
 
   r.post('/hr/employees', wrap(async (req, res) => {

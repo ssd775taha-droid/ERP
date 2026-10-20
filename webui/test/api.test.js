@@ -276,6 +276,60 @@ test('تقارير المخزون: التقييم يطابق الأرصدة وا
   assert.strictEqual((await call('GET', '/api/inventory/reports/shortage?asof=2099-12-31&limit=-1')).status, 400);
 });
 
+test('تعديل وحذف البيانات الأساسية وإلغاء السند', { skip: !hasDb || !canWrite }, async () => {
+  const stamp = Date.now().toString(36);
+  // طرف: إضافة ثم تعديل ثم حذف؛ ومن عليه فاتورة لا يُحذف
+  const p = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل حذف ' + stamp });
+  assert.strictEqual(p.status, 201);
+  assert.strictEqual((await call('PATCH', `/api/parties/${p.data.id}`, { name: 'عميل معدّل ' + stamp, phone: '0500000000' })).status, 200);
+  assert.strictEqual((await call('PATCH', `/api/parties/${p.data.id}`, { taxNo: '123' })).status, 400);
+  assert.strictEqual((await call('PATCH', `/api/parties/${p.data.id}`, {})).status, 400);
+  assert.strictEqual((await call('DELETE', `/api/parties/${p.data.id}`)).status, 200);
+  assert.strictEqual((await call('DELETE', `/api/parties/${p.data.id}`)).status, 404);
+  const p2 = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل بفاتورة ' + stamp });
+  const inv = await call('POST', '/api/invoices', { kind: 'SALES', partyId: p2.data.id, date: '2026-01-25', lines: [{ description: 'خدمة', qty: 1, price: 100, vatRate: 15, account: '4200' }] });
+  assert.strictEqual(inv.status, 201);
+  assert.strictEqual((await call('DELETE', `/api/parties/${p2.data.id}`)).status, 409);
+  // سند: قبض ثم إلغاء يعيد المدفوع والرصيد ويبقي الميزان متوازناً
+  const bal0 = (await call('GET', `/api/parties/${p2.data.id}/statement`)).data;
+  const pay = await call('POST', '/api/payments', { partyId: p2.data.id, invoiceId: inv.data.invoice.id, date: '2026-01-26', amount: '40', method: 'CASH' });
+  assert.strictEqual(pay.status, 201);
+  assert.strictEqual((await call('GET', `/api/invoices/${inv.data.invoice.id}`)).data.invoice.paid, 40);
+  assert.strictEqual((await call('POST', `/api/payments/${pay.data.id}/void`, {})).status, 200);
+  assert.strictEqual((await call('GET', `/api/invoices/${inv.data.invoice.id}`)).data.invoice.paid, 0);
+  assert.strictEqual((await call('POST', `/api/payments/${pay.data.id}/void`, {})).status, 400);   // لا سند بعد الإلغاء
+  assert.strictEqual((await call('GET', '/api/reports/trial-balance')).data.balanced, true);
+  assert.deepStrictEqual((await call('GET', `/api/parties/${p2.data.id}/statement`)).data.closing, bal0.closing);
+  // الفاتورة صارت بلا مدفوعات فيمكن إلغاؤها
+  assert.strictEqual((await call('POST', `/api/invoices/${inv.data.invoice.id}/void`, {})).status, 200);
+  // حسابات: النظام محمي، وحساب جديد يُحذف
+  assert.strictEqual((await call('DELETE', '/api/accounts/1100')).status, 400);
+  const code = '9' + String(Date.now()).slice(-5);
+  assert.strictEqual((await call('POST', '/api/accounts', { code, name: 'حساب مؤقت', type: 'EXPENSE', parent: '5000' })).status, 201);
+  assert.strictEqual((await call('DELETE', `/api/accounts/${code}`)).status, 200);
+  assert.strictEqual((await call('DELETE', `/api/accounts/${code}`)).status, 404);
+  // صنف ومخزن: حذف غير المستخدم، ورفض المستخدم
+  const it = await call('POST', '/api/inventory/items', { code: 'DEL' + stamp, name: 'صنف مؤقت', price: '5', vat: '15' });
+  assert.strictEqual(it.status, 201);
+  assert.strictEqual((await call('DELETE', `/api/inventory/items/${it.data.id}`)).status, 200);
+  const wh = await call('POST', '/api/inventory/warehouses', { code: 'W' + stamp.slice(-6), name: 'مخزن مؤقت' });
+  assert.strictEqual(wh.status, 201);
+  assert.strictEqual((await call('PUT', `/api/inventory/warehouses/${wh.data.id}`, { name: 'مخزن معدّل' })).status, 200);
+  assert.strictEqual((await call('DELETE', `/api/inventory/warehouses/${wh.data.id}`)).status, 200);
+  const used = (await call('GET', '/api/inventory/stock')).data.rows.find((x) => x.qty > 0);
+  if (used) { assert.strictEqual((await call('DELETE', `/api/inventory/items/${used.itemId}`)).status, 409); }
+  // قسم وموظف
+  const dp = await call('POST', '/api/hr/departments', { code: 'D' + stamp.slice(-6), name: 'قسم مؤقت' });
+  assert.strictEqual(dp.status, 201);
+  assert.strictEqual((await call('PATCH', `/api/hr/departments/${dp.data.id}`, { name: 'قسم معدّل' })).status, 200);
+  const em = await call('POST', '/api/hr/employees', { code: 'E' + stamp.slice(-8), name: 'موظف مؤقت', hireDate: '2026-01-01', basic: '3000', deptId: dp.data.id });
+  assert.strictEqual(em.status, 201);
+  assert.strictEqual((await call('DELETE', `/api/hr/departments/${dp.data.id}`)).status, 409);   // عليه موظف
+  assert.strictEqual((await call('PATCH', `/api/hr/employees/${em.data.id}`, { jobTitle: 'محاسب', bankAccount: 'SA00' })).status, 200);
+  const list = (await call('GET', '/api/hr/employees')).data.employees.find((x) => x.id === em.data.id);
+  assert.strictEqual(list.bankAccount, 'SA00'); assert.strictEqual(list.deptId, dp.data.id);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

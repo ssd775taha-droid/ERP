@@ -52,6 +52,9 @@ CREATE OR REPLACE PACKAGE erp_trade AS
   ) RETURN NUMBER;
 
   -- الرصيد المستحق: موجب = على العميل / للمورد
+  -- إلغاء سند قبض/صرف: يعكس قيده ويحذف السند ويُنقص «المدفوع» في فاتورته (الأثر المحاسبي يبقى بقيد عكسي)
+  PROCEDURE void_payment (p_payment_id IN NUMBER);
+
   FUNCTION party_balance (p_party_id IN NUMBER) RETURN NUMBER;
 END erp_trade;
 /
@@ -425,6 +428,28 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       ROLLBACK TO SAVEPOINT erp_trade_pay;
       RAISE;
   END pay;
+
+  PROCEDURE void_payment (p_payment_id IN NUMBER) IS
+    v_pay erp_payments%ROWTYPE;
+    v_rev NUMBER;
+  BEGIN
+    SAVEPOINT erp_trade_voidpay;
+    BEGIN
+      SELECT * INTO v_pay FROM erp_payments WHERE payment_id = p_payment_id FOR UPDATE;
+    EXCEPTION
+      WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20222, 'السند رقم ' || p_payment_id || ' غير موجود');
+    END;
+    v_rev := erp_gl.reverse_entry(v_pay.entry_id);
+    IF v_pay.invoice_id IS NOT NULL THEN
+      UPDATE erp_invoices SET paid = paid - v_pay.amount WHERE invoice_id = v_pay.invoice_id;
+    END IF;
+    DELETE FROM erp_payments WHERE payment_id = p_payment_id;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK TO SAVEPOINT erp_trade_voidpay;
+      RAISE;
+  END void_payment;
 
   FUNCTION party_balance (p_party_id IN NUMBER) RETURN NUMBER IS
     v_inv  NUMBER;

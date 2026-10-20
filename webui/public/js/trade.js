@@ -16,8 +16,9 @@
           '<div class="card"><h3>' + (pk === 'CUSTOMER' ? 'عميل جديد' : 'مورد جديد') + '</h3><form id="f-p" class="row"><label>الاسم<input name="name" required maxlength="120" size="28"></label>' +
           '<label>الهاتف<input name="phone" maxlength="40"></label><label>الرقم الضريبي<input name="taxNo" maxlength="40"></label><button class="btn">إضافة</button></form></div>' +
           (parties.length ? '<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>الرقم الضريبي</th><th class="n">الرصيد</th><th class="noprint"></th></tr></thead><tbody>' +
-            parties.map((p) => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.phone || '') + '</td><td>' + esc(p.taxNo || '') + '</td><td class="n">' + money(p.balance) + '</td><td class="noprint"><a href="#/party/statement/' + p.id + '">كشف حساب</a></td></tr>').join('') +
+            parties.map((p) => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.phone || '') + '</td><td>' + esc(p.taxNo || '') + '</td><td class="n">' + money(p.balance) + '</td><td class="noprint"><a href="#/party/statement/' + p.id + '">كشف حساب</a> ' + E.crudBtns('party', { id: p.id, name: p.name, phone: p.phone || '', taxNo: p.taxNo || '' }) + '</td></tr>').join('') +
             '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(total) + '</td><td></td></tr></tfoot></table>' : '<div class="msg warn">لا يوجد بعد</div>');
+        E.crudBind(el, load);
         E.$('#f-p', el).addEventListener('submit', async (ev) => {
           ev.preventDefault();
           const f = new FormData(ev.target);
@@ -104,6 +105,21 @@
       } else E.$('.ac', r).disabled = false;
       recalc();
     });
+    // نسخ من فاتورة سابقة (للتصحيح): تُملأ البنود والطرف ويراجعها المستخدم قبل الحفظ
+    if (E.prefill && E.prefill.invoice && E.prefill.invoice.kind === kind) {
+      const pf = E.prefill.invoice; E.prefill = null;
+      if (pf.partyId && E.$('#pt option[value="' + pf.partyId + '"]', el)) E.$('#pt', el).value = String(pf.partyId);
+      E.$('#nt', el).value = pf.note || ''; E.$('#rf', el).value = pf.ref || '';
+      tb.innerHTML = '';
+      pf.lines.forEach((l) => {
+        tb.insertAdjacentHTML('beforeend', line());
+        const r = tb.lastElementChild, it = E.$('.it', r);
+        if (l.itemId && E.$('option[value="' + l.itemId + '"]', it)) { it.value = String(l.itemId); it.dispatchEvent(new Event('change', { bubbles: true })); if (l.whId) E.$('.wh', r).value = String(l.whId); }
+        else if (l.account && E.$('option[value="' + l.account + '"]', E.$('.ac', r))) E.$('.ac', r).value = l.account;
+        E.$('.ds', r).value = l.description; E.$('.q', r).value = l.qty; E.$('.pr', r).value = l.price; E.$('.vt', r).value = l.vatRate;
+      });
+      recalc(); E.toast('نُسخت بنود الفاتورة — راجعها ثم احفظ');
+    }
     E.bind(el, {
       add: () => tb.insertAdjacentHTML('beforeend', line()),
       rm: (b) => { if (E.$$('.ln', tb).length > 1) { b.closest('tr').remove(); recalc(); } },
@@ -122,9 +138,11 @@
 
   // ---------- عرض فاتورة + سداد + إلغاء ----------
   E.pages.invoiceView = async function (el, id) {
+    let cur = null;
     async function load() {
       const { invoice: i } = await api('GET', '/invoices/' + encodeURIComponent(id));
       const sales = i.kind === 'SALES';
+      cur = i;
       el.innerHTML = E.head('فاتورة ' + KIND[i.kind] + ' ' + i.no, i.partyName + ' — ' + i.date) +
         (sales ? E.taxHeader(i.partyTaxNo ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة', i.partyName, i.partyTaxNo, i.date, i.total, i.vat, i.status === 'OPEN') : '') +
         '<p>' + stTag(i) + ' <span class="muted">القيد ' + i.entryId + (i.cogsEntryId ? ' · قيد التكلفة ' + i.cogsEntryId : '') + (i.voidEntryId ? ' · القيد العكسي ' + i.voidEntryId : '') + '</span></p>' +
@@ -140,7 +158,7 @@
           (i.paid === 0 && !i.notes.some((n) => n.status === 'OPEN') ? '<button class="btn danger sm" data-act="void">إلغاء الفاتورة (قيد عكسي)</button>' : '<span class="muted">لا تُلغى فاتورة عليها مدفوعات أو إشعارات سارية</span>') + '</div>' +
           '<div class="card noprint"><h3>تصحيح بعد الإصدار</h3><a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/note/new/' + i.id + '-CREDIT">إشعار دائن (مرتجع / خصم لاحق)</a> ' +
           '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/note/new/' + i.id + '-DEBIT">إشعار مدين (رسوم / فرق سعر)</a></div>' : '') +
-        '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/' + (sales ? 'sales' : 'purchases') + '">رجوع للقائمة</a></p>';
+        '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <button class="btn alt" data-act="copy">نسخ كفاتورة جديدة (للتصحيح)</button> <a href="#/' + (sales ? 'sales' : 'purchases') + '">رجوع للقائمة</a></p>';
       const pf = E.$('#pf', el);
       if (pf) pf.addEventListener('submit', async (ev) => {
         ev.preventDefault();
@@ -151,6 +169,7 @@
     }
     E.bind(el, {
       print: () => window.print(),
+      copy: () => { E.prefill = { invoice: { kind: cur.kind, partyId: cur.partyId, note: cur.note, ref: cur.ref, lines: cur.lines } }; location.hash = '#/invoice/new/' + cur.kind; },
       void: async () => { if (confirm('إلغاء الفاتورة؟ سيُنشأ قيد عكسي (وتُعاد البضاعة للمخزن إن وُجدت).')) { await api('POST', '/invoices/' + encodeURIComponent(id) + '/void'); E.toast('أُلغيت الفاتورة'); await load(); } },
     });
     await load();
@@ -161,8 +180,9 @@
     const { payments } = await api('GET', '/payments');
     el.innerHTML = E.head('سندات القبض والصرف') + '<p class="noprint"><a href="#/payment/new">+ سند جديد (دفعة على الحساب)</a></p>' +
       (payments.length ? '<table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>الطرف</th><th>الفاتورة</th><th>الطريقة</th><th class="n">المبلغ</th><th class="noprint"></th></tr></thead><tbody>' +
-        payments.map((p) => '<tr><td><a href="#/payment/view/' + p.id + '">' + p.id + '</a></td><td>' + (p.kind === 'RECEIPT' ? 'قبض' : 'صرف') + '</td><td>' + esc(p.date) + '</td><td>' + esc(p.partyName) + '</td><td>' + (p.invoiceId ? '<a href="#/invoice/view/' + p.invoiceId + '">' + esc(p.invoiceNo) + '</a>' : 'على الحساب') + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td></tr>').join('') + '</tbody></table>'
+        payments.map((p) => '<tr><td><a href="#/payment/view/' + p.id + '">' + p.id + '</a></td><td>' + (p.kind === 'RECEIPT' ? 'قبض' : 'صرف') + '</td><td>' + esc(p.date) + '</td><td>' + esc(p.partyName) + '</td><td>' + (p.invoiceId ? '<a href="#/invoice/view/' + p.invoiceId + '">' + esc(p.invoiceNo) + '</a>' : 'على الحساب') + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td><td class="noprint">' + '<a href="#/payment/view/' + p.id + '?print=1">طباعة</a> ' + E.crudBtns('payment', { id: p.id, no: p.id }) + '</td></tr>').join('') + '</tbody></table>'
         : '<div class="msg warn">لا سندات</div>');
+    E.crudBind(el, () => E.pages.payments(el));
   };
 
   // ---------- سند قبض / صرف منفرد للعرض والطباعة ----------
@@ -178,8 +198,9 @@
       (p.note ? '<tr><th>ملاحظة</th><td>' + esc(p.note) + '</td></tr>' : '') +
       '<tr><th>القيد المحاسبي</th><td>' + (p.entryId ? '<a href="#/entry/view/' + p.entryId + '">قيد ' + p.entryId + '</a>' : '—') + '</td></tr>' +
       '</tbody></table></div>' + E.signBlock([rec ? 'المستلم' : 'المستلم (المستفيد)', 'المحاسب', 'المدير']) +
-      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/payments">رجوع للسندات</a></p>';
+      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> ' + E.crudBtns('payment', { id: p.id, no: p.id }) + ' <a href="#/payments">رجوع للسندات</a></p>';
     E.bind(el, { print: () => window.print() });
+    E.crudBind(el, async () => { location.hash = '#/payments'; });
   };
 
   E.pages.paymentNew = async function (el, partyId) {

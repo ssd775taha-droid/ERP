@@ -48,7 +48,7 @@ tr.head td { background: var(--surface2); font-weight: 600; }
 .msg { padding: 9px 12px; border-radius: 8px; margin-bottom: 12px; } .msg.bad { background: var(--bad-bg); color: var(--bad); } .msg.good { background: var(--good-bg); color: var(--good); } .msg.warn { background: var(--warn-bg); color: var(--warn); }
 .muted { color: var(--muted); } .good { color: var(--good); font-weight: 700; } .bad { color: var(--bad); font-weight: 700; }
 .indent1 { padding-right: 26px !important; } .indent2 { padding-right: 50px !important; } .indent3 { padding-right: 74px !important; }
-#toasts { position: fixed; bottom: 18px; left: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+#toasts { position: fixed; bottom: 70px; left: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .toast { background: var(--nav); color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 380px; }
 .toast.bad { background: var(--bad); color: #fff; }
 .login { max-width: 360px; margin: 12vh auto; }
@@ -87,6 +87,12 @@ input.ss { display: block; width: 100%; margin-bottom: 3px; font-size: 12px; pad
 td input.ss { min-width: 120px; }
 
 .mbar { display: inline-block; width: 120px; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; } .mbar i { display: block; height: 100%; background: var(--brand); }
+
+dialog.dlg { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); padding: 18px 22px; min-width: min(420px, 92vw); } dialog.dlg::backdrop { background: rgba(0,0,0,.45); }
+.dlg-f { display: block; margin-bottom: 10px; } .dlg-f input, .dlg-f select { display: block; width: 100%; margin-top: 3px; }
+
+button.fab { position: fixed; bottom: 18px; left: 18px; z-index: 40; border-radius: 999px; padding: 9px 16px; background: var(--brand); color: #fff; border: 0; box-shadow: 0 4px 14px rgba(0,0,0,.28); cursor: pointer; font: inherit; }
+button.fab:hover { filter: brightness(1.1); }
 
 /* ---------- الاستعلام والسندات ---------- */
 .sign { display: flex; gap: 24px; margin-top: 36px; } .sign > div { flex: 1; text-align: center; } .sign span { display: block; color: var(--muted); font-size: 12px; } .sign i { display: block; border-bottom: 1px solid var(--ink); height: 34px; }

@@ -18,14 +18,15 @@
       '<label>تاريخ التعيين<input type="date" name="hire" value="' + E.today() + '"></label><label>الراتب الأساسي<input name="basic" inputmode="decimal" required size="10"></label>' +
       '<label>رقم الهوية<input name="nid" maxlength="30" size="12"></label><label>الحساب البنكي<input name="bank" maxlength="60" size="14"></label><button class="btn">إضافة</button></form></div>' +
       '<div class="card"><h3>قسم جديد</h3><form id="fd" class="row"><label>الرمز<input name="code" required maxlength="12" size="8"></label><label>الاسم<input name="name" required maxlength="120" size="20"></label><button class="btn alt">إضافة قسم</button>' +
-      (departments.length ? ' <span class="muted">الأقسام: ' + departments.map((d) => esc(d.name) + ' (' + d.employees + ')').join('، ') + '</span>' : '') + '</form></div>' +
-      (employees.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>القسم</th><th>الوظيفة</th><th>التعيين</th><th class="n">الأساسي الحالي</th><th>الحالة</th></tr></thead><tbody>' +
+      (departments.length ? ' <span class="muted">الأقسام: ' + departments.map((d) => esc(d.name) + ' (' + d.employees + ') ' + E.crudBtns('dept', { id: d.id, name: d.name })).join('<br>') + '</span>' : '') + '</form></div>' +
+      (employees.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>القسم</th><th>الوظيفة</th><th>التعيين</th><th class="n">الأساسي الحالي</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' +
         employees.map((e) => '<tr><td><a href="#/employee/view/' + e.id + '">' + esc(e.code) + '</a></td><td>' + esc(e.name) + '</td><td>' + esc(e.deptName || '') + '</td><td>' + esc(e.jobTitle || '') + '</td><td>' + esc(e.hireDate) + '</td><td class="n">' + (e.basic ? money(e.basic) : '') + '</td><td>' +
-          (e.status === 'ACTIVE' ? '<span class="tag good">على رأس العمل</span>' : '<span class="tag bad">انتهت خدمته ' + esc(e.termDate) + '</span>') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا موظفون</div>');
+          (e.status === 'ACTIVE' ? '<span class="tag good">على رأس العمل</span>' : '<span class="tag bad">انتهت خدمته ' + esc(e.termDate) + '</span>') + '</td><td class="noprint">' + E.crudBtns('employee', { id: e.id, name: e.name, jobTitle: e.jobTitle || '', nationalId: e.nationalId || '', bankAccount: e.bankAccount || '', deptId: e.deptId || '', depts: departments.map((d) => [d.id, d.name]) }) + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا موظفون</div>');
     submit(el, '#f', async (f) => {
       const r = await api('POST', '/hr/employees', { code: val(f, 'code'), name: val(f, 'name'), deptId: f.get('dept') || null, jobTitle: val(f, 'job'), hireDate: f.get('hire'), basic: numv(f, 'basic'), nationalId: val(f, 'nid'), bankAccount: val(f, 'bank') });
       E.toast('أُضيف الموظف'); location.hash = '#/employee/view/' + r.id;
     });
+    E.crudBind(el, () => E.pages.hrEmployees(el));
     submit(el, '#fd', async (f) => { await api('POST', '/hr/departments', { code: val(f, 'code'), name: val(f, 'name') }); E.toast('أُضيف القسم'); E.pages.hrEmployees(el); });
   };
 
@@ -64,12 +65,13 @@
       '<label>الوعاء<select name="base"><option value="BASIC">الأساسي</option><option value="GROSS">الإجمالي</option></select></label><label>سقف الوعاء<input name="cap" inputmode="decimal" size="10"></label>' +
       '<label>حساب المصروف<select name="ea">' + ao('5200') + '</select></label><label>حساب الالتزام<select name="la">' + ao('2400') + '</select></label><button class="btn">إضافة</button></form>' +
       '<p class="muted">الاستحقاق يحتاج حساب مصروف، والاستقطاع يحتاج حساب التزام، وحصة صاحب العمل تحتاج الاثنين.</p></div>' +
-      (components.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>النوع</th><th>الحساب</th><th>الوعاء</th><th>السقف</th><th>المصروف</th><th>الالتزام</th></tr></thead><tbody>' +
-        components.map((c) => '<tr><td>' + esc(c.code) + '</td><td>' + esc(c.name) + '</td><td>' + (KIND[c.kind] || c.kind) + '</td><td>' + (c.calcType === 'PCT' ? c.pct + '%' : 'ثابت') + '</td><td>' + (c.calcType === 'PCT' ? (c.baseType === 'BASIC' ? 'الأساسي' : 'الإجمالي') : '') + '</td><td class="n">' + (c.baseCap ? money(c.baseCap) : '') + '</td><td>' + esc(c.expenseAccount || '') + '</td><td>' + esc(c.liabilityAccount || '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا مكوّنات معرّفة</div>');
+      (components.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>النوع</th><th>الحساب</th><th>الوعاء</th><th>السقف</th><th>المصروف</th><th>الالتزام</th><th class="noprint"></th></tr></thead><tbody>' +
+        components.map((c) => '<tr><td>' + esc(c.code) + '</td><td>' + esc(c.name) + '</td><td>' + (KIND[c.kind] || c.kind) + '</td><td>' + (c.calcType === 'PCT' ? c.pct + '%' : 'ثابت') + '</td><td>' + (c.calcType === 'PCT' ? (c.baseType === 'BASIC' ? 'الأساسي' : 'الإجمالي') : '') + '</td><td class="n">' + (c.baseCap ? money(c.baseCap) : '') + '</td><td>' + esc(c.expenseAccount || '') + '</td><td>' + esc(c.liabilityAccount || '') + '</td><td class="noprint">' + E.crudBtns('component', { id: c.id, name: c.name, pct: c.pct }) + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا مكوّنات معرّفة</div>');
     submit(el, '#f', async (f) => {
       await api('POST', '/hr/components', { code: val(f, 'code'), name: val(f, 'name'), kind: f.get('kind'), calcType: f.get('calc'), pct: f.get('pct'), baseType: f.get('base'), baseCap: numv(f, 'cap') || null, expenseAccount: f.get('ea') || null, liabilityAccount: f.get('la') || null });
       E.toast('أُضيف المكوّن'); E.pages.hrComponents(el);
     });
+    E.crudBind(el, () => E.pages.hrComponents(el));
   };
 
   // ---------- التسويات الشهرية ----------

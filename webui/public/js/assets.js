@@ -20,6 +20,7 @@
     const [{ categories }, accts] = await Promise.all([api('GET', '/assets/categories'), E.loadAccounts()]);
     const ao = (def) => accts.filter((a) => a.active === 'Y' && !a.children).map((a) => '<option value="' + esc(a.code) + '"' + (a.code === def ? ' selected' : '') + '>' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('');
     const act = categories.filter((c) => c.active === 'Y');
+    E.crudBind(el, () => E.pages.assetNew(el));
     el.innerHTML = E.head('أصل ثابت جديد', 'يُرحَّل قيد: مدين حساب الأصل / دائن الحساب المقابل (للرصيد الافتتاحي اختر 3100 رأس المال)') +
       '<div class="card"><form id="f" class="row"><label>الرمز<input name="code" required maxlength="30" size="10"></label><label>الاسم<input name="name" required maxlength="120" size="24"></label>' +
       '<label>الفئة<select name="cat">' + act.map((c) => '<option value="' + c.id + '">' + esc(c.name) + ' (' + c.lifeMonths + ' شهراً)</option>').join('') + '</select></label>' +
@@ -27,8 +28,8 @@
       '<label>الخردة<input name="salv" inputmode="decimal" value="0" size="10"></label><label>العمر (أشهر) — اختياري<input name="life" inputmode="numeric" size="6"></label>' +
       '<label>بدء الإهلاك (أول الشهر) — اختياري<input type="date" name="ds"></label><label>الحساب المقابل<select name="off">' + ao('1200') + '</select></label>' +
       '<label>رقم فاتورة الشراء — اختياري<input name="inv" inputmode="numeric" size="8"></label><label style="flex:1">ملاحظة<input name="note" maxlength="300"></label><button class="btn">تسجيل الأصل</button></form></div>' +
-      '<h2>فئات الأصول</h2><table><thead><tr><th>الرمز</th><th>الاسم</th><th>العمر</th><th>حساب الأصل</th><th>المجمع</th><th>المصروف</th></tr></thead><tbody>' +
-      categories.map((c) => '<tr><td>' + esc(c.code) + '</td><td>' + esc(c.name) + '</td><td>' + c.lifeMonths + ' شهراً</td><td>' + esc(c.assetAccount) + '</td><td>' + esc(c.accumAccount) + '</td><td>' + esc(c.expenseAccount) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h2>فئات الأصول</h2><table><thead><tr><th>الرمز</th><th>الاسم</th><th>العمر</th><th>حساب الأصل</th><th>المجمع</th><th>المصروف</th><th class="noprint"></th></tr></thead><tbody>' +
+      categories.map((c) => '<tr><td>' + esc(c.code) + '</td><td>' + esc(c.name) + '</td><td>' + c.lifeMonths + ' شهراً</td><td>' + esc(c.assetAccount) + '</td><td>' + esc(c.accumAccount) + '</td><td>' + esc(c.expenseAccount) + '</td><td class="noprint">' + E.crudBtns('category', { id: c.id, name: c.name }) + '</td></tr>').join('') + '</tbody></table>' +
       '<div class="card" style="margin-top:14px"><h3>فئة جديدة</h3><form id="fc" class="row"><label>الرمز<input name="code" required maxlength="12" size="8"></label><label>الاسم<input name="name" required maxlength="120" size="20"></label><label>العمر (أشهر)<input name="life" required inputmode="numeric" size="6"></label>' +
       '<label>حساب الأصل<select name="a">' + ao('1500') + '</select></label><label>المجمع<select name="m">' + ao('1510') + '</select></label><label>المصروف<select name="e">' + ao('5600') + '</select></label><button class="btn">إضافة فئة</button></form></div>';
     E.$('#f', el).addEventListener('submit', async (ev) => {
