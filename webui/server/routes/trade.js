@@ -74,7 +74,11 @@ module.exports = function tradeRoutes() {
         UNION ALL
         SELECT 'PAYMENT', y.payment_id, TO_CHAR(y.payment_id), TO_CHAR(y.pay_date, 'YYYY-MM-DD'),
                -y.amount, y.pay_date, y.payment_id, 1
-          FROM erp_payments y WHERE y.party_id = :id)
+          FROM erp_payments y WHERE y.party_id = :id
+        UNION ALL
+        SELECT 'NOTE', n.note_id, n.note_no, TO_CHAR(n.note_date, 'YYYY-MM-DD'),
+               CASE n.note_type WHEN 'DEBIT' THEN n.total ELSE n.refund - n.total END, n.note_date, n.note_id, 2
+          FROM erp_notes n WHERE n.party_id = :id AND n.status = 'OPEN')
        ORDER BY sort_d, sort_t, sort_i`, { id });
     let run = 0;
     const rows = moves.map((m) => { run = Math.round((run + m.amount) * 100) / 100; return { type: m.type, id: m.id, no: m.no, date: m.date, amount: m.amount, balance: run }; });
@@ -85,7 +89,7 @@ module.exports = function tradeRoutes() {
   const INV_SQL = `
     SELECT i.invoice_id AS "id", i.kind AS "kind", i.invoice_no AS "no", i.ref AS "ref", i.party_id AS "partyId", p.name AS "partyName",
            TO_CHAR(i.invoice_date, 'YYYY-MM-DD') AS "date", TO_CHAR(i.due_date, 'YYYY-MM-DD') AS "due",
-           i.subtotal AS "subtotal", i.vat_amount AS "vat", i.total AS "total", i.paid AS "paid", i.total - i.paid AS "remaining",
+           i.subtotal AS "subtotal", i.vat_amount AS "vat", i.total AS "total", i.paid AS "paid", i.total + erp_note_net(i.invoice_id) - i.paid AS "remaining", i.total + (SELECT NVL(SUM(CASE n.note_type WHEN 'DEBIT' THEN n.total ELSE -n.total END), 0) FROM erp_notes n WHERE n.invoice_id = i.invoice_id AND n.status = 'OPEN') AS "effectiveTotal",
            i.status AS "status", p.tax_no AS "partyTaxNo", i.note AS "note", i.entry_id AS "entryId", i.cogs_entry_id AS "cogsEntryId", i.void_entry_id AS "voidEntryId"
       FROM erp_invoices i JOIN erp_parties p ON p.party_id = i.party_id`;
 
@@ -100,7 +104,7 @@ module.exports = function tradeRoutes() {
     const rows = await db.query(`${INV_SQL}
       WHERE (:kind IS NULL OR i.kind = :kind) AND (:party IS NULL OR i.party_id = :party)
         AND (:f IS NULL OR i.invoice_date >= TO_DATE(:f, 'YYYY-MM-DD')) AND (:t IS NULL OR i.invoice_date <= TO_DATE(:t, 'YYYY-MM-DD'))
-        AND (:open = 0 OR (i.status = 'OPEN' AND i.total > i.paid))
+        AND (:open = 0 OR (i.status = 'OPEN' AND i.total + erp_note_net(i.invoice_id) > i.paid))
       ORDER BY i.invoice_date DESC, i.invoice_id DESC FETCH FIRST :lim ROWS ONLY`,
       { kind, party, f: from, t: to, open, lim: limit });
     res.json({ invoices: rows });
@@ -110,13 +114,16 @@ module.exports = function tradeRoutes() {
     const h = await db.query(`${INV_SQL} WHERE i.invoice_id = :id`, { id });
     if (!h.length) throw new db.HttpError(404, 'الفاتورة غير موجودة');
     const lines = await db.query(`
-      SELECT l.description AS "description", l.qty AS "qty", l.price AS "price", l.vat_rate AS "vatRate", l.account_code AS "account",
-             l.net AS "net", l.vat AS "vat", l.item_id AS "itemId", l.wh_id AS "whId", l.cost AS "cost"
+      SELECT l.line_id AS "id", l.description AS "description", l.qty AS "qty", l.price AS "price", l.vat_rate AS "vatRate", l.account_code AS "account",
+             l.net AS "net", l.vat AS "vat", l.item_id AS "itemId", l.wh_id AS "whId", l.cost AS "cost",
+             (SELECT NVL(SUM(nl.qty), 0) FROM erp_note_lines nl JOIN erp_notes n ON n.note_id = nl.note_id WHERE nl.orig_line_id = l.line_id AND nl.item_id IS NOT NULL AND n.status = 'OPEN') AS "creditedQty"
         FROM erp_invoice_lines l WHERE l.invoice_id = :id ORDER BY l.line_id`, { id });
+    const notes = await db.query(`SELECT note_id AS "id", note_no AS "no", note_type AS "type", TO_CHAR(note_date, 'YYYY-MM-DD') AS "date", total AS "total", refund AS "refund", status AS "status", reason AS "reason"
+      FROM erp_notes WHERE invoice_id = :id ORDER BY note_id`, { id });
     const pays = await db.query(`
       SELECT payment_id AS "id", kind AS "kind", TO_CHAR(pay_date, 'YYYY-MM-DD') AS "date", amount AS "amount", method AS "method", note AS "note"
         FROM erp_payments WHERE invoice_id = :id ORDER BY payment_id`, { id });
-    return { ...h[0], lines, payments: pays };
+    return { ...h[0], lines, payments: pays, notes };
   }
 
   r.get('/invoices/:id', wrap(async (req, res) => {
@@ -220,10 +227,10 @@ module.exports = function tradeRoutes() {
              SUM(CASE WHEN d BETWEEN 61 AND 90 THEN rem ELSE 0 END) AS "d90",
              SUM(CASE WHEN d > 90 THEN rem ELSE 0 END) AS "d90plus",
              SUM(rem) AS "total"
-        FROM (SELECT i.party_id, i.total - i.paid AS rem,
+        FROM (SELECT i.party_id, i.total + erp_note_net(i.invoice_id) - i.paid AS rem,
                      TO_DATE(:asof, 'YYYY-MM-DD') - NVL(i.due_date, i.invoice_date) AS d
                 FROM erp_invoices i
-               WHERE i.kind = :kind AND i.status = 'OPEN' AND i.total > i.paid
+               WHERE i.kind = :kind AND i.status = 'OPEN' AND i.total + erp_note_net(i.invoice_id) > i.paid
                  AND i.invoice_date <= TO_DATE(:asof, 'YYYY-MM-DD')) x
         JOIN erp_parties p ON p.party_id = x.party_id
        GROUP BY p.party_id, p.name ORDER BY SUM(rem) DESC`, { asof, kind });

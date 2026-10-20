@@ -859,6 +859,105 @@ BEGIN
   SELECT NVL(SUM(difference), 0) INTO u_t FROM v_erp_stock_vs_gl;
   check_true('بعد التحويلات: المخزون يطابق الأستاذ', u_t = 0);
 
+  -- إشعارات الدائن والمدين (مبيعات ومشتريات)
+  DECLARE
+    n_c NUMBER; n_s NUMBER; n_wh NUMBER; n_it NUMBER; n_inv NUMBER; n_ol NUMBER; n_ol2 NUMBER;
+    n_cn1 NUMBER; n_dn NUMBER; n_cn2 NUMBER; n_x NUMBER; n_v NUMBER; n_st VARCHAR2(20);
+    n_pi NUMBER; n_pol NUMBER; n_pcn NUMBER; n_avg NUMBER; n_pay NUMBER;
+    n_ret1 erp_note_line_tab; n_free erp_note_line_tab;
+    FUNCTION remaining (p_inv NUMBER) RETURN NUMBER IS r NUMBER;
+    BEGIN SELECT remaining INTO r FROM v_erp_invoice_status WHERE invoice_id = p_inv; RETURN r; END remaining;
+    FUNCTION onhand RETURN NUMBER IS r NUMBER;
+    BEGIN SELECT NVL(SUM(qty), 0) INTO r FROM erp_stock WHERE item_id = n_it AND wh_id = n_wh; RETURN r; END onhand;
+  BEGIN
+    n_c  := erp_trade.add_party('CUSTOMER', 'عميل إشعارات', NULL, NULL);
+    n_s  := erp_trade.add_party('SUPPLIER', 'مورد إشعارات', NULL, NULL);
+    n_wh := erp_inventory.add_warehouse('ZZN', 'مخزن إشعارات');
+    n_it := erp_inventory.add_item('ZZNI', 'صنف إشعارات', 'قطعة', 100, 'Y', '1400', '5100', '4100', 15, NULL);
+    n_x  := erp_inventory.adjust(n_it, n_wh, DATE '2026-09-01', 10, 40, '3100', 'رصيد افتتاحي للاختبار');
+    -- فاتورة مبيعات: 5 قطع (تكلفة 40) + خدمة 200، الإجمالي 805
+    n_inv := erp_trade.create_invoice('SALES', n_c, DATE '2026-09-02', NULL, NULL, NULL, erp_inv_line_tab(
+               erp_inv_line_t('صنف', 5, 100, 15, NULL, n_it, n_wh), erp_inv_line_t('خدمة', 1, 200, 15, '4200', NULL, NULL)));
+    SELECT line_id INTO n_ol  FROM erp_invoice_lines WHERE invoice_id = n_inv AND item_id IS NOT NULL;
+    SELECT line_id INTO n_ol2 FROM erp_invoice_lines WHERE invoice_id = n_inv AND item_id IS NULL;
+    check_true('إشعارات: فاتورة المبيعات إجماليها 805 والمخزون 5', remaining(n_inv) = 805 AND onhand = 5);
+
+    -- إشعار دائن: مرتجع قطعتين (230) → المتبقي 575، المخزون 7، رصيد العميل 575
+    n_cn1 := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-03', 'مرتجع بضاعة', erp_note_line_tab(erp_note_line_t('مرتجع', 2, 100, 15, NULL, n_ol, 'Y')));
+    SELECT total, status INTO n_v, n_st FROM erp_notes WHERE note_id = n_cn1;
+    check_true('إشعار دائن مبيعات: الإجمالي 230 والمتبقي 575 والمخزون 7 ورصيد العميل 575',
+               n_v = 230 AND n_st = 'OPEN' AND remaining(n_inv) = 575 AND onhand = 7 AND erp_trade.party_balance(n_c) = 575);
+    SELECT NVL(SUM(cost), 0) INTO n_v FROM erp_note_lines WHERE note_id = n_cn1;
+    SELECT stock_entry_id INTO n_x FROM erp_notes WHERE note_id = n_cn1;
+    check_true('إشعار دائن مبيعات: عاد الصنف بتكلفته الأصلية (80) وللإشعار قيد تكلفة', n_v = 80 AND n_x IS NOT NULL);
+
+    -- رفض: كمية تتجاوز الأصل، سعر أعلى، بلا سبب، دائن يتجاوز الفاتورة
+    BEGIN n_x := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-03', 'زيادة', erp_note_line_tab(erp_note_line_t('x', 4, 100, 15, NULL, n_ol, 'Y')));
+      check_true('رفض إرجاع كمية تتجاوز المتاح (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض إرجاع كمية تتجاوز المتاح [' || SQLCODE || ']', SQLCODE = -20965); END;
+    BEGIN n_x := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-03', 'غلاء', erp_note_line_tab(erp_note_line_t('x', 1, 150, 15, NULL, n_ol, 'N')));
+      check_true('رفض سعر أعلى من الأصلي (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض سعر أعلى من الأصلي [' || SQLCODE || ']', SQLCODE = -20966); END;
+    BEGIN n_x := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-03', '  ', erp_note_line_tab(erp_note_line_t('x', 1, 10, 15, '4200', NULL, NULL)));
+      check_true('رفض إشعار بلا سبب (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض إشعار بلا سبب [' || SQLCODE || ']', SQLCODE = -20963); END;
+    BEGIN n_x := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-03', 'كبير', erp_note_line_tab(erp_note_line_t('x', 1, 1000, 15, '4200', NULL, NULL)));
+      check_true('رفض دائن يتجاوز الفاتورة (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض دائن يتجاوز الفاتورة [' || SQLCODE || ']', SQLCODE = -20968); END;
+
+    -- إشعار مدين: رسوم 115 → المتبقي 690
+    n_dn := erp_cdnote.create_note(n_inv, 'DEBIT', DATE '2026-09-04', 'رسوم تأخير', erp_note_line_tab(erp_note_line_t('رسوم', 1, 100, 15, '4200', NULL, NULL)));
+    check_true('إشعار مدين مبيعات: المتبقي 690 ورصيد العميل 690', remaining(n_inv) = 690 AND erp_trade.party_balance(n_c) = 690);
+
+    -- الدفع محدود بالمتبقي الفعلي (يشمل الإشعارات)
+    BEGIN n_pay := erp_trade.pay(n_c, n_inv, DATE '2026-09-05', 700, 'CASH');
+      check_true('رفض دفع يتجاوز المتبقي الفعلي (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض دفع يتجاوز المتبقي الفعلي [' || SQLCODE || ']', SQLCODE = -20207); END;
+    n_pay := erp_trade.pay(n_c, n_inv, DATE '2026-09-05', 690, 'CASH');
+    SELECT state INTO n_st FROM v_erp_invoice_status WHERE invoice_id = n_inv;
+    check_true('سداد المتبقي الفعلي 690: الفاتورة PAID', n_st = 'PAID' AND remaining(n_inv) = 0);
+
+    -- إشعار دائن على فاتورة مسدَّدة: يلزم رد (57.50)
+    n_free := erp_note_line_tab(erp_note_line_t('تخفيض', 1, 50, 15, '4200', NULL, NULL));
+    BEGIN n_x := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-06', 'خصم لاحق', n_free);
+      check_true('رفض دائن على مسدَّدة بلا رد (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض دائن على مسدَّدة بلا رد [' || SQLCODE || ']', SQLCODE = -20968); END;
+    BEGIN n_x := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-06', 'خصم لاحق', n_free, 100, 'CASH');
+      check_true('رفض رد أكبر من المدفوع زيادة (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض رد أكبر من المدفوع زيادة [' || SQLCODE || ']', SQLCODE = -20969); END;
+    n_cn2 := erp_cdnote.create_note(n_inv, 'CREDIT', DATE '2026-09-06', 'خصم لاحق', n_free, 57.5, 'CASH');
+    check_true('دائن مع رد 57.50 نقداً: المتبقي صفر ورصيد العميل صفر', remaining(n_inv) = 0 AND erp_trade.party_balance(n_c) = 0);
+
+    -- لا تُلغى فاتورة لها إشعارات، ولا يُلغى إشعار يجعل المدفوع أكبر من الفعلي
+    BEGIN erp_trade.void_invoice(n_inv);
+      check_true('رفض إلغاء فاتورة لها إشعارات (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء فاتورة لها إشعارات [' || SQLCODE || ']', SQLCODE = -20209 OR SQLCODE = -20218); END;
+    BEGIN erp_cdnote.void_note(n_dn);
+      check_true('رفض إلغاء إشعار مدين مدفوع (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء إشعار مدين مدفوع [' || SQLCODE || ']', SQLCODE = -20972); END;
+    -- إلغاء المرتجع: المتبقي يصير 230 والمخزون يعود إلى 5
+    erp_cdnote.void_note(n_cn1);
+    check_true('إلغاء إشعار المرتجع: المتبقي 230 والمخزون 5', remaining(n_inv) = 230 AND onhand = 5);
+    BEGIN erp_cdnote.void_note(n_cn1);
+      check_true('رفض إلغاء إشعار ملغى (لم يُرفع خطأ)', FALSE);
+    EXCEPTION WHEN OTHERS THEN check_true('رفض إلغاء إشعار ملغى [' || SQLCODE || ']', SQLCODE = -20971); END;
+
+    -- المشتريات: فاتورة 10 × 30 + 15% = 345، ثم إشعار دائن بمرتجع 3 قطع
+    n_pi := erp_trade.create_invoice('PURCHASE', n_s, DATE '2026-09-07', NULL, NULL, NULL, erp_inv_line_tab(erp_inv_line_t('شراء', 10, 30, 15, NULL, n_it, n_wh)));
+    SELECT line_id INTO n_pol FROM erp_invoice_lines WHERE invoice_id = n_pi;
+    n_avg := erp_inventory.avg_cost(n_it, n_wh);
+    n_pcn := erp_cdnote.create_note(n_pi, 'CREDIT', DATE '2026-09-08', 'مرتجع للمورد', erp_note_line_tab(erp_note_line_t('مرتجع', 3, 30, 15, NULL, n_pol, 'Y')));
+    SELECT total INTO n_v FROM erp_notes WHERE note_id = n_pcn;
+    check_true('إشعار دائن مشتريات: الإجمالي 103.50 ورصيد المورد 241.50 وخرج الصنف',
+               n_v = 103.5 AND erp_trade.party_balance(n_s) = 241.5 AND onhand = 12);
+    SELECT NVL(SUM(difference), 0) INTO n_v FROM v_erp_stock_vs_gl;
+    check_true('بعد إشعار المشتريات: المخزون يطابق الأستاذ (فرق التكلفة إلى 5500)', n_v = 0);
+    erp_cdnote.void_note(n_pcn);
+    check_true('إلغاء إشعار المشتريات: رصيد المورد 345 والمخزون 15', erp_trade.party_balance(n_s) = 345 AND onhand = 15);
+    SELECT COUNT(*) INTO n_v FROM v_erp_note_status WHERE party_name IN ('عميل إشعارات', 'مورد إشعارات');
+    check_true('عرض حالة الإشعارات يظهر الإشعارات الأربعة', n_v = 4);
+  END;
+
   -- التوازن الكلي
   SELECT COUNT(*) INTO v_tmp FROM v_erp_unbalanced_entries;
   check_true('لا توجد قيود غير متوازنة', v_tmp = 0);

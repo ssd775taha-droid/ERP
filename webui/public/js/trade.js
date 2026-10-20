@@ -36,7 +36,7 @@
     el.innerHTML = E.head('كشف حساب: ' + party.name, PKIND[party.kind] + ' — الرصيد الحالي ' + money(party.balance)) +
       '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/payment/new/' + party.id + '">+ سند ' + (party.kind === 'CUSTOMER' ? 'قبض' : 'صرف') + '</a></p>' +
       '<table><thead><tr><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th><th class="n">الرصيد</th></tr></thead><tbody>' +
-      (rows.length ? rows.map((m) => '<tr><td>' + esc(m.date) + '</td><td>' + (m.type === 'INVOICE' ? '<a href="#/invoice/view/' + m.id + '">فاتورة ' + esc(m.no) + '</a>' : 'سند رقم ' + esc(m.no)) + '</td><td class="n">' + money(m.amount) + '</td><td class="n">' + money(m.balance) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">لا حركة</td></tr>') + '</tbody></table>';
+      (rows.length ? rows.map((m) => '<tr><td>' + esc(m.date) + '</td><td>' + (m.type === 'INVOICE' ? '<a href="#/invoice/view/' + m.id + '">فاتورة ' + esc(m.no) + '</a>' : m.type === 'NOTE' ? '<a href="#/note/view/' + m.id + '">إشعار ' + esc(m.no) + '</a>' : 'سند رقم ' + esc(m.no)) + '</td><td class="n">' + money(m.amount) + '</td><td class="n">' + money(m.balance) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">لا حركة</td></tr>') + '</tbody></table>';
     E.bind(el, { print: () => window.print() });
   };
 
@@ -130,12 +130,16 @@
         '<p>' + stTag(i) + ' <span class="muted">القيد ' + i.entryId + (i.cogsEntryId ? ' · قيد التكلفة ' + i.cogsEntryId : '') + (i.voidEntryId ? ' · القيد العكسي ' + i.voidEntryId : '') + '</span></p>' +
         '<table><thead><tr><th>الوصف</th><th class="n">الكمية</th><th class="n">السعر</th><th>ضريبة %</th><th class="n">الصافي</th><th class="n">الضريبة</th></tr></thead><tbody>' +
         i.lines.map((l) => '<tr><td>' + esc(l.description) + '</td><td class="n">' + l.qty + '</td><td class="n">' + money(l.price) + '</td><td>' + l.vatRate + '</td><td class="n">' + money(l.net) + '</td><td class="n">' + money(l.vat) + '</td></tr>').join('') +
-        '</tbody><tfoot><tr><td colspan="4">المجموع</td><td class="n">' + money(i.subtotal) + '</td><td class="n">' + money(i.vat) + '</td></tr><tr><td colspan="4">الإجمالي · المسدد · المتبقي</td><td class="n" colspan="2">' + money(i.total) + ' · ' + money(i.paid) + ' · ' + money(i.remaining) + '</td></tr></tfoot></table>' +
+        '</tbody><tfoot><tr><td colspan="4">المجموع</td><td class="n">' + money(i.subtotal) + '</td><td class="n">' + money(i.vat) + '</td></tr><tr><td colspan="4">الإجمالي · المسدد · المتبقي</td><td class="n" colspan="2">' + money(i.total) + ' · ' + money(i.paid) + ' · ' + money(i.remaining) + '</td></tr>' +
+        (i.effectiveTotal !== i.total ? '<tr><td colspan="4">الإجمالي بعد الإشعارات</td><td class="n" colspan="2">' + money(i.effectiveTotal) + '</td></tr>' : '') + '</tfoot></table>' +
+        (i.notes.length ? '<h3>الإشعارات على هذه الفاتورة</h3><table><tbody>' + i.notes.map((n) => '<tr><td><a href="#/note/view/' + n.id + '">' + esc(n.no) + '</a></td><td>' + (n.type === 'CREDIT' ? 'دائن' : 'مدين') + '</td><td>' + esc(n.date) + '</td><td>' + esc(n.reason) + '</td><td class="n">' + (n.type === 'CREDIT' ? '−' : '') + money(n.total) + '</td><td>' + (n.status === 'VOID' ? '<span class="tag bad">ملغى</span>' : '') + '</td></tr>').join('') + '</tbody></table>' : '') +
         (i.note ? '<p>' + esc(i.note) + '</p>' : '') +
         (i.payments.length ? '<h3>المدفوعات</h3><table><tbody>' + i.payments.map((p) => '<tr><td>سند ' + p.id + '</td><td>' + esc(p.date) + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td></tr>').join('') + '</tbody></table>' : '') +
         (i.status === 'OPEN' ? '<div class="card noprint" style="margin-top:14px"><h3>' + (sales ? 'تسجيل قبض' : 'تسجيل صرف') + '</h3><form id="pf" class="row"><label>التاريخ<input type="date" name="d" value="' + E.today() + '"></label>' +
-          '<label>المبلغ<input name="a" inputmode="decimal" value="' + i.remaining + '"></label><label>الطريقة<select name="m"><option value="CASH">نقداً</option><option value="BANK">بنك</option></select></label><button class="btn"' + (i.remaining <= 0 ? ' disabled' : '') + '>تسجيل</button></form>' +
-          (i.paid === 0 ? '<button class="btn danger sm" data-act="void">إلغاء الفاتورة (قيد عكسي)</button>' : '<span class="muted">لا يمكن إلغاء فاتورة عليها مدفوعات</span>') + '</div>' : '') +
+          '<label>المبلغ<input name="a" inputmode="decimal" value="' + Math.max(i.remaining, 0) + '"></label><label>الطريقة<select name="m"><option value="CASH">نقداً</option><option value="BANK">بنك</option></select></label><button class="btn"' + (i.remaining <= 0 ? ' disabled' : '') + '>تسجيل</button></form>' +
+          (i.paid === 0 && !i.notes.some((n) => n.status === 'OPEN') ? '<button class="btn danger sm" data-act="void">إلغاء الفاتورة (قيد عكسي)</button>' : '<span class="muted">لا تُلغى فاتورة عليها مدفوعات أو إشعارات سارية</span>') + '</div>' +
+          '<div class="card noprint"><h3>تصحيح بعد الإصدار</h3><a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/note/new/' + i.id + '-CREDIT">إشعار دائن (مرتجع / خصم لاحق)</a> ' +
+          '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/note/new/' + i.id + '-DEBIT">إشعار مدين (رسوم / فرق سعر)</a></div>' : '') +
         '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/' + (sales ? 'sales' : 'purchases') + '">رجوع للقائمة</a></p>';
       const pf = E.$('#pf', el);
       if (pf) pf.addEventListener('submit', async (ev) => {

@@ -4,6 +4,7 @@ WHENEVER SQLERROR EXIT FAILURE ROLLBACK
 SET DEFINE OFF
 @sql/01_schema.sql
 @sql/02_seed.sql
+@sql/01b_notes_schema.sql
 @sql/03_pkg_erp_gl.sql
 @sql/04_pkg_erp_inventory.sql
 @sql/05_pkg_erp_trade.sql
@@ -15,5 +16,6 @@ SET DEFINE OFF
 @sql/11_pkg_erp_pos.sql
 @sql/12_pkg_erp_po.sql
 @sql/13_pkg_erp_quote.sql
+@sql/13b_pkg_erp_cdnote.sql
 @sql/14_views.sql
 PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/15_selftest.sql

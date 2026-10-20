@@ -123,14 +123,16 @@ module.exports = function reportRoutes() {
     const months = await db.query(`
       SELECT TO_CHAR(m.mon, 'YYYY-MM') AS "month",
              NVL((SELECT SUM(i.subtotal) FROM erp_invoices i WHERE i.kind = 'SALES' AND i.status = 'OPEN' AND TRUNC(i.invoice_date, 'MM') = m.mon), 0)
-           + NVL((SELECT SUM(CASE WHEN s.kind = 'SALE' THEN s.subtotal ELSE -s.subtotal END) FROM erp_pos_sales s WHERE s.status = 'COMPLETED' AND TRUNC(s.sale_date, 'MM') = m.mon), 0) AS "sales",
-             NVL((SELECT SUM(i.subtotal) FROM erp_invoices i WHERE i.kind = 'PURCHASE' AND i.status = 'OPEN' AND TRUNC(i.invoice_date, 'MM') = m.mon), 0) AS "purchases"
+           + NVL((SELECT SUM(CASE WHEN s.kind = 'SALE' THEN s.subtotal ELSE -s.subtotal END) FROM erp_pos_sales s WHERE s.status = 'COMPLETED' AND TRUNC(s.sale_date, 'MM') = m.mon), 0)
+           + NVL((SELECT SUM(CASE n.note_type WHEN 'DEBIT' THEN n.subtotal ELSE -n.subtotal END) FROM erp_notes n WHERE n.doc_kind = 'SALES' AND n.status = 'OPEN' AND TRUNC(n.note_date, 'MM') = m.mon), 0) AS "sales",
+             NVL((SELECT SUM(i.subtotal) FROM erp_invoices i WHERE i.kind = 'PURCHASE' AND i.status = 'OPEN' AND TRUNC(i.invoice_date, 'MM') = m.mon), 0)
+           + NVL((SELECT SUM(CASE n.note_type WHEN 'DEBIT' THEN n.subtotal ELSE -n.subtotal END) FROM erp_notes n WHERE n.doc_kind = 'PURCHASE' AND n.status = 'OPEN' AND TRUNC(n.note_date, 'MM') = m.mon), 0) AS "purchases"
         FROM (SELECT ADD_MONTHS(TRUNC(SYSDATE, 'MM'), 1 - LEVEL) AS mon FROM dual CONNECT BY LEVEL <= 6) m ORDER BY m.mon`);
     const open = await db.query(`
-      SELECT i.kind AS "kind", NVL(SUM(i.total - i.paid), 0) AS "remaining",
-             NVL(SUM(CASE WHEN i.due_date < TRUNC(SYSDATE) THEN i.total - i.paid ELSE 0 END), 0) AS "overdue",
+      SELECT i.kind AS "kind", NVL(SUM(i.total + erp_note_net(i.invoice_id) - i.paid), 0) AS "remaining",
+             NVL(SUM(CASE WHEN i.due_date < TRUNC(SYSDATE) THEN i.total + erp_note_net(i.invoice_id) - i.paid ELSE 0 END), 0) AS "overdue",
              COUNT(CASE WHEN i.due_date < TRUNC(SYSDATE) THEN 1 END) AS "overdueCount"
-        FROM erp_invoices i WHERE i.status = 'OPEN' AND i.total > i.paid GROUP BY i.kind`);
+        FROM erp_invoices i WHERE i.status = 'OPEN' AND i.total + erp_note_net(i.invoice_id) > i.paid GROUP BY i.kind`);
     const get = (k, f) => (open.find((x) => x.kind === k) || {})[f] || 0;
     const top = await db.query(`
       SELECT p.name AS "name", SUM(i.subtotal) AS "sales" FROM erp_invoices i JOIN erp_parties p ON p.party_id = i.party_id

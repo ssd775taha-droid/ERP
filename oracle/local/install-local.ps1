@@ -87,6 +87,15 @@ Sql-Sys "ALTER SESSION SET CONTAINER = XEPDB1;`nGRANT CREATE SESSION, CREATE TAB
 $installed = (Sql-Erp "SET HEADING OFF FEEDBACK OFF PAGESIZE 0`nSELECT COUNT(*) FROM user_tables WHERE table_name = 'ERP_ACCOUNTS';" | Out-String).Trim()
 if ($installed -ne '0' -and -not $Reinstall) {
   Write-Host 'النظام مثبَّت مسبقاً. لإعادة التثبيت من الصفر (يحذف البيانات): .\local\install-local.ps1 -Reinstall'
+  # ترقية الكائنات (جداول/حزم/عروض جديدة) إلى آخر إصدار دون المساس بالبيانات؛ متكررة التشغيل
+  Write-Host 'ترقية الكائنات إلى آخر إصدار (لا تمس بياناتك)...'
+  Sql-Erp '@upgrade.sql' | Out-File -Encoding utf8 (Join-Path $LogDir 'upgrade.log')
+  $uerrs = Select-String -Path (Join-Path $LogDir 'upgrade.log') -Pattern 'ORA-\d+|SP2-\d+|PLS-\d+'
+  if ($uerrs) {
+    Write-Host 'فشلت الترقية. أول الأخطاء (والسجل الكامل في local\logs\upgrade.log):' -ForegroundColor Red
+    $uerrs | Select-Object -First 10 | ForEach-Object { $_.Line }
+    exit 1
+  }
 } else {
   if ($installed -ne '0') {
     Write-Host 'حذف كائنات النظام السابقة...'

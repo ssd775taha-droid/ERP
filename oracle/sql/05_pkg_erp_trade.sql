@@ -18,6 +18,7 @@
 --   -20213 لا تُلغى مشتريات بعد حركات لاحقة       -20214 صنف/مخزن البند غير صالح
 --   -20215 فاتورة مرتبطة بأصل ثابت لا تُلغى     -20216 فاتورة استلام أمر شراء (استخدم ERP_PO.VOID_RECEIPT)
 --   -20217 فاتورة محوَّلة من عرض سعر (استخدم ERP_QUOTE.UNCONVERT)
+--   -20218 للفاتورة إشعارات دائنة/مدينة سارية (ألغِها أولاً عبر ERP_CDNOTE.VOID_NOTE)
 -- ============================================================================
 CREATE OR REPLACE PACKAGE erp_trade AS
   FUNCTION add_party (
@@ -312,6 +313,10 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
     IF v_inv.paid > 0 THEN
       RAISE_APPLICATION_ERROR(-20209, 'لا تُلغى فاتورة عليها مدفوعات');
     END IF;
+    SELECT COUNT(*) INTO v_tmp FROM erp_notes WHERE invoice_id = p_invoice_id AND status = 'OPEN';
+    IF v_tmp > 0 THEN
+      RAISE_APPLICATION_ERROR(-20218, 'للفاتورة إشعارات دائنة/مدينة سارية: ألغِها أولاً (ERP_CDNOTE.VOID_NOTE)');
+    END IF;
     IF v_inv.kind = 'PURCHASE' THEN
       SELECT COUNT(*) INTO v_tmp FROM erp_assets WHERE invoice_id = p_invoice_id AND status <> 'VOID';
       IF v_tmp > 0 THEN
@@ -388,8 +393,9 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
       IF v_inv.status <> 'OPEN' THEN
         RAISE_APPLICATION_ERROR(-20208, 'الفاتورة ملغاة');
       END IF;
-      IF p_amount > v_inv.total - v_inv.paid THEN
-        RAISE_APPLICATION_ERROR(-20207, 'المبلغ أكبر من المتبقي على الفاتورة (' || TO_CHAR(v_inv.total - v_inv.paid) || ')');
+      -- المتبقي الفعلي يشمل أثر إشعارات الدائن والمدين السارية (ERP_NOTE_NET)
+      IF p_amount > v_inv.total + erp_note_net(p_invoice_id) - v_inv.paid THEN
+        RAISE_APPLICATION_ERROR(-20207, 'المبلغ أكبر من المتبقي على الفاتورة (' || TO_CHAR(v_inv.total + erp_note_net(p_invoice_id) - v_inv.paid) || ')');
       END IF;
     END IF;
 
@@ -421,12 +427,16 @@ CREATE OR REPLACE PACKAGE BODY erp_trade AS
   END pay;
 
   FUNCTION party_balance (p_party_id IN NUMBER) RETURN NUMBER IS
-    v_inv NUMBER;
-    v_pay NUMBER;
+    v_inv  NUMBER;
+    v_pay  NUMBER;
+    v_note NUMBER;
   BEGIN
     SELECT NVL(SUM(total), 0) INTO v_inv FROM erp_invoices WHERE party_id = p_party_id AND status = 'OPEN';
     SELECT NVL(SUM(amount), 0) INTO v_pay FROM erp_payments WHERE party_id = p_party_id;
-    RETURN v_inv - v_pay;
+    -- + إشعارات مدينة − إشعارات دائنة + المبالغ المردودة (تخص فواتير سارية فقط: الإشعار لا يُنشأ إلا لفاتورة سارية ولا تُلغى فاتورة لها إشعار)
+    SELECT NVL(SUM(CASE note_type WHEN 'DEBIT' THEN total ELSE refund - total END), 0) INTO v_note
+      FROM erp_notes WHERE party_id = p_party_id AND status = 'OPEN';
+    RETURN v_inv - v_pay + v_note;
   END party_balance;
 
 END erp_trade;

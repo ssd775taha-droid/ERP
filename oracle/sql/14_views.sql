@@ -17,16 +17,17 @@ HAVING NVL(SUM(l.debit), 0) + NVL(SUM(l.credit), 0) > 0;
 CREATE OR REPLACE VIEW v_erp_party_balance AS
 SELECT p.party_id, p.kind, p.name, p.phone,
        NVL((SELECT SUM(i.total)  FROM erp_invoices i WHERE i.party_id = p.party_id AND i.status = 'OPEN'), 0)
-     - NVL((SELECT SUM(y.amount) FROM erp_payments y WHERE y.party_id = p.party_id), 0) AS balance
+     - NVL((SELECT SUM(y.amount) FROM erp_payments y WHERE y.party_id = p.party_id), 0)
+     + NVL((SELECT SUM(CASE n.note_type WHEN 'DEBIT' THEN n.total ELSE n.refund - n.total END) FROM erp_notes n WHERE n.party_id = p.party_id AND n.status = 'OPEN'), 0) AS balance
   FROM erp_parties p;
 
 -- حالة الفواتير مع المتبقي والتأخر
 CREATE OR REPLACE VIEW v_erp_invoice_status AS
 SELECT i.invoice_id, i.party_id, i.kind, i.invoice_no, i.invoice_date, i.due_date, p.name AS party_name,
        i.total, i.paid,
-       CASE WHEN i.status = 'OPEN' THEN i.total - i.paid ELSE 0 END AS remaining,
+       CASE WHEN i.status = 'OPEN' THEN i.total + erp_note_net(i.invoice_id) - i.paid ELSE 0 END AS remaining,
        CASE WHEN i.status = 'VOID' THEN 'VOID'
-            WHEN i.total - i.paid = 0 THEN 'PAID'
+            WHEN i.total + erp_note_net(i.invoice_id) - i.paid = 0 THEN 'PAID'
             WHEN i.due_date IS NOT NULL AND i.due_date < TRUNC(SYSDATE) THEN 'OVERDUE'
             ELSE 'OPEN' END AS state
   FROM erp_invoices i
@@ -201,3 +202,11 @@ SELECT q.quote_id, q.quote_no, pa.name AS customer_name, q.quote_date, q.valid_u
 CREATE OR REPLACE VIEW v_erp_quote_pipeline AS
 SELECT status, COUNT(*) AS quotes, NVL(SUM(total), 0) AS total_value
   FROM erp_quotations GROUP BY status;
+
+-- الإشعارات مع الفاتورة المرجعية والطرف
+CREATE OR REPLACE VIEW v_erp_note_status AS
+SELECT n.note_id, n.note_no, n.doc_kind, n.note_type, n.note_date, n.status, p.name AS party_name,
+       i.invoice_no, n.reason, n.subtotal, n.vat_amount, n.total, n.refund
+  FROM erp_notes n
+  JOIN erp_invoices i ON i.invoice_id = n.invoice_id
+  JOIN erp_parties p  ON p.party_id = n.party_id;

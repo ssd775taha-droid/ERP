@@ -5,7 +5,7 @@ const config = require('./config');
 const db = require('./db');
 const { createAuth } = require('./auth');
 const { authorize, auditWrites } = require('./authz');
-const { ensureSchema } = require('./migrate');
+const { ensureSchema, dbReady } = require('./migrate');
 
 function createApp(cfg) {
   const auth = createAuth(cfg);
@@ -47,6 +47,16 @@ function createApp(cfg) {
   });
 
   app.use('/api', auth.requireUser);
+  // قاعدة لم تُرقَّ إلى كائنات هذا الإصدار: رسالة واضحة بدل أخطاء ORA متفرقة (يُعاد الفحص كل 20 ثانية)
+  let ready = { ok: null, at: 0 };
+  app.use('/api', async (req, res, next) => {
+    if (req.path === '/me' || req.path === '/version') return next();
+    try {
+      if (ready.ok !== true && Date.now() - ready.at > 20000) ready = { ok: await dbReady(), at: Date.now() };
+    } catch (e) { return next(e); }
+    if (ready.ok !== true) return next(new db.HttpError(503, 'قاعدة البيانات تحتاج ترقية لهذا الإصدار: شغّل «ERP Setup (reinstall)» من قائمة ابدأ (لا يحذف بياناتك) أو نفّذ oracle/upgrade.sql'));
+    next();
+  });
   app.use('/api', auditWrites(auth));
   app.use('/api', authorize);
   app.use('/api', require('./routes/admin')(auth));
@@ -54,6 +64,7 @@ function createApp(cfg) {
   app.use('/api', require('./routes/reports')());
   app.use('/api', require('./routes/periods')());
   app.use('/api', require('./routes/trade')());
+  app.use('/api', require('./routes/notes')());
   app.use('/api', require('./routes/inventory')());
   app.use('/api', require('./routes/assets')());
   app.use('/api', require('./routes/hr')());

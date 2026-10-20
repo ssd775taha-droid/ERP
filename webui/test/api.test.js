@@ -266,3 +266,72 @@ test('لوحة المؤشرات: ستة أشهر ومستحقات، وتعديل
   assert.strictEqual((await call('POST', `/api/po/${po.data.order.id}/approve`, {})).status, 200);
   assert.strictEqual((await call('PUT', `/api/po/${po.data.order.id}/lines`, { lines: [{ description: 'ج', qty: 1, price: 1, account: '5400' }] })).status, 400);   // بعد الاعتماد
 });
+
+test('إشعارات الدائن والمدين: إشعار دائن ومدين وسداد وإلغاء ومطابقة الأستاذ', { skip: !hasDb || !canWrite }, async () => {
+  const c = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل إشعارات آلي' });
+  const inv = await call('POST', '/api/invoices', { kind: 'SALES', partyId: c.data.id, date: '2026-01-15', lines: [{ description: 'خدمة', qty: 1, price: 1000, vatRate: 15, account: '4200' }] });
+  assert.strictEqual(inv.status, 201);
+  const id = inv.data.invoice.id, line = inv.data.invoice.lines[0].id;
+  assert.strictEqual(inv.data.invoice.remaining, 1150);
+
+  // إشعار دائن بتخفيض سعر 200 للبند الأصلي (بلا مخزون): 230 بعد الضريبة
+  const cn = await call('POST', '/api/notes', { invoiceId: id, type: 'CREDIT', date: '2026-01-16', reason: 'خصم لاحق', lines: [{ origLineId: line, qty: 1, price: 200, vatRate: 15, restock: false }] });
+  assert.strictEqual(cn.status, 201);
+  assert.strictEqual(cn.data.note.total, 230);
+  assert.match(cn.data.note.no, /^SCN-\d{6}$/);
+  assert.strictEqual((await call('GET', `/api/invoices/${id}`)).data.invoice.remaining, 920);
+  assert.strictEqual((await call('GET', `/api/parties/${c.data.id}/statement`)).data.party.balance, 920);
+
+  // رفض: بلا سبب، سعر أعلى من الأصلي، دائن يتجاوز الفاتورة
+  assert.strictEqual((await call('POST', '/api/notes', { invoiceId: id, type: 'CREDIT', date: '2026-01-16', reason: ' ', lines: [{ description: 'x', qty: 1, price: 1, account: '4200' }] })).status, 400);
+  const hi = await call('POST', '/api/notes', { invoiceId: id, type: 'CREDIT', date: '2026-01-16', reason: 'غلاء', lines: [{ origLineId: line, qty: 1, price: 5000, vatRate: 15, restock: false }] });
+  assert.strictEqual(hi.status, 400);
+  assert.match(hi.data.error, /أعلى من سعر الفاتورة/);
+  assert.strictEqual((await call('POST', '/api/notes', { invoiceId: id, type: 'CREDIT', date: '2026-01-16', reason: 'كبير', lines: [{ description: 'x', qty: 1, price: 5000, vatRate: 15, account: '4200' }] })).status, 400);
+
+  // إشعار مدين 115 → المتبقي 1035، والدفع محدود بالمتبقي الفعلي
+  const dn = await call('POST', '/api/notes', { invoiceId: id, type: 'DEBIT', date: '2026-01-17', reason: 'رسوم تأخير', lines: [{ description: 'رسوم', qty: 1, price: 100, vatRate: 15, account: '4200' }] });
+  assert.strictEqual(dn.status, 201);
+  assert.match(dn.data.note.no, /^SDN-\d{6}$/);
+  assert.strictEqual((await call('POST', '/api/payments', { partyId: c.data.id, invoiceId: id, date: '2026-01-18', amount: '1100', method: 'CASH' })).status, 400);
+  assert.strictEqual((await call('POST', '/api/payments', { partyId: c.data.id, invoiceId: id, date: '2026-01-18', amount: '1035', method: 'CASH' })).status, 201);
+  assert.strictEqual((await call('GET', `/api/invoices/${id}`)).data.invoice.remaining, 0);
+
+  // لا يُلغى الإشعار المدين المسدَّد، ولا تُلغى فاتورة لها إشعارات
+  assert.strictEqual((await call('POST', `/api/notes/${dn.data.note.id}/void`, {})).status, 400);
+  assert.strictEqual((await call('POST', `/api/invoices/${id}/void`, {})).status, 400);
+
+  // إشعار دائن على فاتورة مسدَّدة يلزمه رد
+  const body = { invoiceId: id, type: 'CREDIT', date: '2026-01-19', reason: 'تعويض', lines: [{ description: 'تعويض', qty: 1, price: 50, vatRate: 15, account: '4200' }] };
+  assert.strictEqual((await call('POST', '/api/notes', body)).status, 400);
+  const withRefund = await call('POST', '/api/notes', { ...body, refund: '57.5', refundMethod: 'CASH' });
+  assert.strictEqual(withRefund.status, 201);
+  assert.strictEqual(withRefund.data.note.refund, 57.5);
+  assert.strictEqual((await call('GET', `/api/invoices/${id}`)).data.invoice.remaining, 0);
+  assert.strictEqual((await call('GET', `/api/parties/${c.data.id}/statement`)).data.party.balance, 0);
+
+  // الإقرار الضريبي يشمل الإشعارات ويبقى مطابقاً لحساب الضريبة في الأستاذ
+  const vr = await call('GET', '/api/reports/vat-return?from=2000-01-01&to=2099-12-31');
+  assert.ok(vr.data.salesNotes.length > 0);
+  const tb = (await call('GET', '/api/reports/trial-balance')).data.rows.find((x) => x.code === '2200');
+  assert.strictEqual(Math.round(vr.data.totals.netPayable * 100), Math.round((tb.credit - tb.debit) * 100));
+  assert.strictEqual((await call('GET', '/api/reports/trial-balance')).data.balanced, true);
+
+  // إلغاء الإشعار الدائن الأول (230) ممكن: المدفوع 1035 ≤ 1150 + 115 − 57.5 ... والمتبقي بعده 230
+  assert.strictEqual((await call('POST', `/api/notes/${cn.data.note.id}/void`, {})).status, 200);
+  assert.strictEqual((await call('GET', `/api/invoices/${id}`)).data.invoice.remaining, 230);
+  assert.strictEqual((await call('POST', `/api/notes/${cn.data.note.id}/void`, {})).status, 400);   // ملغى مسبقاً
+  const list = await call('GET', `/api/notes?invoice=${id}`);
+  assert.strictEqual(list.data.notes.length, 3);
+});
+
+test('إشعارات الدائن والمدين: الكاشير ممنوع منها', { skip: !hasDb || !canWrite }, async () => {
+  const name = 'cn' + Date.now().toString(36);
+  const u = await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'Password123' });
+  const adminCookie = cookie; cookie = '';
+  await call('POST', '/api/login', { username: name, password: 'Password123' });
+  assert.strictEqual((await call('GET', '/api/notes')).status, 403);
+  assert.strictEqual((await call('POST', '/api/notes', {})).status, 403);
+  cookie = adminCookie;
+  await call('PATCH', `/api/users/${u.data.id}`, { active: false });
+});

@@ -33,8 +33,8 @@
       const f = new FormData(E.$('#f', el));
       const r = await api('GET', '/reports/vat-return?' + E.qs({ from: f.get('f'), to: f.get('t') }));
       const t = r.totals;
-      E.$('#out', el).innerHTML = sect('مبيعات (فواتير)', r.sales) + sect('مبيعات نقاط البيع (صافي المرتجعات)', r.pos) + sect('مشتريات (فواتير)', r.purchases) +
-        '<h3>الملخص</h3><table><tbody><tr><td>ضريبة المخرجات (المبيعات)</td><td class="n">' + money(t.outputVat) + '</td></tr><tr><td>ضريبة المدخلات (المشتريات)</td><td class="n">' + money(t.inputVat) + '</td></tr></tbody>' +
+      E.$('#out', el).innerHTML = sect('مبيعات (فواتير)', r.sales) + sect('إشعارات مبيعات (دائن بالسالب، مدين بالموجب)', r.salesNotes) + sect('مبيعات نقاط البيع (صافي المرتجعات)', r.pos) + sect('مشتريات (فواتير)', r.purchases) + sect('إشعارات مشتريات (دائن بالسالب، مدين بالموجب)', r.purchaseNotes) +
+        '<h3>الملخص</h3><table><tbody><tr><td>ضريبة المخرجات (المبيعات ونقاط البيع بعد الإشعارات)</td><td class="n">' + money(t.outputVat) + '</td></tr><tr><td>ضريبة المدخلات (المشتريات بعد الإشعارات)</td><td class="n">' + money(t.inputVat) + '</td></tr></tbody>' +
         '<tfoot><tr><td>' + (t.netPayable >= 0 ? 'صافي الضريبة المستحقة للهيئة' : 'صافي الضريبة المستردة') + '</td><td class="n ' + (t.netPayable >= 0 ? 'bad' : 'good') + '">' + money(Math.abs(t.netPayable)) + '</td></tr></tfoot></table>' +
         '<p class="muted">تُحتسب الفواتير السارية فقط (الملغاة مستبعدة). هذا تقرير مساعد لإعداد الإقرار وليس بديلاً عن مراجعة المحاسب.</p>';
     }

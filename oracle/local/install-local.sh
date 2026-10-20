@@ -75,7 +75,9 @@ fi
 
 echo -n "انتظار جاهزية قاعدة البيانات"
 for i in $(seq 1 120); do
-  if docker logs "$NAME" 2>&1 | grep -q "DATABASE IS READY TO USE"; then echo " — جاهزة"; break; fi
+  # التقاط السجل أولاً: grep -q يغلق الأنبوب مبكراً فيُنهي docker logs بـ SIGPIPE (141) ومع pipefail يبقى الشرط كاذباً للأبد على سجل كبير
+  LOGS="$(docker logs "$NAME" 2>&1 || true)"
+  if grep -q "DATABASE IS READY TO USE" <<<"$LOGS"; then echo " — جاهزة"; break; fi
   echo -n "."; sleep 5
   [ "$i" -eq 120 ] && { echo; echo "انتهت المهلة. راجع: docker logs $NAME" >&2; exit 1; }
 done
@@ -92,6 +94,14 @@ SQL
 INSTALLED=$(printf "SET HEADING OFF FEEDBACK OFF PAGESIZE 0\nSELECT COUNT(*) FROM user_tables WHERE table_name = 'ERP_ACCOUNTS';\n" | sql_erp | tr -d '[:space:]')
 if [ "$INSTALLED" != "0" ] && [ "$REINSTALL" -eq 0 ]; then
   echo "النظام مثبَّت مسبقاً. لإعادة التثبيت من الصفر (يحذف البيانات): ./local/install-local.sh --reinstall"
+  # ترقية الكائنات (جداول/حزم/عروض جديدة) إلى آخر إصدار دون المساس بالبيانات؛ متكررة التشغيل
+  echo "ترقية الكائنات إلى آخر إصدار (لا تمس بياناتك)..."
+  printf "@upgrade.sql\n" | sql_erp > "$LOG_DIR/upgrade.log" 2>&1 || true
+  if grep -qE 'ORA-[0-9]+|SP2-[0-9]+|PLS-[0-9]+' "$LOG_DIR/upgrade.log"; then
+    echo "فشلت الترقية. أول الأخطاء (والسجل الكامل في local/logs/upgrade.log):" >&2
+    grep -E 'ORA-[0-9]+|SP2-[0-9]+|PLS-[0-9]+' "$LOG_DIR/upgrade.log" | head -10 >&2
+    exit 1
+  fi
 else
   if [ "$INSTALLED" != "0" ]; then
     echo "حذف كائنات النظام السابقة..."

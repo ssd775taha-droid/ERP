@@ -44,4 +44,11 @@ async function ensureSchema() {
   });
 }
 
-module.exports = { ensureSchema };
+// هل القاعدة بإصدار الكائنات الذي تتطلبه هذه الواجهة؟ (إشعارات الدائن والمدين) وإلا يُطلب تشغيل upgrade.sql
+async function dbReady() {
+  const r = await db.query(`SELECT (SELECT COUNT(*) FROM user_objects WHERE object_name = 'ERP_NOTE_NET' AND object_type = 'FUNCTION' AND status = 'VALID')
+    + (SELECT COUNT(*) FROM user_objects WHERE object_name = 'ERP_CDNOTE' AND object_type = 'PACKAGE BODY' AND status = 'VALID') AS "n" FROM dual`);
+  return r[0].n === 2;
+}
+
+module.exports = { ensureSchema, dbReady };

@@ -11,7 +11,7 @@ const RULES = [
   R(/^\/summary$/, 'summary'),
   R(/^\/reports\//, 'reports'),
   R(/^\/(periods|years)(\/|$)/, 'periods'),
-  R(/^\/(parties|invoices|payments)(\/|$)/, 'trade'),
+  R(/^\/(parties|invoices|payments|notes)(\/|$)/, 'trade'),
   R(/^\/(items|warehouses)$/, 'inventory', { readAny: true }),
   R(/^\/inventory(\/|$)/, 'inventory'),
   R(/^\/(assets|depreciation)(\/|$)/, 'assets'),
