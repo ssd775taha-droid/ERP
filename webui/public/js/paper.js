@@ -40,6 +40,8 @@
     const totals = sp.totals ? '<table class="pp-tot"><tbody>' + sp.totals.map((r) => '<tr class="' + (r[3] ? 'grand' : '') + '"><td class="n">' + r[2] + '</td><th>' + L(r[0], r[1]) + '</th></tr>').join('') + '</tbody></table>' : '';
     const words = sp.words != null ? '<div class="pp-words">' + (lang === 'en' ? esc(enWords(sp.words)) : esc(E.amountWords(sp.words))) + '</div>' : '';
     const bank = sp.bank && E.lh.bankInfo ? '<div class="pp-bank"><b>' + (lang === 'en' ? 'Bank transfer details' : 'بيانات التحويل البنكي') + '</b><div>' + esc(E.lh.bankInfo).replace(/\n/g, '<br>') + '</div></div>' : '';
+    const stats = sp.stats && sp.stats.length ? '<table class="pp-stats"><tbody><tr>' + sp.stats.map((x) => '<td><small>' + esc(x[0]) + '</small><b>' + x[1] + '</b></td>').join('') + '</tr></tbody></table>' : '';
+    const body = sp.body ? '<div class="pp-body">' + sp.body + '</div>' : '';
     const note = sp.note ? '<div class="pp-note"><b>' + (lang === 'en' ? 'Notes' : 'ملاحظات') + ':</b> ' + esc(sp.note) + '</div>' : '';
     const stamp = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(E.lh.stamp || '') ? '<img class="pp-stamp" src="' + E.lh.stamp + '" alt="">' : '';
     const sign = sp.sign ? '<div class="pp-sign">' + sp.sign.map((s) => '<div><i></i><span>' + L(s[0], s[1]) + '</span></div>').join('') + '</div>' : '';
@@ -47,7 +49,7 @@
     const when = new Date().toLocaleDateString('en-CA');
     return '<div class="paper pp-' + lang + '" dir="' + (lang === 'en' ? 'ltr' : 'rtl') + '">' + companyHead() +
       '<div class="pp-titlebar"><div class="pp-title">' + title + '</div>' + (sp.qr ? '<div class="pp-qr">' + sp.qr + '</div>' : '') + '</div>' +
-      meta + parties + tbl + '<div class="pp-mid">' + words + totals + '</div>' + note + bank +
+      meta + stats + body + parties + tbl + '<div class="pp-mid">' + words + totals + '</div>' + note + bank +
       '<div class="pp-seal">' + stamp + (stamp ? '<div class="pp-sealname">' + esc(E.tax.sellerName || '') + '</div>' : '') + '</div>' + sign +
       '<div class="pp-foot"><span>' + esc(E.tax.sellerName || '') + '</span><span dir="ltr">' + esc(sp.no || '') + '</span><span>' + (lang === 'en' ? 'Issued on ' : 'صدر بتاريخ ') + when + '</span></div></div>';
   };
@@ -101,6 +103,33 @@
   const party = (name, taxNo, phone, ar, en) => ({ ar, en, rows: [['الاسم', 'Name', '<b>' + esc(name) + '</b>'], ...(taxNo ? [['الرقم الضريبي', 'VAT No.', '<span dir="ltr">' + esc(taxNo) + '</span>']] : []), ...(phone ? [['جوال', 'Mobile', '<span dir="ltr">' + esc(phone) + '</span>']] : [])] });
   const seller = (ar, en) => ({ ar, en, rows: [['الاسم', 'Name', '<b>' + esc(E.tax.sellerName || '') + '</b>'], ['الرقم الضريبي', 'VAT No.', '<span dir="ltr">' + esc(E.tax.sellerVatNo || '') + '</span>'], ...(E.lh.crNo ? [['السجل التجاري', 'C.R.', '<span dir="ltr">' + esc(E.lh.crNo) + '</span>']] : []), ...(E.tax.sellerAddress ? [['العنوان', 'Address', esc(E.tax.sellerAddress)]] : [])] });
   E.companyHead = companyHead;
+
+  // معاينة تقرير: يُبنى من الصفحة الحالية (العنوان، المرشِّحات، البطاقات، الجداول) بنفس ورقة المستند
+  const EN_TITLES = { 'trial-balance': 'TRIAL BALANCE', ledger: 'ACCOUNT LEDGER', 'income-statement': 'INCOME STATEMENT', 'balance-sheet': 'BALANCE SHEET', 'cash-flow': 'CASH FLOW STATEMENT', aging: 'AGING REPORT', vat: 'VAT RETURN',
+    'sales-analysis': 'SALES / PURCHASES ANALYSIS', 'item-profit': 'ITEM PROFITABILITY', comparative: 'COMPARATIVE INCOME STATEMENT', valuation: 'INVENTORY VALUATION', card: 'ITEM CARD', movement: 'STOCK MOVEMENT SUMMARY', slow: 'SLOW-MOVING STOCK', shortage: 'STOCK SHORTAGE & COVER',
+    stock: 'STOCK BALANCES', moves: 'STOCK MOVEMENTS', entries: 'JOURNAL', accounts: 'CHART OF ACCOUNTS', search: 'SEARCH RESULTS' };
+  E.reportDoc = (main) => {
+    const h1 = E.$('h1', main);
+    if (!h1 || !E.$('table, .pp-x', main)) { window.print(); return; }
+    const key = location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter((x) => !/^\d+$/.test(x)).pop() || '';
+    const sub = E.$('h1 + .sub', main);
+    const filters = E.$$('form.noprint label, form .noprint label', main).concat(E.$$('form.row label', main)).filter((x, i, a) => a.indexOf(x) === i).map((lb) => {
+      const f = E.$('input,select', lb); if (!f || f.type === 'checkbox' && !f.checked || !f.value) return null;
+      const lab = lb.firstChild && lb.firstChild.textContent.trim(); if (!lab) return null;
+      return [lab, '', esc(f.tagName === 'SELECT' ? f.options[f.selectedIndex].text : f.value)];
+    }).filter(Boolean);
+    const meta = []; for (let i = 0; i < filters.length; i += 2) meta.push(filters.slice(i, i + 2));
+    const stats = E.$$('.stat', main).map((s) => [s.firstElementChild ? s.firstElementChild.textContent.trim() : '', (E.$('b', s) || {}).innerHTML || s.textContent.trim()]);
+    const out = E.$('#out', main) || main;
+    const c = out.cloneNode(true);
+    E.$$('.noprint, button, form, input, select, .stat, .cards, p.muted:empty, nav', c).forEach((n) => n.remove());
+    E.$$('h1, h1 + .sub', c).forEach((n) => n.remove());
+    E.$$('table', c).forEach((t) => { t.classList.add('pp-lines'); E.$$('[style*="display: none"], [style*="display:none"]', t).forEach((r) => r.remove()); });
+    E.$$('a', c).forEach((a) => a.replaceWith(document.createTextNode(a.textContent)));
+    E.openDoc({ titleAr: h1.textContent.trim(), titleEn: EN_TITLES[key] || '', no: key.toUpperCase().slice(0, 24) || 'REPORT', windowTitle: h1.textContent.trim(),
+      meta: [...(sub ? [[[ 'الوصف', '', esc(sub.textContent.trim()) ]]] : []), ...meta], stats, body: c.innerHTML,
+      actions: [] });
+  };
   const SIGN3 = [['أعدّه (المحاسب)', 'Prepared by'], ['راجعه (المدير المالي)', 'Reviewed by'], ['اعتمده (المدير العام)', 'Approved by']];
 
   E.docSpec = {

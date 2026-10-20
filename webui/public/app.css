@@ -121,6 +121,9 @@ button.fab:hover { filter: brightness(1.1); }
 .pp-seal { text-align: center; margin: 10px 0 0; } .pp-stamp { max-width: 120px; max-height: 120px; object-fit: contain; display: block; margin: 0 auto 2px; } .pp-sealname { font-weight: 700; font-size: 11px; border-top: 1px solid #333; display: inline-block; padding-top: 2px; min-width: 160px; }
 .pp-sign { display: flex; gap: 22px; margin-top: 24px; } .pp-sign > div { flex: 1; text-align: center; } .pp-sign i { display: block; border-bottom: 1px solid #333; height: 30px; } .pp-sign span { font-size: 10.5px; color: #333; }
 .pp-foot { display: flex; justify-content: space-between; border-top: 1px solid #99a; margin-top: 18px; padding-top: 4px; font-size: 9.5px; color: #444; }
+.pp-stats { width: 100%; border-collapse: collapse; margin: 8px 0; border: 1px solid #99a; } .pp-stats td { padding: 6px 10px; border: 1px solid #99a; text-align: center; } .pp-stats small { color: #444; } .pp-stats b { display: block; font-size: 13px; }
+.pp-body h3 { font-size: 12.5px; margin: 12px 0 4px; border-inline-start: 3px solid var(--gold); padding-inline-start: 8px; } .pp-body .msg, .pp-body .card { border: 1px solid #ccd; background: #fff !important; color: #111 !important; padding: 5px 9px; margin: 6px 0; font-size: 11px; }
+.pp-body table.pp-lines tr.head td, .pp-body table.pp-lines tr.head th { font-weight: 700; background: #f1f3f6; } .pp-body table.pp-lines th.noprint, .pp-body table.pp-lines td.noprint { display: none; }
 .paper.pp-en { font-size: 12px; }
 dialog.docdlg { width: min(900px, 96vw); max-height: 94vh; padding: 0; border: 0; border-radius: 12px; background: var(--surface); color: var(--ink); overflow: hidden; } dialog.docdlg[open] { display: flex; flex-direction: column; } dialog.docdlg::backdrop { background: rgba(0,0,0,.55); }
 .dd-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 16px; }

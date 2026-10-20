@@ -101,7 +101,7 @@
     app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div><a href="#/settings/home" data-r="settings/home" style="background:rgba(255,255,255,.1)">⚙ الإعدادات والمستخدمون والصلاحيات</a>' + html +
       '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><div class="print-only" id="phead"></div><main id="main"></main><div class="print-only" id="pfoot"></div><button class="fab noprint" id="pbtn" title="طباعة هذه الشاشة" aria-label="طباعة">🖨 طباعة</button></div>';
     E.api('GET', '/version').then((v) => { const el = E.$('#ver'); if (el) el.textContent = 'الإصدار ' + v.version; }).catch(() => {});
-    E.$('#pbtn').addEventListener('click', () => window.print());
+    E.$('#pbtn').addEventListener('click', () => { const m = E.$('#main'); if (m && m._openDoc) m._openDoc(); else E.reportDoc(m); });
     E.$('#lo').addEventListener('click', async () => { try { await E.api('POST', '/logout'); } catch (e) { /* نتجاهل */ } loginView(); });
   }
 
@@ -122,6 +122,11 @@
     old.replaceWith(main);
     E.autoExport(main);
     E.autoSearch(main);
+    // زر «طباعة» في صفحات التقارير والقوائم يفتح معاينة الورقة الموحّدة؛ صفحات المستندات تفتح معاينتها الخاصة عبر _openDoc
+    main.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-act=print]');
+      if (b && !main._openDoc && E.$('h1', main) && E.$('table', main)) { ev.stopPropagation(); ev.preventDefault(); E.reportDoc(main); }
+    }, true);
     if (!name || !E.pages[name]) { main.innerHTML = E.err('الصفحة غير موجودة'); return; }
     // لا صلاحية: صفحة واضحة دون استدعاء أي واجهة برمجية
     if (!permits(key)) {
@@ -134,7 +139,7 @@
     const pm = PAGE[key];
     if (pm && pm[0] !== 'admin' && !E.can(pm[0], 'w')) E.readOnly(main, MODULE_LABEL[pm[0]] || pm[0]);
     try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); return; }
-    if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); (main._openDoc || window.print.bind(window))(); }, 500);
+    if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); (main._openDoc || (() => E.reportDoc(main)))(); }, 500);
   }
 
   E.onUnauth = () => loginView('انتهت الجلسة، سجّل الدخول من جديد');
