@@ -335,4 +335,47 @@
       r.rows.map((x) => '<tr><td><a href="#/pos/sale/' + x.id + '">' + esc(x.no) + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.origNo) + '</td><td>' + esc(x.cashier) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.vat) + '</td><td class="n">' + money(x.total) + '</td></tr>').join('') +
       '</tbody><tfoot><tr><td colspan="4">الإجمالي</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.vat) + '</td><td class="n">' + money(t.total) + '</td></tr></tfoot></table>';
   });
+
+  // ---------- تقارير الأصول الثابتة ----------
+  E.pages['asset-register'] = (el) => shell(el, 'سجل الأصول بالقيم الدفترية', 'التكلفة ومجمع الإهلاك والقيمة الدفترية لكل أصل قائم في التاريخ المحدد، وملخص الفئات (الإهلاك المحتسب حتى شهر التاريخ)', dateF('asof', 'بتاريخ', E.today()), async (f) => {
+    const r = await api('GET', '/assets/reports/register?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا أصول قائمة في هذا التاريخ</div>';
+    return '<div class="cards">' + stat('عدد الأصول', t.count) + stat('التكلفة', money(t.cost)) + stat('مجمع الإهلاك', money(t.accumulated)) + stat('القيمة الدفترية', money(t.bookValue)) + '</div>' +
+      '<h3>حسب الفئة</h3><table><thead><tr><th>الفئة</th><th class="n">العدد</th><th class="n">التكلفة</th><th class="n">مجمع الإهلاك</th><th class="n">القيمة الدفترية</th></tr></thead><tbody>' +
+      r.cats.map((c) => '<tr><td>' + esc(c.cat) + '</td><td class="n">' + c.count + '</td><td class="n">' + money(c.cost) + '</td><td class="n">' + money(c.accumulated) + '</td><td class="n">' + money(c.bookValue) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>الأصول</h3><table><thead><tr><th>الرمز</th><th>الأصل</th><th>الفئة</th><th>الاقتناء</th><th class="n">التكلفة</th><th class="n">المجمع</th><th class="n">الدفترية</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.cat) + '</td><td>' + esc(x.acqDate) + '</td><td class="n">' + money(x.cost) + '</td><td class="n">' + money(x.accumulated) + '</td><td class="n">' + money(x.bookValue) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="4">الإجمالي</td><td class="n">' + money(t.cost) + '</td><td class="n">' + money(t.accumulated) + '</td><td class="n">' + money(t.bookValue) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['asset-rollforward'] = (el) => shell(el, 'حركة الأصول والإهلاك', 'التكلفة: أول الفترة + إضافات − استبعادات = آخرها. مجمع الإهلاك: أول الفترة + إهلاك الفترة − المستبعد = آخرها', dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/assets/reports/rollforward?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا حركة في هذه الفترة</div>';
+    const row = (c, bold) => '<tr' + (bold ? ' class="head"' : '') + '><td>' + esc(c.cat) + '</td><td class="n">' + money(c.openCost) + '</td><td class="n">' + money(c.additions) + '</td><td class="n">' + money(c.disposals) + '</td><td class="n">' + money(c.closeCost) + '</td><td class="n">' + money(c.openAcc) + '</td><td class="n">' + money(c.dep) + '</td><td class="n">' + money(c.removedAcc) + '</td><td class="n">' + money(c.closeAcc) + '</td><td class="n">' + money(c.closeBook) + '</td></tr>';
+    return '<table><thead><tr><th>الفئة</th><th class="n">تكلفة أول</th><th class="n">إضافات</th><th class="n">استبعادات</th><th class="n">تكلفة آخر</th><th class="n">مجمع أول</th><th class="n">إهلاك الفترة</th><th class="n">مستبعد</th><th class="n">مجمع آخر</th><th class="n">الدفترية آخراً</th></tr></thead><tbody>' +
+      r.rows.map((c) => row(c)).join('') + '</tbody><tfoot>' + row({ cat: 'الإجمالي', ...t }, true).replace('<tr class="head">', '<tr>') + '</tfoot></table>';
+  });
+
+  E.pages['asset-forecast'] = (el) => shell(el, 'الإهلاك المتوقع', 'قسط كل أصل فعّال في الأشهر القادمة بنفس معادلة التشغيل (الشهر الأخير يستوفي المتبقي)', '<label>عدد الأشهر<input name="months" value="12" size="4" inputmode="numeric"></label>', async (f) => {
+    const r = await api('GET', '/assets/reports/forecast?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg warn">لا أصول فعّالة</div>';
+    return '<table><thead><tr><th>الأصل</th>' + r.cols.map((c) => '<th class="n">' + c + '</th>').join('') + '<th class="n">المجموع</th><th class="n">المتبقي للإهلاك</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code + ' — ' + x.name) + '</td>' + r.cols.map((c) => '<td class="n">' + (x.months[c] ? money(x.months[c]) : '') + '</td>').join('') + '<td class="n">' + money(x.total) + '</td><td class="n">' + money(x.remaining) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td>' + r.cols.map((c) => '<td class="n">' + money(r.colTotals[c]) + '</td>').join('') + '<td class="n">' + money(r.totals.total) + '</td><td class="n">' + money(r.totals.remaining) + '</td></tr></tfoot></table><p class="muted">يبدأ العرض من أول شهر لم يُهلك بعد. أشهر سابقة لم تُشغَّل تظهر ضمن أول أعمدة.</p>';
+  });
+
+  E.pages['asset-disposals'] = (el) => shell(el, 'الأصول المستبعدة (بيع / استبعاد)', 'التكلفة ومجمع الإهلاك والقيمة الدفترية والمتحصلات والربح أو الخسارة لكل أصل', dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/assets/reports/disposals?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا استبعادات في هذه الفترة</div>';
+    return '<table><thead><tr><th>التاريخ</th><th>الأصل</th><th>الفئة</th><th class="n">التكلفة</th><th class="n">المجمع</th><th class="n">الدفترية</th><th class="n">المتحصلات</th><th class="n">ربح / (خسارة)</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.code + ' — ' + x.name) + '</td><td>' + esc(x.cat) + '</td><td class="n">' + money(x.cost) + '</td><td class="n">' + money(x.accumulated) + '</td><td class="n">' + money(x.bookValue) + '</td><td class="n">' + money(x.proceeds) + '</td><td class="n ' + (x.gain < 0 ? 'bad' : 'good') + '">' + money(x.gain) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(t.cost) + '</td><td class="n">' + money(t.accumulated) + '</td><td class="n">' + money(t.bookValue) + '</td><td class="n">' + money(t.proceeds) + '</td><td class="n">' + money(t.gain) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['asset-life'] = (el) => shell(el, 'العمر المتبقي للأصول', 'أصول فعّالة مهلكة بالكامل أو يتبقى من عمرها المحدد عدد الأشهر المطلوب أو أقل', '<label>يتبقى ≤ (شهر)<input name="within" value="12" size="4" inputmode="numeric"></label>', async (f) => {
+    const r = await api('GET', '/assets/reports/life?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg good">لا أصول قاربت نهاية عمرها خلال ' + r.within + ' شهراً</div>';
+    return '<table><thead><tr><th>الأصل</th><th>الفئة</th><th class="n">التكلفة</th><th class="n">العمر (شهر)</th><th class="n">المُهلَك</th><th class="n">المتبقي (شهر)</th><th class="n">الدفترية</th><th>الحالة</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code + ' — ' + x.name) + '</td><td>' + esc(x.cat) + '</td><td class="n">' + money(x.cost) + '</td><td class="n">' + x.life + '</td><td class="n">' + x.done + '</td><td class="n">' + x.remainingMonths + '</td><td class="n">' + money(x.bookValue) + '</td><td>' + (x.full ? '<span class="tag bad">مهلك بالكامل</span>' : '<span class="tag warn">يقترب</span>') + '</td></tr>').join('') + '</tbody></table>';
+  });
 })(window.ERP);

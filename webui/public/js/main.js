@@ -22,7 +22,8 @@
       { t: 'العمل اليومي', items: [['pos/sell', 'شاشة البيع', 'pos'], ['pos/sales', 'العمليات', 'pos'], ['pos/shifts', 'الورديات', 'pos'], ['pos/registers', 'النقاط', 'pos']] },
       { t: 'التقارير', items: [['pos/rep-daily', 'المبيعات اليومية', 'pos'], ['pos/rep-items', 'مبيعات الأصناف', 'pos'], ['pos/rep-cashiers', 'حسب الكاشير والنقطة', 'pos'], ['pos/rep-hourly', 'المبيعات بالساعة', 'pos'], ['pos/rep-shifts', 'فروقات الورديات', 'pos'], ['pos/rep-returns', 'المرتجعات', 'pos']] } ] },
     { id: 'assets', title: 'الأصول الثابتة', groups: [
-      { t: '', items: [['assets', 'سجل الأصول', 'assets'], ['assets/new', 'أصل جديد', 'assets'], ['assets/depreciation', 'الإهلاك الشهري', 'assets']] } ] },
+      { t: 'الأصول', items: [['assets', 'سجل الأصول', 'assets'], ['assets/new', 'أصل جديد', 'assets'], ['assets/depreciation', 'الإهلاك الشهري', 'assets']] },
+      { t: 'التقارير', items: [['assets/rep-register', 'سجل الأصول بالقيم الدفترية', 'assets'], ['assets/rep-rollforward', 'حركة الأصول والإهلاك', 'assets'], ['assets/rep-forecast', 'الإهلاك المتوقع', 'assets'], ['assets/rep-disposals', 'الأصول المستبعدة', 'assets'], ['assets/rep-life', 'العمر المتبقي', 'assets']] } ] },
     { id: 'hr', title: 'الموارد البشرية والرواتب', groups: [
       { t: 'الموظفون', items: [['hr/employees', 'الموظفون', 'hr'], ['hr/components', 'مكوّنات الراتب', 'hr'], ['hr/adjustments', 'التسويات', 'hr'], ['hr/advances', 'السلف', 'hr']] },
       { t: 'الرواتب', items: [['payroll', 'كشوف الرواتب', 'payroll']] },
@@ -39,7 +40,7 @@
     customers: ['trade', R], sales: ['trade', R], suppliers: ['trade', R], purchases: ['trade', R], payments: ['trade', R], notes: ['trade', R],
     'invoice/new': ['trade', W], 'invoice/view': ['trade', R], 'party/statement': ['trade', R], 'payment/new': ['trade', W], 'note/new': ['trade', W], 'note/view': ['trade', R],
     'inventory/valuation': ['inventory', R], 'inventory/card': ['inventory', R], 'inventory/movement': ['inventory', R], 'inventory/slow': ['inventory', R], 'inventory/shortage': ['inventory', R], 'inventory/items': ['inventory', R], 'inventory/warehouses': ['inventory', R], 'inventory/stock': ['inventory', R], 'inventory/moves': ['inventory', R], 'inventory/adjust': ['inventory', W],
-    assets: ['assets', R], 'assets/new': ['assets', W], 'assets/view': ['assets', R], 'assets/depreciation': ['assets', W],
+    assets: ['assets', R], 'assets/new': ['assets', W], 'assets/view': ['assets', R], 'assets/depreciation': ['assets', W], 'assets/rep-register': ['assets', R], 'assets/rep-rollforward': ['assets', R], 'assets/rep-forecast': ['assets', R], 'assets/rep-disposals': ['assets', R], 'assets/rep-life': ['assets', R],
     'hr/employees': ['hr', R], 'employee/view': ['hr', R], 'hr/components': ['hr', R], 'hr/adjustments': ['hr', R], 'hr/advances': ['hr', R], 'hr/headcount': ['hr', R], 'hr/tenure': ['hr', R], 'hr/movements': ['hr', R], 'hr/salary-changes': ['hr', R], 'hr/advances-report': ['hr', R], 'hr/data-gaps': ['hr', R], payroll: ['payroll', R], 'payroll/view': ['payroll', R], 'payroll/dept': ['payroll', R], 'payroll/employee-sheet': ['payroll', R], 'payroll/components': ['payroll', R], 'payroll/trend': ['payroll', R],
     'pos/sell': ['pos', W], 'pos/sales': ['pos', R], 'pos/sale': ['pos', R], 'pos/shifts': ['pos', R], 'pos/shift': ['pos', R], 'pos/registers': ['pos', R], 'pos/rep-daily': ['pos', R], 'pos/rep-items': ['pos', R], 'pos/rep-cashiers': ['pos', R], 'pos/rep-hourly': ['pos', R], 'pos/rep-shifts': ['pos', R], 'pos/rep-returns': ['pos', R],
     po: ['orders', R], 'po/new': ['orders', W], 'po/view': ['orders', R], 'po/edit': ['orders', W], quotes: ['orders', R], 'quote/new': ['orders', W], 'quote/view': ['orders', R], 'quote/edit': ['orders', W],
@@ -56,7 +57,7 @@
     '': 'dashboard', search: 'search', 'entry/view': 'entryView', 'payment/view': 'paymentView', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
     'reports/trial-balance': 'trial-balance', 'reports/ledger': 'ledger', 'reports/income-statement': 'income-statement',
     'inventory/valuation': 'inv-valuation', 'inventory/card': 'inv-card', 'inventory/movement': 'inv-movement', 'inventory/slow': 'inv-slow', 'inventory/shortage': 'inv-shortage', 'inventory/items': 'invItems', 'inventory/warehouses': 'invWarehouses', 'inventory/stock': 'invStock', 'inventory/moves': 'invMoves', 'inventory/adjust': 'invAdjust',
-    assets: 'assets', 'assets/new': 'assetNew', 'assets/view': 'assetView', 'assets/depreciation': 'depreciation',
+    assets: 'assets', 'assets/new': 'assetNew', 'assets/view': 'assetView', 'assets/depreciation': 'depreciation', 'assets/rep-register': 'asset-register', 'assets/rep-rollforward': 'asset-rollforward', 'assets/rep-forecast': 'asset-forecast', 'assets/rep-disposals': 'asset-disposals', 'assets/rep-life': 'asset-life',
     'hr/employees': 'hrEmployees', 'employee/view': 'hrEmployee', 'hr/components': 'hrComponents', 'hr/adjustments': 'hrAdjustments', 'hr/advances': 'hrAdvances', 'hr/headcount': 'hr-headcount', 'hr/tenure': 'hr-tenure', 'hr/movements': 'hr-movements', 'hr/salary-changes': 'hr-salary-changes', 'hr/advances-report': 'hr-advances-report', 'hr/data-gaps': 'hr-data-gaps',
     payroll: 'payroll', 'payroll/view': 'payrollView', 'payroll/dept': 'pay-dept', 'payroll/employee-sheet': 'pay-employee', 'payroll/components': 'pay-components', 'payroll/trend': 'pay-trend',
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters', 'pos/rep-daily': 'pos-daily', 'pos/rep-items': 'pos-items', 'pos/rep-cashiers': 'pos-cashiers', 'pos/rep-hourly': 'pos-hourly', 'pos/rep-shifts': 'pos-shifts', 'pos/rep-returns': 'pos-returns',
@@ -111,7 +112,7 @@
       return '<details class="sec" data-s="' + sec.id + '"' + (open.has(sec.id) ? ' open' : '') + '><summary>' + E.esc(sec.title) + ' <span class="cnt">' + count + '</span></summary>' +
         groups.map((g) => (g.t ? '<div class="grp">' + E.esc(g.t) + '</div>' : '') + g.items.map(link).join('')).join('') + '</details>';
     }).join('');
-    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div><a href="#/settings/home" data-r="settings/home" style="background:rgba(255,255,255,.1)">⚙ الإعدادات والمستخدمون والصلاحيات</a>' + html +
+    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand">نظام ERP</div>' + html +
       '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><div class="print-only" id="phead"></div><main id="main"></main><div class="print-only" id="pfoot"></div><button class="fab noprint" id="pbtn" title="طباعة هذه الشاشة" aria-label="طباعة">🖨 طباعة</button></div>';
     E.$('nav.side').addEventListener('toggle', (ev) => {
       const d = ev.target; if (!d || !d.matches || !d.matches('details.sec')) return;

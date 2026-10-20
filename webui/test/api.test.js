@@ -441,6 +441,33 @@ test('تقارير نقاط البيع: تطابق اليومي والأصناف
   assert.strictEqual((await call('GET', '/api/pos/reports/daily?from=2026-05-01&to=2026-01-01')).status, 400);
 });
 
+test('تقارير الأصول: تطابق السجل وحركة الأصول والمتوقع والاستبعادات', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100) / 100 * 100;
+  const far = '2099-12-31', all = await call('GET', '/api/assets');
+  const reg = (await call('GET', `/api/assets/reports/register?asof=${far}`)).data;
+  assert.strictEqual(cents(reg.totals.cost), cents(all.data.totals.cost));
+  assert.strictEqual(cents(reg.totals.accumulated), cents(all.data.totals.accumulated));
+  assert.strictEqual(cents(reg.totals.cost - reg.totals.accumulated), cents(reg.totals.bookValue));
+  // الحركة: إغلاقها يطابق السجل في تاريخ النهاية، والتكلفة والمجمع يتوازنان
+  const rf = (await call('GET', `/api/assets/reports/rollforward?from=2000-01-01&to=${far}`)).data;
+  assert.strictEqual(cents(rf.totals.openCost + rf.totals.additions - rf.totals.disposals), cents(rf.totals.closeCost));
+  assert.strictEqual(cents(rf.totals.openAcc + rf.totals.dep - rf.totals.removedAcc), cents(rf.totals.closeAcc));
+  assert.strictEqual(cents(rf.totals.closeCost), cents(reg.totals.cost));
+  assert.strictEqual(cents(rf.totals.closeAcc), cents(reg.totals.accumulated));
+  const mid = (await call('GET', '/api/assets/reports/rollforward?from=2026-06-01&to=2026-09-30')).data;
+  assert.strictEqual(cents(mid.totals.openCost + mid.totals.additions - mid.totals.disposals), cents(mid.totals.closeCost));
+  assert.strictEqual(cents(mid.totals.openAcc + mid.totals.dep - mid.totals.removedAcc), cents(mid.totals.closeAcc));
+  // المتوقع: مجموع أقساط كل أصل لا يتجاوز المتبقي للإهلاك
+  const fc = (await call('GET', '/api/assets/reports/forecast?months=36')).data;
+  for (const x of fc.rows) assert.ok(x.total <= x.remaining + 0.001, x.code);
+  assert.strictEqual(fc.cols.length, 36);
+  const ds = (await call('GET', '/api/assets/reports/disposals?from=2000-01-01&to=' + far)).data;
+  for (const x of ds.rows) assert.strictEqual(cents(x.proceeds - x.bookValue), cents(x.gain));
+  assert.strictEqual((await call('GET', '/api/assets/reports/life?within=24')).status, 200);
+  assert.strictEqual((await call('GET', '/api/assets/reports/rollforward?from=2026-05-01&to=2026-01-01')).status, 400);
+  assert.strictEqual((await call('GET', '/api/assets/reports/register')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة
