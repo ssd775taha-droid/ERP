@@ -28,7 +28,7 @@
 
   // يحوّل جدول HTML إلى ورقة: الأعمدة ذات الصنف n (أرقام) تُكتب أرقاماً حقيقية بتنسيق منزلتين، والباقي نصوصاً
   E.tableToXlsx = (table, title) => {
-    const rows = E.$$('tr', table).filter((r) => !r.classList.contains('noprint'));
+    const rows = E.$$('tr', table).filter((r) => !r.classList.contains('noprint') && r.style.display !== 'none');
     const grid = rows.map((r) => E.$$('th,td', r).filter((c) => !c.classList.contains('noprint')).map((c) => ({
       text: c.innerText.replace(/\s+/g, ' ').trim(), num: c.classList.contains('n'), head: c.tagName === 'TH' || c.closest('thead') !== null, foot: c.closest('tfoot') !== null,
     })));

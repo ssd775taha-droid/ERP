@@ -146,7 +146,7 @@
     el.innerHTML = E.head('دفتر اليومية', 'القيد المرحَّل لا يُعدَّل ولا يُحذف؛ التصحيح بقيد عكسي') +
       '<form id="f" class="row noprint"><label>من<input type="date" name="from" value="' + q.from + '"></label><label>إلى<input type="date" name="to" value="' + q.to + '"></label>' +
       '<label>الحساب<select name="account"><option value="">الكل</option>' + accts.map((a) => '<option value="' + esc(a.code) + '">' + esc(a.code) + ' ' + esc(a.name) + '</option>').join('') + '</select></label>' +
-      '<button class="btn">عرض</button> <button type="button" class="btn alt" data-act="print">طباعة</button> <a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/entry/new">+ قيد جديد</a></form><div id="list"></div>';
+      '<label>بحث في النتائج<input type="search" name="s" id="es" placeholder="رقم، بيان، حساب…" size="16"></label><button class="btn">عرض</button> <button type="button" class="btn alt" data-act="print">طباعة</button> <a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/entry/new">+ قيد جديد</a></form><div id="list"></div>';
     async function load() {
       const f = new FormData(E.$('#f', el));
       const box = E.$('#list', el);
@@ -167,9 +167,14 @@
             e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
             '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(td) + '</td><td></td></tr></tfoot></table></div>';
         }).join('');
+        E.$('#es', el).dispatchEvent(new Event('input'));
       } catch (e) { box.innerHTML = E.err(e.message); }
     }
     E.$('#f', el).addEventListener('submit', (ev) => { ev.preventDefault(); load(); });
+    E.$('#es', el).addEventListener('input', (ev) => {
+      const q = E.norm(ev.target.value).split(' ').filter(Boolean);
+      E.$$('#list > .card', el).forEach((c) => { const h = E.norm(c.textContent); c.style.display = q.every((w) => h.includes(w)) ? '' : 'none'; });
+    });
     E.bind(el, {
       print: () => window.print(),
       reverse: async (b) => {

@@ -103,7 +103,7 @@ window.ERP = (function () {
       if (/^-?[\d,]+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '');
       return '"' + t.replace(/"/g, '""') + '"';
     };
-    return '\ufeff' + E.$$('tr', table).filter((r) => !r.classList.contains('noprint')).map((r) =>
+    return '\ufeff' + E.$$('tr', table).filter((r) => !r.classList.contains('noprint') && r.style.display !== 'none').map((r) =>
       E.$$('th,td', r).filter((c) => !c.classList.contains('noprint')).map(cell).join(',')).join('\r\n');
   };
   E.downloadCsv = (table, name) => {
@@ -135,6 +135,47 @@ window.ERP = (function () {
     apply();
   };
 
+  // توحيد النص العربي للبحث: يُسقط التشكيل والتطويل ويوحّد الألف والتاء المربوطة والياء والأرقام الهندية
+  E.norm = (x) => String(x == null ? '' : x).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/\s+/g, ' ').trim();
+  // مربع بحث فوري لكل جدول بيانات (الصفوف المحمَّلة في الشاشة): يخفي غير المطابق، ويحترمه التصدير والطباعة
+  E.attachTableFilter = (t, bar) => {
+    const body = E.$$('tbody tr', t);
+    if (body.length < 5 || E.$$('input, select, textarea', t).length || t.closest('form')) return;   // جداول الإدخال لا تُفلتر
+    const inp = document.createElement('input');
+    inp.type = 'search'; inp.className = 'tf'; inp.placeholder = 'بحث في هذا الجدول…'; inp.setAttribute('aria-label', 'بحث في الجدول');
+    const cnt = document.createElement('span'); cnt.className = 'muted tf-n';
+    inp.addEventListener('input', () => {
+      const q = E.norm(inp.value).split(' ').filter(Boolean); let shown = 0;
+      E.$$('tbody tr', t).forEach((r) => {
+        const hay = r.dataset.hay || (r.dataset.hay = E.norm(r.textContent));
+        const ok = q.every((w) => hay.includes(w)); r.style.display = ok ? '' : 'none'; if (ok) shown++;
+      });
+      cnt.textContent = q.length ? shown + ' من ' + E.$$('tbody tr', t).length : '';
+    });
+    bar.insertBefore(cnt, bar.firstChild); bar.insertBefore(inp, bar.firstChild);
+  };
+  // قوائم الاختيار الطويلة (حسابات، أصناف، أطراف…): مربع كتابة يقلّص الخيارات أثناء الإدخال
+  E.attachSelectSearch = (sel) => {
+    if (sel.dataset.ss || sel.multiple || sel.options.length < 12 || sel.disabled) return;
+    sel.dataset.ss = '1';
+    const inp = document.createElement('input');
+    inp.type = 'search'; inp.className = 'ss'; inp.placeholder = 'اكتب للتصفية…'; inp.setAttribute('aria-label', 'تصفية الخيارات');
+    inp.addEventListener('input', () => {
+      const q = E.norm(inp.value).split(' ').filter(Boolean);
+      Array.from(sel.options).forEach((o) => { const ok = o.selected || o.value === '' || q.every((w) => E.norm(o.textContent).includes(w)); o.hidden = !ok; });
+      const hit = Array.from(sel.options).filter((o) => !o.hidden && o.value !== '' && !o.selected);
+      if (q.length && hit.length && sel.selectedOptions[0] && !q.every((w) => E.norm(sel.selectedOptions[0].textContent).includes(w))) { sel.value = hit[0].value; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.preventDefault(); });
+    sel.parentNode.insertBefore(inp, sel);
+  };
+  E.autoSearch = (main) => {
+    const scan = () => E.$$('select', main).forEach((s) => { if (!s.closest('.noss')) E.attachSelectSearch(s); });
+    new MutationObserver(scan).observe(main, { childList: true, subtree: true });
+    scan();
+  };
+
   // يضيف زر «تصدير» تلقائياً قبل كل جدول فيه أكثر من صف في الصفحة الحالية (يراقب ما يُحمَّل لاحقاً)
   E.autoExport = (main) => {
     // اسم الملف بحروف لاتينية من مسار الصفحة (بعض المتصفحات تُسقط الأسماء العربية فيصير الملف download)
@@ -145,6 +186,7 @@ window.ERP = (function () {
       const b = document.createElement('p');
       b.className = 'noprint'; b.style.margin = '0 0 6px';
       b.innerHTML = '<button type="button" class="btn alt sm" data-x="xlsx">⬇ Excel</button> <button type="button" class="btn alt sm" data-x="csv">⬇ CSV</button>';
+      E.attachTableFilter(t, b);
       b.addEventListener('click', (ev) => {
         const k = ev.target.dataset && ev.target.dataset.x; if (!k) return;
         if (k === 'xlsx' && E.downloadXlsx) E.downloadXlsx(t, title() + '_' + E.today(), E.$('h1', main) ? E.$('h1', main).textContent.trim() : 'ERP');

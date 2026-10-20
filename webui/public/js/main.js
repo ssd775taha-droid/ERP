@@ -118,6 +118,7 @@
     main.id = 'main';
     old.replaceWith(main);
     E.autoExport(main);
+    E.autoSearch(main);
     if (!name || !E.pages[name]) { main.innerHTML = E.err('الصفحة غير موجودة'); return; }
     // لا صلاحية: صفحة واضحة دون استدعاء أي واجهة برمجية
     if (!permits(key)) {
