@@ -43,7 +43,7 @@
         (e.status === 'ACTIVE' && free.length ? '<div class="card noprint" style="margin-top:12px"><form id="fc" class="row"><label>مكوّن<select name="c">' + opts(free, (c) => '<option value="' + c.id + '">' + esc(c.name) + ' (' + (c.calcType === 'PCT' ? c.pct + '%' : 'مبلغ ثابت') + ')</option>') + '</select></label>' +
           '<label>المبلغ (للثابت)<input name="a" inputmode="decimal" size="10"></label><label>نسبة خاصة % (اختياري)<input name="p" inputmode="decimal" size="6"></label><button class="btn">ربط</button></form></div>' : '') +
         (e.status === 'ACTIVE' ? '<div class="card noprint" style="margin-top:12px"><h3>إنهاء الخدمة</h3><form id="ft" class="row"><label>التاريخ<input type="date" name="d" value="' + E.today() + '"></label><button class="btn danger">إنهاء الخدمة</button></form><p class="muted">يُحتسب راتب الشهر الأخير بالتناسب، ولا يُسمح إن رُحّل كشف لشهر بعده.</p></div>' : '') +
-        '<p><a href="#/hr/employees">رجوع للموظفين</a></p>';
+        '<p class="noprint"><button class="btn gold sm noprint" data-act="print">معاينة وطباعة</button> <a href="#/hr/employees">رجوع للموظفين</a></p>';
       const fs = E.$('#fs', el), fc = E.$('#fc', el), ft = E.$('#ft', el);
       const on = (form, fn) => form && form.addEventListener('submit', async (ev) => { ev.preventDefault(); try { await fn(new FormData(form)); await load(); } catch (x) { E.toast(x.message, true); } });
       on(fs, async (f) => { await api('POST', '/hr/employees/' + id + '/salary', { basic: numv(f, 'b'), from: f.get('f') }); E.toast('عُدّل الراتب'); });
@@ -77,6 +77,7 @@
   // ---------- التسويات الشهرية ----------
   E.pages.hrAdjustments = async function (el) {
     const [{ adjustments }, { employees }, accts] = await Promise.all([api('GET', '/hr/adjustments'), api('GET', '/hr/employees'), E.loadAccounts()]);
+    el._adjs = adjustments;
     const act = employees.filter((e) => e.status === 'ACTIVE');
     el.innerHTML = E.head('تسويات الرواتب', 'مكافآت وعمل إضافي وجزاءات؛ تبقى معلّقة حتى يلتقطها أول كشف يغطي شهرها') +
       '<div class="card"><form id="f" class="row"><label>الموظف<select name="e">' + opts(act, (e) => '<option value="' + e.id + '">' + esc(e.code) + ' ' + esc(e.name) + '</option>') + '</select></label>' +
@@ -84,14 +85,16 @@
       '<label style="flex:1">الوصف<input name="d" required maxlength="200"></label><label>المبلغ<input name="a" inputmode="decimal" required size="10"></label><button class="btn">إضافة</button></form></div>' +
       (adjustments.length ? '<table><thead><tr><th>الموظف</th><th>الشهر</th><th>النوع</th><th>الوصف</th><th class="n">المبلغ</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' +
         adjustments.map((a) => '<tr><td>' + esc(a.empName) + '</td><td>' + esc(a.period) + '</td><td>' + (KIND[a.kind] || a.kind) + '</td><td>' + esc(a.description) + '</td><td class="n">' + money(a.amount) + '</td><td>' +
-          ({ PENDING: '<span class="tag warn">معلّقة</span>', APPLIED: '<span class="tag good">مطبّقة</span>', VOID: '<span class="tag bad">ملغاة</span>' }[a.status] || a.status) + '</td><td class="noprint">' + (a.status !== 'VOID' ? '<button class="btn alt sm" data-act="void" data-id="' + a.id + '">إلغاء</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا تسويات</div>');
+          ({ PENDING: '<span class="tag warn">معلّقة</span>', APPLIED: '<span class="tag good">مطبّقة</span>', VOID: '<span class="tag bad">ملغاة</span>' }[a.status] || a.status) + '</td><td class="noprint"><button class="btn alt sm" data-act="adjdoc" data-id="' + a.id + '">طباعة</button> ' + (a.status !== 'VOID' ? '<button class="btn alt sm" data-act="void" data-id="' + a.id + '">إلغاء</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا تسويات</div>');
     submit(el, '#f', async (f) => { await api('POST', '/hr/adjustments', { empId: Number(f.get('e')), period: f.get('p'), kind: f.get('k'), description: val(f, 'd'), amount: numv(f, 'a') }); E.toast('أُضيفت التسوية'); E.pages.hrAdjustments(el); });
+    if (!el._adjBound) { el._adjBound = true; E.bind(el, { adjdoc: (b) => E.openDoc(E.docSpec.adjustment(el._adjs.find((x) => String(x.id) === b.dataset.id))) }); }
     E.bind(el, { void: async (b) => { if (confirm('إلغاء التسوية؟')) { await api('POST', '/hr/adjustments/' + b.dataset.id + '/void'); E.toast('أُلغيت'); E.pages.hrAdjustments(el); } } });
   };
 
   // ---------- السلف ----------
   E.pages.hrAdvances = async function (el) {
     const [{ advances }, { employees }] = await Promise.all([api('GET', '/hr/advances'), api('GET', '/hr/employees')]);
+    el._advances = advances;
     const act = employees.filter((e) => e.status === 'ACTIVE');
     el.innerHTML = E.head('سلف الموظفين', 'يُرحَّل قيد (مدين سلف الموظفين / دائن الصندوق أو البنك) وتُقتطع أقساطاً شهرية في الكشوف') +
       '<div class="card"><form id="f" class="row"><label>الموظف<select name="e">' + opts(act, (e) => '<option value="' + e.id + '">' + esc(e.code) + ' ' + esc(e.name) + '</option>') + '</select></label>' +
@@ -100,8 +103,9 @@
       '<label style="flex:1">ملاحظة<input name="n" maxlength="300"></label><button class="btn">منح السلفة</button></form></div>' +
       (advances.length ? '<table><thead><tr><th>#</th><th>الموظف</th><th>التاريخ</th><th class="n">المبلغ</th><th class="n">المسدّد</th><th class="n">المتبقي</th><th>الأقساط</th><th>الحالة</th><th class="noprint"></th></tr></thead><tbody>' +
         advances.map((a) => '<tr><td>' + a.id + '</td><td>' + esc(a.empName) + '</td><td>' + esc(a.date) + '</td><td class="n">' + money(a.amount) + '</td><td class="n">' + money(a.repaid) + '</td><td class="n">' + money(a.remaining) + '</td><td>' + a.done + ' / ' + a.installments + '</td><td>' +
-          (a.status === 'SETTLED' ? '<span class="tag good">مسدّدة</span>' : '<span class="tag">مفتوحة</span>') + '</td><td class="noprint">' + (a.done === 0 && a.status === 'OPEN' ? '<button class="btn alt sm" data-act="void" data-id="' + a.id + '">إلغاء</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا سلف</div>');
+          (a.status === 'SETTLED' ? '<span class="tag good">مسدّدة</span>' : '<span class="tag">مفتوحة</span>') + '</td><td class="noprint">' + '<button class="btn alt sm" data-act="advdoc" data-id="' + a.id + '">طباعة السند</button> ' + (a.done === 0 && a.status === 'OPEN' ? '<button class="btn alt sm" data-act="void" data-id="' + a.id + '">إلغاء</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا سلف</div>');
     submit(el, '#f', async (f) => { await api('POST', '/hr/advances', { empId: Number(f.get('e')), date: f.get('d'), amount: numv(f, 'a'), installments: Number(f.get('i')), firstPeriod: f.get('f'), method: f.get('m'), note: val(f, 'n') }); E.toast('مُنحت السلفة'); E.pages.hrAdvances(el); });
+    if (!el._advBound) { el._advBound = true; E.bind(el, { advdoc: (b) => E.openDoc(E.docSpec.advance(el._advances.find((x) => String(x.id) === b.dataset.id))) }); }
     E.bind(el, { void: async (b) => { if (confirm('إلغاء السلفة وعكس قيدها؟')) { await api('POST', '/hr/advances/' + b.dataset.id + '/void'); E.toast('أُلغيت'); E.pages.hrAdvances(el); } } });
   };
 
@@ -117,25 +121,29 @@
   };
 
   E.pages.payrollView = async function (el, id) {
+    let cur = null;
     async function load() {
       const { run: r } = await api('GET', '/payroll/runs/' + encodeURIComponent(id));
+      cur = r; el._openDoc = () => E.openDoc(E.docSpec.payroll(r, (RUN_ST[r.status] || '').replace(/<[^>]+>/g, '')));
       const base = '/payroll/runs/' + r.id;
       el.innerHTML = E.head('كشف رواتب ' + r.period) + '<p>' + (RUN_ST[r.status] || r.status) + ' <span class="muted">' + (r.entryId ? 'قيد الترحيل ' + r.entryId : '') + (r.payEntryId ? ' · قيد الصرف ' + r.payEntryId + ' (' + esc(r.payDate) + ')' : '') + '</span></p>' +
         '<div class="cards"><div class="stat"><div class="k">الإجمالي</div><div class="v">' + money(r.gross) + '</div></div><div class="stat"><div class="k">الاستقطاعات والأقساط</div><div class="v">' + money(r.deductions) + '</div></div><div class="stat"><div class="k">الصافي</div><div class="v">' + money(r.net) + '</div></div><div class="stat"><div class="k">حصة صاحب العمل</div><div class="v">' + money(r.employer) + '</div></div></div>' +
-        '<table><thead><tr><th>الموظف</th><th>الأيام</th><th class="n">الأساسي</th><th class="n">استحقاقات</th><th class="n">الإجمالي</th><th class="n">استقطاعات</th><th class="n">سلف</th><th class="n">الصافي</th></tr></thead><tbody>' +
-        r.lines.map((l) => '<tr><td>' + esc(l.empName) + '<div class="muted" style="font-size:12px">' + l.items.map((i) => esc(i.description) + ' ' + money(i.amount)).join(' · ') + '</div></td><td>' + l.days + '/' + l.daysInPeriod + '</td><td class="n">' + money(l.basic) + '</td><td class="n">' + money(l.earnings) + '</td><td class="n">' + money(l.gross) + '</td><td class="n">' + money(l.deductions) + '</td><td class="n">' + money(l.advance) + '</td><td class="n">' + money(l.net) + '</td></tr>').join('') +
+        '<table><thead><tr><th>الموظف</th><th>الأيام</th><th class="n">الأساسي</th><th class="n">استحقاقات</th><th class="n">الإجمالي</th><th class="n">استقطاعات</th><th class="n">سلف</th><th class="n">الصافي</th><th class="noprint"></th></tr></thead><tbody>' +
+        r.lines.map((l, li) => '<tr><td>' + esc(l.empName) + '<div class="muted" style="font-size:12px">' + l.items.map((i) => esc(i.description) + ' ' + money(i.amount)).join(' · ') + '</div></td><td>' + l.days + '/' + l.daysInPeriod + '</td><td class="n">' + money(l.basic) + '</td><td class="n">' + money(l.earnings) + '</td><td class="n">' + money(l.gross) + '</td><td class="n">' + money(l.deductions) + '</td><td class="n">' + money(l.advance) + '</td><td class="n">' + money(l.net) + '</td><td class="noprint">' + '<button class="btn alt sm" data-act="slip" data-i="' + li + '">قسيمة راتب</button>' + '</td></tr>').join('') +
         '</tbody><tfoot><tr><td colspan="4">الإجمالي</td><td class="n">' + money(r.gross) + '</td><td class="n" colspan="2">' + money(r.deductions) + '</td><td class="n">' + money(r.net) + '</td></tr></tfoot></table>' +
         '<div class="card noprint" style="margin-top:14px">' +
         (r.status === 'DRAFT' ? '<button class="btn alt" data-act="calc">إعادة الحساب</button> <button class="btn" data-act="post">ترحيل القيد</button> <button class="btn danger" data-act="cancel">إلغاء المسودة</button>' : '') +
         (r.status === 'POSTED' ? '<form id="fp" class="row"><label>تاريخ الصرف<input type="date" name="d" value="' + E.today() + '"></label><label>الصرف<select name="m"><option value="BANK">بنك</option><option value="CASH">نقداً</option></select></label><button class="btn">صرف الرواتب</button></form><button class="btn danger sm" data-act="void">إلغاء الكشف (قيد عكسي)</button>' : '') +
         (r.status === 'PAID' ? '<button class="btn alt" data-act="unpay">إلغاء الصرف</button>' : '') +
-        ' <button class="btn alt" data-act="print">طباعة</button> <a href="#/payroll">رجوع</a></div>';
+        ' <button class="btn" data-act="doc">معاينة وطباعة الكشف</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <a href="#/payroll">رجوع</a></div>';
       const fp = E.$('#fp', el);
       if (fp) fp.addEventListener('submit', async (ev) => { ev.preventDefault(); const f = new FormData(fp); try { await api('POST', base + '/pay', { date: f.get('d'), method: f.get('m') }); E.toast('صُرفت الرواتب'); await load(); } catch (e) { E.toast(e.message, true); } });
     }
     const go = (path, msg, ask) => async () => { if (ask && !confirm(ask)) return; await api('POST', '/payroll/runs/' + encodeURIComponent(id) + '/' + path); E.toast(msg); await load(); };
     E.bind(el, {
       print: () => window.print(),
+      doc: () => E.openDoc(E.docSpec.payroll(cur, (RUN_ST[cur.status] || '').replace(/<[^>]+>/g, ''))),
+      slip: (b) => E.openDoc(E.docSpec.payslip(cur.lines[Number(b.dataset.i)], cur)),
       calc: go('calculate', 'أُعيد الحساب'), post: go('post', 'رُحّل القيد', 'ترحيل الكشف؟ لن يُعدَّل بعده.'), cancel: go('cancel', 'أُلغيت المسودة', 'إلغاء المسودة؟'),
       void: go('void', 'أُلغي الكشف', 'إلغاء الكشف بقيد عكسي؟'), unpay: go('unpay', 'أُلغي الصرف', 'إلغاء الصرف؟'),
     });

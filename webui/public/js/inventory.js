@@ -84,11 +84,13 @@
     async function go() {
       const f = new FormData(E.$('#f', el));
       const { moves } = await api('GET', '/inventory/moves?' + E.qs({ from: f.get('from'), to: f.get('to'), wh: f.get('wh'), item: f.get('item') }));
+      el._moves = moves;
       E.$('#out', el).innerHTML = moves.length ? '<table><thead><tr><th>#</th><th>التاريخ</th><th>الصنف</th><th>المخزن</th><th>النوع</th><th class="n">الكمية</th><th class="n">القيمة</th><th>المستند</th></tr></thead><tbody>' +
         moves.map((m) => '<tr><td>' + m.id + '</td><td>' + esc(m.date) + '</td><td>' + esc(m.itemCode) + ' ' + esc(m.itemName) + '</td><td>' + esc(m.whName) + '</td><td>' + (TYPE[m.type] || m.type) + (m.reverses ? ' <span class="tag warn">عكس ' + m.reverses + '</span>' : '') +
-          '</td><td class="n">' + q3(m.qty) + '</td><td class="n">' + money(m.value) + '</td><td>' + (m.refType === 'INVOICE' ? '<a href="#/invoice/view/' + m.refId + '">فاتورة ' + m.refId + '</a>' : esc(m.refType) + ' ' + m.refId) + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا حركات</div>';
+          '</td><td class="n">' + q3(m.qty) + '</td><td class="n">' + money(m.value) + '</td><td>' + (m.refType === 'INVOICE' ? '<a href="#/invoice/view/' + m.refId + '">فاتورة ' + m.refId + '</a> <a class="noprint" href="#/invoice/view/' + m.refId + '?print=1">طباعة</a>' : esc(m.refType) + ' ' + m.refId + ' <button class="btn alt sm noprint" data-act="stockdoc" data-t="' + esc(m.refType) + '" data-r="' + m.refId + '">طباعة المستند</button>') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا حركات</div>';
     }
     E.$('#f', el).addEventListener('submit', (ev) => { ev.preventDefault(); go().catch((e) => E.toast(e.message, true)); });
+    E.bind(el, { stockdoc: (b) => { const g = (el._moves || []).filter((m) => m.refType === b.dataset.t && String(m.refId) === b.dataset.r); if (g.length) E.openDoc(E.docSpec.stock(b.dataset.t, b.dataset.r, g)); } });
     await go();
   };
 
@@ -103,20 +105,30 @@
       '<label>التاريخ<input type="date" name="d" value="' + E.today() + '"></label><label>الفرق في الكمية (+ زيادة / − نقص)<input name="q" inputmode="decimal" required size="10"></label>' +
       '<label>تكلفة الوحدة (للزيادة)<input name="c" inputmode="decimal" size="10"></label><label>الحساب المقابل<select name="o"><option value="5500">5500 فروقات المخزون (الافتراضي)</option>' + ao + '</select></label>' +
       '<label style="flex:1">ملاحظة<input name="n" maxlength="300"></label><button class="btn">ترحيل التسوية</button></form><p class="muted">لإدخال رصيد افتتاحي اختر الحساب المقابل 3100 رأس المال.</p></div>' +
-      '<div class="card"><h3>تحويل بين مخزنين</h3><form id="ft" class="row"><label>الصنف<select name="i">' + opt(stocked) + '</select></label><label>من<select name="f">' + opt(wact) + '</select></label>' +
+      '<div id="lastdoc"></div><div class="card"><h3>تحويل بين مخزنين</h3><form id="ft" class="row"><label>الصنف<select name="i">' + opt(stocked) + '</select></label><label>من<select name="f">' + opt(wact) + '</select></label>' +
       '<label>إلى<select name="t">' + opt(wact, wact[1] && wact[1].id) + '</select></label><label>التاريخ<input type="date" name="d" value="' + E.today() + '"></label><label>الكمية<input name="q" inputmode="decimal" required size="10"></label><button class="btn">تحويل</button></form></div>';
+    // بعد كل تسوية أو تحويل: زر لطباعة مستنده (يُجلب من آخر حركات الصنف في ذلك التاريخ)
+    async function offerDoc(itemId, date) {
+      const { moves } = await api('GET', '/inventory/moves?' + E.qs({ item: itemId, from: date, to: date }));
+      const m = moves.filter((x) => x.refType === 'ADJUST' || x.refType === 'TRANSFER').sort((x, y) => y.id - x.id)[0];
+      if (!m) return;
+      const grp = moves.filter((x) => x.refType === m.refType && x.refId === m.refId);
+      el._lastDoc = E.docSpec.stock(m.refType, m.refId, grp);
+      E.$('#lastdoc', el).innerHTML = '<div class="msg good">سُجّل المستند ' + esc(m.refType) + ' ' + m.refId + ' <button type="button" class="btn alt sm" data-act="lastdoc">طباعة المستند</button></div>';
+    }
+    E.bind(el, { lastdoc: () => E.openDoc(el._lastDoc) });
     E.$('#fa', el).addEventListener('submit', async (ev) => {
       ev.preventDefault(); const f = new FormData(ev.target);
       try {
         const r = await api('POST', '/inventory/adjust', { itemId: Number(f.get('i')), whId: Number(f.get('w')), date: f.get('d'), qtyDelta: f.get('q').replace(/,/g, ''), unitCost: f.get('c').replace(/,/g, ''), offsetAccount: f.get('o'), note: f.get('n').trim() });
-        E.toast(r.entryId ? 'رُحّلت التسوية، قيد ' + r.entryId : 'سُجّلت التسوية'); ev.target.q.value = '';
+        E.toast(r.entryId ? 'رُحّلت التسوية، قيد ' + r.entryId : 'سُجّلت التسوية'); ev.target.q.value = ''; await offerDoc(Number(f.get('i')), f.get('d'));
       } catch (e) { E.toast(e.message, true); }
     });
     E.$('#ft', el).addEventListener('submit', async (ev) => {
       ev.preventDefault(); const f = new FormData(ev.target);
       try {
         const r = await api('POST', '/inventory/transfer', { itemId: Number(f.get('i')), fromWh: Number(f.get('f')), toWh: Number(f.get('t')), date: f.get('d'), qty: f.get('q').replace(/,/g, '') });
-        E.toast('حُوّلت بضاعة بقيمة ' + money(r.value)); ev.target.q.value = '';
+        E.toast('حُوّلت بضاعة بقيمة ' + money(r.value)); ev.target.q.value = ''; await offerDoc(Number(f.get('i')), f.get('d'));
       } catch (e) { E.toast(e.message, true); }
     });
   };

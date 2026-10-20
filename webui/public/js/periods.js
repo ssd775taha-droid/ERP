@@ -5,7 +5,7 @@
     async function load() {
       const { months, years } = await api('GET', '/periods');
       el.innerHTML = E.head('الفترات المحاسبية', 'إقفال الشهر يمنع القيود بتاريخ فيه؛ إقفال السنة يرحّل صافي الأرباح إلى الأرباح المحتجزة') +
-        '<div id="issues"></div><div class="card"><h3>إقفال شهر</h3><div class="row"><label>أي يوم في الشهر<input type="date" id="m" value="' + E.today() + '"></label>' +
+        '<p class="noprint"><button class="btn gold sm" data-act="print">معاينة وطباعة</button></p><div id="issues"></div><div class="card"><h3>إقفال شهر</h3><div class="row"><label>أي يوم في الشهر<input type="date" id="m" value="' + E.today() + '"></label>' +
         '<button class="btn alt" data-act="check">فحص الملاحظات</button><button class="btn" data-act="close">إقفال الشهر</button></div></div>' +
         '<h2>الأشهر</h2>' + (months.length ? '<table><thead><tr><th>الشهر</th><th>الحالة</th><th>القيود</th><th class="noprint"></th></tr></thead><tbody>' +
           months.map((m) => '<tr><td>' + esc(m.month.slice(0, 7)) + '</td><td>' + (m.status === 'CLOSED' ? '<span class="tag bad">مقفل</span>' : '<span class="tag good">مفتوح</span>') + '</td><td>' + esc(m.entries) + '</td><td class="noprint">' +

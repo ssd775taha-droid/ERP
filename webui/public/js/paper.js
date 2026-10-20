@@ -204,6 +204,82 @@
         actions: E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [],
       };
     },
+    // كشف رواتب شهري
+    payroll(r, statusText) {
+      const tot = (k) => r.lines.reduce((s, l) => s + l[k], 0);
+      return {
+        titleAr: 'كشف رواتب', titleEn: 'PAYROLL SHEET', no: 'PR-' + r.period.slice(0, 7), windowTitle: 'كشف رواتب ' + r.period.slice(0, 7), waAmount: r.net,
+        meta: [[['الشهر', 'Period', '<b dir="ltr">' + esc(r.period.slice(0, 7)) + '</b>'], ['الحالة', 'Status', esc(statusText || r.status)]],
+          [['قيد الترحيل', 'Posting Journal', r.entryId ? '<span dir="ltr">' + r.entryId + '</span>' : '—'], ['قيد الصرف', 'Payment Journal', r.payEntryId ? '<span dir="ltr">' + r.payEntryId + '</span> (' + esc(r.payDate) + ')' : '—']]],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'الموظف', en: 'Employee' }, { ar: 'الأيام', en: 'Days', n: 1 }, { ar: 'الأساسي', en: 'Basic', n: 1 }, { ar: 'استحقاقات', en: 'Earnings', n: 1 }, { ar: 'الإجمالي', en: 'Gross', n: 1 }, { ar: 'استقطاعات', en: 'Deductions', n: 1 }, { ar: 'سلف', en: 'Advances', n: 1 }, { ar: 'الصافي', en: 'Net', n: 1 }],
+          rows: r.lines.map((l, k) => [k + 1, esc(l.empCode + ' — ' + l.empName), l.days + '/' + l.daysInPeriod, num(l.basic), num(l.earnings), num(l.gross), num(l.deductions), num(l.advance), num(l.net)]),
+          foot: [[{ t: 'الإجمالي / Total', span: 3 }, { t: num(tot('basic')), n: 1 }, { t: num(tot('earnings')), n: 1 }, { t: num(r.gross), n: 1 }, { t: num(tot('deductions')), n: 1 }, { t: num(tot('advance')), n: 1 }, { t: num(r.net), n: 1 }]] },
+        words: r.net, note: 'صافي الرواتب المستحقة للصرف', sign: SIGN3,
+        actions: E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [],
+      };
+    },
+    // قسيمة راتب موظف
+    payslip(l, r) {
+      const earn = l.items.filter((i) => i.kind === 'EARNING'), ded = l.items.filter((i) => i.kind !== 'EARNING' && i.kind !== 'EMPLOYER');
+      const rows = [['الراتب الأساسي (' + l.days + '/' + l.daysInPeriod + ' يوم)', num(l.basic), ''], ...earn.map((i) => [esc(i.description), num(i.amount), '']), ...ded.map((i) => [esc(i.description), '', num(i.amount)]), ...(l.advance ? [['قسط سلفة', '', num(l.advance)]] : [])];
+      return {
+        titleAr: 'قسيمة راتب', titleEn: 'PAYSLIP', no: 'PS-' + r.period.slice(0, 7) + '-' + l.empCode, windowTitle: 'قسيمة راتب — ' + l.empName,
+        meta: [[['الموظف', 'Employee', '<b>' + esc(l.empName) + '</b>'], ['الرمز', 'Code', '<span dir="ltr">' + esc(l.empCode) + '</span>']], [['الشهر', 'Period', '<b dir="ltr">' + esc(r.period.slice(0, 7)) + '</b>'], ['أيام العمل', 'Days Worked', l.days + ' / ' + l.daysInPeriod]]],
+        table: { cols: [{ ar: 'البند', en: 'Item' }, { ar: 'استحقاقات', en: 'Earnings', n: 1 }, { ar: 'استقطاعات', en: 'Deductions', n: 1 }], rows,
+          foot: [[{ t: 'الإجمالي / Total' }, { t: num(l.gross), n: 1 }, { t: num(l.deductions + l.advance), n: 1 }]] },
+        totals: [['إجمالي الاستحقاقات', 'Gross', num(l.gross)], ['إجمالي الاستقطاعات', 'Deductions', num(l.deductions + l.advance)], ['صافي الراتب', 'Net Pay SAR', num(l.net), 1]], words: l.net,
+        sign: [['الموظف — الاستلام', 'Employee'], ['المحاسب', 'Accountant']],
+      };
+    },
+    // سند سلفة موظف
+    advance(a) {
+      const inst = a.installments ? Math.round(a.amount / a.installments * 100) / 100 : 0;
+      return {
+        titleAr: 'سند سلفة موظف', titleEn: 'EMPLOYEE ADVANCE VOUCHER', no: 'ADV-' + a.id, windowTitle: 'سلفة ' + a.empName,
+        meta: [[['رقم السلفة', 'Advance No.', '<b dir="ltr">' + a.id + '</b>'], ['التاريخ', 'Date', '<b dir="ltr">' + esc(a.date) + '</b>']], [['الموظف', 'Employee', '<b>' + esc(a.empName) + '</b>'], ['الحالة', 'Status', a.status === 'SETTLED' ? 'مسدّدة' : 'مفتوحة']]],
+        table: { cols: [{ ar: 'المبلغ', en: 'Amount', n: 1 }, { ar: 'عدد الأقساط', en: 'Installments', n: 1 }, { ar: 'القسط الشهري', en: 'Monthly', n: 1 }, { ar: 'المسدّد', en: 'Repaid', n: 1 }, { ar: 'المتبقي', en: 'Remaining', n: 1 }],
+          rows: [[num(a.amount), a.done + ' / ' + a.installments, num(inst), num(a.repaid), num(a.remaining)]] },
+        totals: [['مبلغ السلفة', 'Advance SAR', num(a.amount), 1]], words: a.amount, note: 'يُقتطع القسط الشهري من راتب الموظف حتى السداد الكامل.',
+        sign: [['الموظف — الاستلام والإقرار', 'Employee'], ['المحاسب', 'Accountant'], ['المدير', 'Manager']],
+      };
+    },
+    // إشعار تسوية راتب (مكافأة/جزاء)
+    adjustment(a) {
+      const earn = a.kind === 'EARNING';
+      return {
+        titleAr: earn ? 'إشعار استحقاق (تسوية راتب)' : 'إشعار استقطاع (تسوية راتب)', titleEn: earn ? 'EARNING ADJUSTMENT NOTICE' : 'DEDUCTION ADJUSTMENT NOTICE', no: 'ADJ-' + a.id, windowTitle: 'تسوية — ' + a.empName,
+        meta: [[['رقم التسوية', 'Ref.', '<b dir="ltr">' + a.id + '</b>'], ['شهر التطبيق', 'Applies to', '<b dir="ltr">' + esc(String(a.period).slice(0, 7)) + '</b>']], [['الموظف', 'Employee', '<b>' + esc(a.empName) + '</b>'], ['الحالة', 'Status', { PENDING: 'معلّقة', APPLIED: 'مطبّقة', VOID: 'ملغاة' }[a.status] || a.status]]],
+        table: { cols: [{ ar: 'البيان', en: 'Description' }, { ar: earn ? 'استحقاق' : 'استقطاع', en: earn ? 'Earning' : 'Deduction', n: 1 }], rows: [[esc(a.description), num(a.amount)]] },
+        totals: [['المبلغ', 'Amount SAR', num(a.amount), 1]], words: a.amount, sign: [['الموظف', 'Employee'], ['المحاسب', 'Accountant'], ['المدير', 'Manager']],
+      };
+    },
+    // مستند حركة مخزون (تسوية/تحويل) من حركات المرجع نفسه
+    stock(refType, refId, moves) {
+      const adj = refType === 'ADJUST';
+      const q = moves.reduce((s, m) => s + m.qty, 0), val = moves.reduce((s, m) => s + m.value, 0);
+      return {
+        titleAr: adj ? 'مستند تسوية مخزون' : 'مستند تحويل مخزون', titleEn: adj ? 'STOCK ADJUSTMENT' : 'STOCK TRANSFER', no: (adj ? 'ADJ-' : 'TRF-') + refId, windowTitle: (adj ? 'تسوية مخزون ' : 'تحويل مخزون ') + refId,
+        meta: [[['رقم المستند', 'Doc No.', '<b dir="ltr">' + esc(refType) + ' ' + refId + '</b>'], ['التاريخ', 'Date', '<b dir="ltr">' + esc(moves[0].date) + '</b>']]],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'الصنف', en: 'Item' }, { ar: 'المخزن', en: 'Warehouse' }, { ar: 'الكمية', en: 'Qty', n: 1 }, { ar: 'القيمة', en: 'Value', n: 1 }],
+          rows: moves.map((m, k) => [k + 1, esc(m.itemCode + ' — ' + m.itemName), esc(m.whName), q3(m.qty), num(m.value)]),
+          foot: adj ? [[{ t: 'الإجمالي / Total', span: 3 }, { t: q3(q), n: 1 }, { t: num(val), n: 1 }]] : null },
+        sign: [['أمين المخزن', 'Storekeeper'], ['المحاسب', 'Accountant'], ['المدير', 'Manager']],
+      };
+    },
+    // تقرير وردية نقطة بيع
+    shift(s, sales) {
+      const st = { OPEN: 'مفتوحة', CLOSED: 'مقفلة' }[s.status] || s.status;
+      return {
+        titleAr: 'تقرير وردية', titleEn: 'SHIFT REPORT', no: 'SH-' + s.id, windowTitle: 'وردية ' + s.id + ' — ' + s.regName,
+        meta: [[['رقم الوردية', 'Shift No.', '<b dir="ltr">' + s.id + '</b>'], ['نقطة البيع', 'Register', esc(s.regName)]], [['الكاشير', 'Cashier', esc(s.cashier)], ['الحالة', 'Status', st]],
+          [['فُتحت', 'Opened', '<span dir="ltr">' + esc(s.openedAt) + '</span>'], ['أُغلقت', 'Closed', s.closedAt ? '<span dir="ltr">' + esc(s.closedAt) + '</span>' : '—']]],
+        stats: [['النقد الافتتاحي', num(s.openingCash)], ['مبيعات نقدية', num(s.cashSales)], ['مبيعات بطاقة', num(s.cardSales)], ['مرتجعات نقدية', num(s.cashRefunds)], ['إجمالي المبيعات', num(s.salesTotal)], ['المتوقع في الصندوق', num(s.status === 'OPEN' ? s.expectedCashNow : s.expectedCash)]],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'العملية', en: 'Receipt' }, { ar: 'النوع', en: 'Type' }, { ar: 'التاريخ', en: 'Date' }, { ar: 'الإجمالي', en: 'Total', n: 1 }, { ar: 'الحالة', en: 'Status' }],
+          rows: sales.map((x, k) => [k + 1, '<span dir="ltr">' + esc(x.no) + '</span>', x.kind === 'SALE' ? 'بيع' : 'مرتجع', esc(x.date), num(x.total), x.status === 'VOID' ? 'ملغاة' : 'مكتملة']) },
+        note: s.status === 'CLOSED' ? 'المعدود ' + money(s.countedCash) + ' — الفرق ' + money(s.variance) + (s.variance ? ' (رُحّل إلى حساب فروقات الصندوق)' : ' (مطابق)') : 'وردية مفتوحة — لم يُعدّ الصندوق بعد',
+        sign: [['الكاشير', 'Cashier'], ['المشرف', 'Supervisor'], ['المحاسب', 'Accountant']],
+      };
+    },
     // أمر شراء
     po(o, statusText) {
       return {

@@ -99,17 +99,20 @@
   };
 
   E.pages.posShift = async function (el, id) {
+    let cur = null, curSales = [];
     async function load() {
       const [{ shift: s }, { sales }] = await Promise.all([api('GET', '/pos/shifts/' + encodeURIComponent(id)), api('GET', '/pos/sales?shift=' + encodeURIComponent(id))]);
+      cur = s; curSales = sales; el._openDoc = () => E.openDoc(E.docSpec.shift(s, sales));
       const stat = (k, v) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + money(v) + '</div></div>';
       el.innerHTML = E.head('وردية ' + s.id + ' — ' + s.regName, 'الكاشير ' + s.cashier + ' · فُتحت ' + s.openedAt + (s.closedAt ? ' · أُغلقت ' + s.closedAt : '')) +
         '<div class="cards">' + stat('النقد الافتتاحي', s.openingCash) + stat('مبيعات نقدية (صافي الباقي)', s.cashSales) + stat('مبيعات بطاقة', s.cardSales) + stat('مرتجعات نقدية', s.cashRefunds) + stat('إجمالي المبيعات', s.salesTotal) + stat('ضريبة المبيعات', s.salesVat) + stat('المتوقع في الصندوق', s.status === 'OPEN' ? s.expectedCashNow : s.expectedCash) + '</div>' +
         (s.status === 'CLOSED' ? '<div class="msg ' + (s.variance === 0 ? 'good' : 'warn') + '">المعدود ' + money(s.countedCash) + ' — الفرق ' + money(s.variance) + (s.variance ? ' (رُحّل إلى 5800)' : '') + '</div>' :
           '<div class="card noprint"><h3>إقفال الوردية</h3><form id="fc" class="row"><label>النقد المعدود في الصندوق<input name="c" inputmode="decimal" required size="12"></label><button class="btn danger">إقفال الوردية</button></form><p class="muted">الفرق عن المتوقع يُرحَّل تلقائياً إلى فروقات الصندوق.</p></div>') +
-        '<h3>العمليات</h3>' + salesTable(sales) + '<p class="noprint"><a href="#/pos/shifts">رجوع</a></p>';
+        '<h3>العمليات</h3>' + salesTable(sales) + '<p class="noprint"><button class="btn" data-act="doc">معاينة وطباعة تقرير الوردية</button> <a href="#/pos/shifts">رجوع</a></p>';
       const fc = E.$('#fc', el);
       if (fc) fc.addEventListener('submit', async (ev) => { ev.preventDefault(); if (!confirm('إقفال الوردية؟ لا يمكن التراجع.')) return; try { const r = await api('POST', '/pos/shifts/' + id + '/close', { counted: new FormData(fc).get('c').replace(/,/g, '') }); E.toast('أُقفلت الوردية، الفرق ' + money(r.variance)); await load(); } catch (e) { E.toast(e.message, true); } });
     }
+    E.bind(el, { doc: () => E.openDoc(E.docSpec.shift(cur, curSales)) });
     await load();
   };
 
