@@ -75,16 +75,17 @@
   window.addEventListener('beforeprint', () => {
     const main = E.$('#main'); const ph = E.$('#phead');
     if (!main || !ph) return;
-    const t = E.tax, title = E.$('h1', main) ? E.$('h1', main).textContent.trim() : 'نظام ERP';
+    const title = E.$('h1', main) ? E.$('h1', main).textContent.trim() : 'نظام ERP';
     const sub = E.$('h1 + .sub', main) ? E.$('h1 + .sub', main).textContent.trim() : '';
     const filters = E.$$('form input[type=date], form select', main).filter((x) => x.closest('.noprint') && x.name && x.value).map((x) => {
       const lab = x.closest('label'); const l = lab ? lab.firstChild.textContent.trim() : x.name;
       return l + ': ' + (x.tagName === 'SELECT' ? x.options[x.selectedIndex].text : x.value);
     });
     const who = E.me && (E.me.fullName || E.me.user);
-    ph.innerHTML = '<div class="ph-top"><div><b>' + E.esc(t.sellerName || 'نظام ERP') + '</b>' + (t.sellerVatNo ? '<br>الرقم الضريبي: <span dir="ltr">' + E.esc(t.sellerVatNo) + '</span>' : '') + (t.sellerAddress ? '<br>' + E.esc(t.sellerAddress) : '') + '</div>' +
+    ph.innerHTML = '<div class="ph-top">' + E.companyBlock() +
       '<div class="ph-meta">طُبع في ' + new Date().toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) + (who ? '<br>بواسطة ' + E.esc(who) : '') + '</div></div>' +
       '<h2 class="ph-title">' + E.esc(title) + '</h2>' + (sub ? '<div class="ph-sub">' + E.esc(sub) + '</div>' : '') + (filters.length ? '<div class="ph-sub">' + E.esc(filters.join(' — ')) + '</div>' : '');
+    const pf = E.$('#pfoot'); if (pf) pf.textContent = E.lh.footerNote || '';
     const widest = Math.max(0, ...E.$$('table', main).map((tb) => Math.max(0, ...E.$$('tr', tb).map((r) => E.$$('th,td', r).filter((c) => c.offsetParent !== null).length))));
     const thermal = document.body.classList.contains('thermal');
     pageStyle.textContent = thermal ? '@page { size: 80mm 297mm; margin: 3mm; }' : '@page { size: A4 ' + (widest > 7 ? 'landscape' : 'portrait') + '; margin: 12mm 10mm 14mm; }';

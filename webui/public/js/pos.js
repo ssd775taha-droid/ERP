@@ -129,12 +129,12 @@
   // إيصال حراري 80مم: ترويسة البائع، البنود (اسم، ثم كمية × سعر والصافي)، المجاميع، الدفع، رمز QR للمبيعات
   function receiptHtml(s) {
     const t = E.tax, row = (a, b, bold) => '<div class="rl">' + (bold ? '<b>' + a + '</b><b>' + b + '</b>' : '<span>' + a + '</span><span>' + b + '</span>') + '</div>';
-    return '<div class="c"><b>' + esc(t.sellerName || 'نظام ERP') + '</b>' + (t.sellerVatNo ? '<br>الرقم الضريبي ' + esc(t.sellerVatNo) : '') + (t.sellerAddress ? '<br>' + esc(t.sellerAddress) : '') +
+    return '<div class="c"><b>' + esc(t.sellerName || 'نظام ERP') + '</b>' + (t.sellerVatNo ? '<br>الرقم الضريبي ' + esc(t.sellerVatNo) : '') + (E.lh.crNo ? '<br>س.ت ' + esc(E.lh.crNo) : '') + (t.sellerAddress ? '<br>' + esc(t.sellerAddress) : '') + (E.lh.phone ? '<br>' + esc(E.lh.phone) : '') +
       '<br>' + (s.kind === 'SALE' ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)') + '<br>' + esc(s.no) + ' — ' + esc(s.date) + '</div><hr>' +
       s.lines.map((l) => '<div>' + esc(l.description) + '</div>' + row(q3(l.qty) + ' × ' + money(l.price) + (l.discountPct ? ' (−' + l.discountPct + '%)' : ''), money(l.net))).join('') + '<hr>' +
       row('المجموع قبل الضريبة', money(s.subtotal)) + row('الضريبة', money(s.vat)) + row('الإجمالي', money(s.total), true) + '<hr>' +
       s.payments.map((p) => row(p.method === 'CASH' ? 'نقداً' : 'بطاقة', money(p.amount))).join('') + (s.changeDue ? row('الباقي', money(s.changeDue)) : '') +
-      (s.kind === 'SALE' && s.status === 'COMPLETED' ? E.zatcaQr(s.date, s.total, s.vat) : '') + '<div class="c">شكراً لزيارتكم</div>';
+      (s.kind === 'SALE' && s.status === 'COMPLETED' ? E.zatcaQr(s.date, s.total, s.vat) : '') + '<div class="c">' + (E.lh.footerNote ? esc(E.lh.footerNote).replace(/\n/g, '<br>') : 'شكراً لزيارتكم') + '</div>';
   }
 
   E.pages.posSale = async function (el, id) {

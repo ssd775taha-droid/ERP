@@ -25,7 +25,21 @@ window.ERP = (function () {
   };
   // إعدادات الضريبة السعودية (النسبة الافتراضية وبيانات المنشأة)
   E.tax = { vatRate: 15, sellerName: '', sellerVatNo: '', sellerAddress: '' };
-  E.loadTax = async () => { try { Object.assign(E.tax, await E.api('GET', '/tax/settings')); } catch (e) { /* تبقى الافتراضيات */ } };
+  E.lh = { nameEn: '', crNo: '', phone: '', email: '', website: '', footerNote: '', logo: '' };   // ترويسة المستندات (الشعار وبيانات الاتصال والتذييل)
+  E.loadTax = async () => {
+    try { Object.assign(E.tax, await E.api('GET', '/tax/settings')); } catch (e) { /* تبقى الافتراضيات */ }
+    try { Object.assign(E.lh, await E.api('GET', '/letterhead')); } catch (e) { /* تبقى الافتراضيات */ }
+  };
+  // كتلة هوية المنشأة: شعار + الاسم (عربي/إنجليزي) + الرقم الضريبي والسجل + العنوان وبيانات الاتصال. تُستعمل في ترويسة الطباعة وترويسة الفاتورة
+  E.companyBlock = (opt) => {
+    const t = E.tax, l = E.lh, o = opt || {};
+    const logo = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(l.logo || '') ? '<img class="lh-logo" alt="" src="' + l.logo + '">' : '';
+    const ids = [t.sellerVatNo ? 'الرقم الضريبي: <span dir="ltr">' + E.esc(t.sellerVatNo) + '</span>' : '', l.crNo ? 'السجل التجاري: <span dir="ltr">' + E.esc(l.crNo) + '</span>' : ''].filter(Boolean).join(' · ');
+    const contact = [l.phone ? '☎ <span dir="ltr">' + E.esc(l.phone) + '</span>' : '', l.email ? '<span dir="ltr">' + E.esc(l.email) + '</span>' : '', l.website ? '<span dir="ltr">' + E.esc(l.website) + '</span>' : ''].filter(Boolean).join(' · ');
+    return '<div class="lh">' + logo + '<div class="lh-txt"><b class="lh-name">' + E.esc(t.sellerName || o.fallback || 'نظام ERP') + '</b>' +
+      (l.nameEn ? '<div class="lh-en" dir="ltr">' + E.esc(l.nameEn) + '</div>' : '') +
+      (ids ? '<div>' + ids + '</div>' : '') + (t.sellerAddress ? '<div>' + E.esc(t.sellerAddress) + '</div>' : '') + (contact ? '<div>' + contact + '</div>' : '') + '</div></div>';
+  };
   // رمز QR للفاتورة الضريبية المبسطة (TLV/Base64) كـ SVG، أو '' إن لم تُضبط بيانات البائع
   E.zatcaQr = (date, total, vat) => {
     if (!E.tax.sellerName || !ZATCA.validVatNo(E.tax.sellerVatNo) || typeof qrcode === 'undefined') return '';
@@ -37,10 +51,10 @@ window.ERP = (function () {
   // ترويسة الفاتورة الضريبية: بيانات البائع والمشتري ورمز QR
   E.taxHeader = (title, buyerName, buyerTaxNo, date, total, vat, withQr) => {
     const t = E.tax, ok = t.sellerName && ZATCA.validVatNo(t.sellerVatNo);
-    return '<div class="card taxhead"><div class="row" style="margin:0;align-items:flex-start"><div style="flex:1"><strong style="font-size:17px">' + E.esc(title) + '</strong><br>' +
-      (ok ? E.esc(t.sellerName) + '<br>الرقم الضريبي: <span dir="ltr">' + E.esc(t.sellerVatNo) + '</span>' + (t.sellerAddress ? '<br>' + E.esc(t.sellerAddress) : '')
-          : '<span class="bad">لم تُضبط بيانات المنشأة والرقم الضريبي — <a href="#/tax/settings">اضبطها</a> لتصدر فاتورة ضريبية صحيحة</span>') +
-      (buyerName ? '<br>العميل: ' + E.esc(buyerName) + (buyerTaxNo ? ' — الرقم الضريبي: <span dir="ltr">' + E.esc(buyerTaxNo) + '</span>' : '') : '') +
+    return '<div class="card taxhead"><div class="row" style="margin:0;align-items:flex-start"><div style="flex:1"><strong style="font-size:17px">' + E.esc(title) + '</strong>' +
+      (ok ? E.companyBlock()
+          : '<br><span class="bad">لم تُضبط بيانات المنشأة والرقم الضريبي — <a href="#/tax/settings">اضبطها</a> لتصدر فاتورة ضريبية صحيحة</span>') +
+      (buyerName ? '<div class="lh-buyer">العميل: ' + E.esc(buyerName) + (buyerTaxNo ? ' — الرقم الضريبي: <span dir="ltr">' + E.esc(buyerTaxNo) + '</span>' : '') + '</div>' : '') +
       '</div><div>' + (withQr ? E.zatcaQr(date, total, vat) : '') + '</div></div></div>';
   };
   // صلاحيات المستخدم الحالي (من /api/me): E.can('trade', 'w')

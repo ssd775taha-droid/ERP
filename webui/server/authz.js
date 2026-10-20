@@ -20,7 +20,7 @@ const RULES = [
   R(/^\/pos(\/|$)/, 'pos'),
   R(/^\/(po|quotes)(\/|$)/, 'orders'),
   R(/^\/settings$/, 'settings'),
-  R(/^\/tax\/settings$/, 'settings', { readAny: true }),
+  R(/^\/(tax\/settings|letterhead)$/, 'settings', { readAny: true }),
 ];
 
 const rank = { n: 0, r: 1, w: 2 };

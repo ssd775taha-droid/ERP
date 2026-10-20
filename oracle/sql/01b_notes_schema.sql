@@ -116,3 +116,17 @@ BEGIN
   RETURN v;
 END erp_note_net;
 /
+
+-- ترويسة المستندات (شعار وبيانات اتصال وتذييل). الواجهة تنشئه عند أول استخدام إن غاب، وهنا للتثبيت/الترقية.
+DECLARE
+  v NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v FROM user_tables WHERE table_name = 'ERP_COMPANY_PROFILE';
+  IF v = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE TABLE erp_company_profile (
+      id NUMBER(1) CONSTRAINT erp_company_profile_pk PRIMARY KEY CONSTRAINT erp_company_profile_ck CHECK (id = 1),
+      name_en VARCHAR2(120), cr_no VARCHAR2(30), phone VARCHAR2(40), email VARCHAR2(120), website VARCHAR2(120),
+      footer_note VARCHAR2(500), logo CLOB)';
+  END IF;
+END;
+/

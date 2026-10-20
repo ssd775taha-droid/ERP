@@ -184,6 +184,18 @@ test('الضريبة السعودية: رفض رقم ضريبي خاطئ، وإ�
   assert.strictEqual(Math.round(vr.data.totals.netPayable * 100), Math.round((tb.credit - tb.debit) * 100));
 });
 
+test('ترويسة المستندات: حفظ وقراءة والتحقق من المدخلات والشعار', { skip: !hasDb || !canWrite }, async () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  assert.strictEqual((await call('POST', '/api/letterhead', { email: 'bad' })).status, 400);
+  assert.strictEqual((await call('POST', '/api/letterhead', { phone: 'abc' })).status, 400);
+  assert.strictEqual((await call('POST', '/api/letterhead', { logo: 'data:image/svg+xml;base64,PHN2Zz4=' })).status, 400);
+  const ok = await call('POST', '/api/letterhead', { nameEn: 'Test Co', crNo: '1010000000', phone: '+966 11 000 0000', email: 'a@b.sa', website: 'www.b.sa', footerNote: 'IBAN SA00\nشكراً', logo: png });
+  assert.strictEqual(ok.status, 200);
+  assert.strictEqual(ok.data.logo, png);
+  assert.strictEqual((await call('GET', '/api/letterhead')).data.footerNote, 'IBAN SA00\nشكراً');
+  assert.strictEqual((await call('POST', '/api/letterhead', {})).data.logo, ''); // مسح كل شيء
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة
