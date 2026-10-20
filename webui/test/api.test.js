@@ -468,6 +468,38 @@ test('تقارير الأصول: تطابق السجل وحركة الأصول �
   assert.strictEqual((await call('GET', '/api/assets/reports/register')).status, 400);
 });
 
+test('تقارير المحاسبة الإضافية: تطابق الشهري مع قائمة الدخل، وحركة الحسابات مع الميزان، ودفتر النقدية مع الأستاذ', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100), q = 'from=2026-01-01&to=2026-12-31';
+  const is = (await call('GET', `/api/reports/income-statement?${q}`)).data;
+  const pl = (await call('GET', `/api/reports/monthly-pl?${q}`)).data;
+  assert.strictEqual(cents(pl.totals.net), cents(is.netIncome));
+  assert.strictEqual(cents(pl.totals.revenue), cents(is.totalRevenue));
+  assert.strictEqual(cents(pl.totals.expense), cents(is.totalExpense));
+  assert.strictEqual(cents(Object.values(pl.net).reduce((s, x) => s + x, 0)), cents(pl.totals.net));
+  // الحركة الشهرية: الختامي لكل حساب = رصيده في الميزان (مدين − دائن) حتى نهاية الفترة، والمجموع صفر
+  const act = (await call('GET', `/api/reports/account-activity?${q}`)).data;
+  const tb = (await call('GET', '/api/reports/trial-balance?to=2026-12-31')).data;
+  for (const a of act.rows) { const t = tb.rows.find((x) => x.code === a.code); assert.strictEqual(cents(a.close), cents(t.balanceDebit - t.balanceCredit), a.code); }
+  assert.strictEqual(cents(act.totals.close), 0);
+  assert.strictEqual(cents(act.totals.open), 0);
+  assert.strictEqual((await call('GET', '/api/reports/account-activity?from=2020-01-01&to=2026-12-31')).status, 400);   // أطول من 12 شهراً
+  assert.strictEqual((await call('GET', `/api/reports/account-activity?${q}&type=BAD`)).status, 400);
+  // دفتر النقدية: الختامي يطابق دفتر الأستاذ للحساب نفسه
+  const cb = (await call('GET', `/api/reports/cash-book?${q}`)).data;
+  for (const a of cb.accounts) {
+    const lg = (await call('GET', `/api/reports/ledger/${a.code}?${q}`)).data;
+    assert.strictEqual(cents(a.closing), cents(lg.closing), a.code);
+    assert.strictEqual(cents(a.opening), cents(lg.opening), a.code);
+  }
+  const rt = (await call('GET', `/api/reports/ratios?${q}`)).data;
+  assert.strictEqual(cents(rt.base.grossProfit), cents(rt.base.revenue - rt.base.cogs));
+  assert.strictEqual(cents(rt.base.net), cents(is.netIncome));
+  const au = (await call('GET', `/api/reports/journal-audit?${q}`)).data;
+  assert.strictEqual(au.totals.entries, au.monthly.reduce((s, x) => s + x.entries, 0));
+  assert.strictEqual(au.reversals.length, au.totals.reversals);
+  assert.strictEqual((await call('GET', '/api/reports/monthly-pl?from=2026-05-01&to=2026-01-01')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

@@ -378,4 +378,58 @@
     return '<table><thead><tr><th>الأصل</th><th>الفئة</th><th class="n">التكلفة</th><th class="n">العمر (شهر)</th><th class="n">المُهلَك</th><th class="n">المتبقي (شهر)</th><th class="n">الدفترية</th><th>الحالة</th></tr></thead><tbody>' +
       r.rows.map((x) => '<tr><td>' + esc(x.code + ' — ' + x.name) + '</td><td>' + esc(x.cat) + '</td><td class="n">' + money(x.cost) + '</td><td class="n">' + x.life + '</td><td class="n">' + x.done + '</td><td class="n">' + x.remainingMonths + '</td><td class="n">' + money(x.bookValue) + '</td><td>' + (x.full ? '<span class="tag bad">مهلك بالكامل</span>' : '<span class="tag warn">يقترب</span>') + '</td></tr>').join('') + '</tbody></table>';
   });
+
+  // ---------- تقارير محاسبية إضافية ----------
+  const yr = () => dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today());
+
+  E.pages['acc-monthly-pl'] = (el) => shell(el, 'الأرباح والخسائر الشهرية', 'كل حساب إيراد ومصروف بأعمدة الأشهر وصافي كل شهر (يستثني قيود إقفال السنة، حتى 24 شهراً)', yr(), async (f) => {
+    const r = await api('GET', '/reports/monthly-pl?' + E.qs(f)), T = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا حركة إيرادات أو مصروفات في هذه الفترة</div>';
+    const head = '<thead><tr><th>الرمز</th><th>الحساب</th>' + r.months.map((m) => '<th class="n">' + m + '</th>').join('') + '<th class="n">الإجمالي</th></tr></thead>';
+    const body = (type) => '<tbody>' + r.rows.filter((x) => x.type === type).map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td>' + r.months.map((m) => '<td class="n">' + (x.months[m] ? money(x.months[m]) : '') + '</td>').join('') + '<td class="n">' + money(x.total) + '</td></tr>').join('') + '</tbody>';
+    const foot = (label, by, total) => '<tfoot><tr><td colspan="2">' + label + '</td>' + r.months.map((m) => '<td class="n">' + money(by[m]) + '</td>').join('') + '<td class="n">' + money(total) + '</td></tr></tfoot>';
+    return '<div class="cards">' + stat('الإيرادات', money(T.revenue)) + stat('المصروفات', money(T.expense)) + stat('صافي ' + (T.net >= 0 ? 'الربح' : 'الخسارة'), money(T.net)) + '</div>' +
+      '<h3>الإيرادات</h3><table>' + head + body('REVENUE') + foot('إجمالي الإيرادات', r.revenue, T.revenue) + '</table>' +
+      '<h3>المصروفات</h3><table>' + head + body('EXPENSE') + foot('إجمالي المصروفات', r.expense, T.expense) + '</table>' +
+      '<table><tfoot><tr><td>صافي الربح / (الخسارة)</td>' + r.months.map((m) => '<td class="n ' + (r.net[m] < 0 ? 'bad' : 'good') + '">' + money(r.net[m]) + '</td>').join('') + '<td class="n">' + money(T.net) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['acc-activity'] = (el) => shell(el, 'حركة الحسابات الشهرية', 'لكل حساب: الرصيد الافتتاحي (مدين +، دائن −) وصافي حركة كل شهر والرصيد الختامي (حتى 12 شهراً)',
+    yr() + '<label>النوع<select name="type"><option value="">كل الحسابات</option><option value="ASSET">أصول</option><option value="LIABILITY">خصوم</option><option value="EQUITY">حقوق ملكية</option><option value="REVENUE">إيرادات</option><option value="EXPENSE">مصروفات</option></select></label>', async (f) => {
+    const r = await api('GET', '/reports/account-activity?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg warn">لا حركة في هذه الفترة</div>';
+    return '<table><thead><tr><th>الرمز</th><th>الحساب</th><th class="n">افتتاحي</th>' + r.months.map((m) => '<th class="n">' + m + '</th>').join('') + '<th class="n">ختامي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td><a href="#/reports/ledger/' + esc(x.code) + '">' + esc(x.code) + '</a></td><td>' + esc(x.name) + '</td><td class="n">' + money(x.open) + '</td>' + r.months.map((m) => '<td class="n">' + (x.months[m] ? money(x.months[m]) : '') + '</td>').join('') + '<td class="n">' + money(x.close) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(r.totals.open) + '</td>' + r.months.map((m) => '<td class="n">' + money(r.colTotals[m]) + '</td>').join('') + '<td class="n">' + money(r.totals.close) + '</td></tr></tfoot></table><p class="muted">الإجمالي يساوي صفراً حين تتوازن كل الحسابات (عند اختيار «كل الحسابات»).</p>';
+  });
+
+  E.pages['acc-cash-book'] = (el) => shell(el, 'دفتر النقدية والبنوك', 'لكل حساب نقدي أو بنكي: رصيد أول الفترة والمقبوضات والمدفوعات ثم الرصيد، مع تفصيل يومي', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/reports/cash-book?' + E.qs(f)), T = r.totals;
+    if (!r.accounts.length) return '<div class="msg warn">لا حسابات نقدية معرَّفة</div>';
+    return '<div class="cards">' + stat('رصيد أول الفترة', money(T.opening)) + stat('المقبوضات', money(T.debit)) + stat('المدفوعات', money(T.credit)) + stat('رصيد آخر الفترة', money(T.closing)) + '</div>' +
+      r.accounts.map((a) => '<h3>' + esc(a.code) + ' — ' + esc(a.name) + '</h3><table><thead><tr><th>التاريخ</th><th class="n">مقبوضات</th><th class="n">مدفوعات</th><th class="n">الرصيد</th></tr></thead><tbody>' +
+        '<tr class="head"><td>رصيد أول الفترة</td><td></td><td></td><td class="n">' + money(a.opening) + '</td></tr>' +
+        a.days.map((d) => '<tr><td>' + esc(d.date) + '</td><td class="n">' + (d.debit ? money(d.debit) : '') + '</td><td class="n">' + (d.credit ? money(d.credit) : '') + '</td><td class="n">' + money(d.balance) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(a.debit) + '</td><td class="n">' + money(a.credit) + '</td><td class="n">' + money(a.closing) + '</td></tr></tfoot></table>').join('');
+  });
+
+  E.pages['acc-ratios'] = (el) => shell(el, 'النسب المالية', 'هوامش الربح وفترات التحصيل والتخزين والسداد والسيولة السريعة اعتماداً على حسابات النظام (العملاء 1300، المخزون 1400، الموردون 2100، تكلفة المبيعات 5100)', yr(), async (f) => {
+    const r = await api('GET', '/reports/ratios?' + E.qs(f)), b = r.base, x = r.ratios, na = (v, suf) => (v == null ? '<span class="muted">—</span>' : v.toLocaleString('en-US', { maximumFractionDigits: 2 }) + (suf || ''));
+    const row = (k, v, hint) => '<tr><td>' + k + '</td><td class="n">' + v + '</td><td class="muted">' + hint + '</td></tr>';
+    return '<h3>الأساس (الفترة ' + r.days + ' يوماً)</h3><table><tbody>' + row('الإيرادات', money(b.revenue), '') + row('تكلفة البضاعة المباعة (5100)', money(b.cogs), '') + row('مجمل الربح', money(b.grossProfit), '') + row('المصروفات', money(b.expense), '') + row('صافي الربح', money(b.net), '') +
+      row('رصيد العملاء (1300) في نهاية الفترة', money(b.ar), '') + row('المخزون (1400)', money(b.inventory), '') + row('الموردون (2100)', money(b.ap), '') + row('النقدية والبنوك', money(b.cash), '') + row('إجمالي الخصوم', money(b.liabilities), '') + '</tbody></table>' +
+      '<h3>النسب</h3><table><thead><tr><th>النسبة</th><th class="n">القيمة</th><th>طريقة الحساب</th></tr></thead><tbody>' +
+      row('هامش مجمل الربح', na(x.grossMargin, '%'), '(الإيرادات − التكلفة) ÷ الإيرادات') + row('هامش صافي الربح', na(x.netMargin, '%'), 'صافي الربح ÷ الإيرادات') + row('نسبة المصروفات', na(x.expenseRatio, '%'), 'المصروفات ÷ الإيرادات') +
+      row('فترة التحصيل (يوم)', na(x.dso), 'رصيد العملاء ÷ الإيرادات × أيام الفترة') + row('فترة التخزين (يوم)', na(x.dio), 'المخزون ÷ تكلفة المبيعات × أيام الفترة') + row('فترة السداد (يوم)', na(x.dpo), 'الموردون ÷ تكلفة المبيعات × أيام الفترة') +
+      row('السيولة السريعة', na(x.quick), '(النقد + العملاء) ÷ إجمالي الخصوم') + '</tbody></table><p class="muted">«—» تعني أن المقام صفر. النسب تقريبية لأن النظام لا يصنّف الأصول المتداولة وغير المتداولة.</p>';
+  });
+
+  E.pages['acc-journal-audit'] = (el) => shell(el, 'تدقيق القيود', 'القيود المعكوسة وقيود الإقفال وعدد القيود بلا مرجع (غالباً يدوية) لكل شهر', yr(), async (f) => {
+    const r = await api('GET', '/reports/journal-audit?' + E.qs(f)), T = r.totals;
+    return '<div class="cards">' + stat('عدد القيود', T.entries) + stat('بلا مرجع (يدوية غالباً)', T.noRef) + stat('قيود معكوسة', T.reversals) + stat('قيود إقفال', T.closing) + '</div>' +
+      '<h3>القيود حسب الشهر</h3>' + (r.monthly.length ? '<table><thead><tr><th>الشهر</th><th class="n">القيود</th><th class="n">بلا مرجع</th><th class="n">قيود عكسية</th></tr></thead><tbody>' + r.monthly.map((x) => '<tr><td>' + x.month + '</td><td class="n">' + x.entries + '</td><td class="n">' + x.noRef + '</td><td class="n">' + x.reversals + '</td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا قيود</p>') +
+      '<h3>القيود المعكوسة</h3>' + (r.reversals.length ? '<table><thead><tr><th>القيد</th><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th><th>القيد العكسي</th><th>تاريخ العكس</th></tr></thead><tbody>' +
+        r.reversals.map((x) => '<tr><td><a href="#/entry/view/' + x.id + '">' + x.id + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.memo || '') + '</td><td class="n">' + money(x.amount) + '</td><td><a href="#/entry/view/' + x.reversalId + '">' + x.reversalId + '</a></td><td>' + esc(x.reversalDate) + '</td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا قيود معكوسة</p>') +
+      '<h3>قيود الإقفال</h3>' + (r.closing.length ? '<table><thead><tr><th>القيد</th><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th></tr></thead><tbody>' + r.closing.map((x) => '<tr><td><a href="#/entry/view/' + x.id + '">' + x.id + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.memo || '') + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا قيود إقفال</p>');
+  });
 })(window.ERP);
