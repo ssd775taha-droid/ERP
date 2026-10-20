@@ -366,6 +366,30 @@ test('تفاصيل مستندات الإهلاك وإقفال السنة', { ski
   for (const y of per.years) assert.ok('entryId' in y && 'changedBy' in y);
 });
 
+test('تقارير الرواتب: تطابق الأقسام والموظفين والمكوّنات والاتجاه', { skip: !hasDb || !canWrite }, async () => {
+  const q = 'from=2000-01-01&to=2099-12-31';
+  const d = await call('GET', `/api/payroll/reports/by-department?${q}`);
+  const e = await call('GET', `/api/payroll/reports/by-employee?${q}`);
+  const c = await call('GET', `/api/payroll/reports/components?${q}`);
+  const tr = await call('GET', `/api/payroll/reports/trend?${q}`);
+  for (const x of [d, e, c, tr]) assert.strictEqual(x.status, 200);
+  const cents = (n) => Math.round(n * 100);
+  assert.strictEqual(cents(d.data.totals.net), cents(tr.data.totals.net));
+  assert.strictEqual(cents(e.data.totals.net), cents(tr.data.totals.net));
+  assert.strictEqual(cents(d.data.totals.gross), cents(tr.data.totals.gross));
+  assert.strictEqual(cents(e.data.totals.gross), cents(tr.data.totals.gross));
+  assert.strictEqual(cents(Object.values(e.data.monthTotals).reduce((s, x) => s + x, 0)), cents(tr.data.totals.net));
+  // الصافي = الإجمالي − الاستقطاعات − السلف
+  assert.strictEqual(cents(d.data.totals.gross - d.data.totals.deductions - d.data.totals.advance), cents(d.data.totals.net));
+  // المكوّنات: الاستقطاعات والسلف وحصة صاحب العمل تطابق الأسطر
+  assert.strictEqual(cents(c.data.totals.deduction), cents(d.data.totals.deductions));
+  assert.strictEqual(cents(c.data.totals.advance), cents(d.data.totals.advance));
+  assert.strictEqual(cents(c.data.totals.employer), cents(d.data.totals.employer));
+  assert.strictEqual(cents(c.data.totals.basic + c.data.totals.earning), cents(d.data.totals.gross));
+  assert.strictEqual((await call('GET', '/api/payroll/reports/trend?from=2026-05-01&to=2026-01-01')).status, 400);
+  assert.strictEqual((await call('GET', '/api/payroll/reports/trend')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

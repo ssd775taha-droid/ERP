@@ -185,4 +185,46 @@
       r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n ' + (x.qty <= 0 ? 'bad' : '') + '">' + q3(x.qty) + ' ' + esc(x.unit) + '</td><td class="n">' + q3(x.sold90) + '</td><td class="n">' + q3(x.daily) + '</td><td class="n">' + (x.coverDays == null ? '—' : x.coverDays) + '</td></tr>').join('') + '</tbody></table>' +
       '<p class="muted">الأصناف الأكثر مبيعاً أولاً؛ «—» تعني لا مبيعات في الفترة.</p>';
   });
+
+  // ---------- تقارير الرواتب ----------
+  const monthStartYear = () => E.yearStart().slice(0, 7) + '-01';
+  const payDates = () => dateF('from', 'من شهر', monthStartYear()) + dateF('to', 'إلى شهر', E.today());
+  const note = '<p class="muted">تُحتسب الكشوف المرحَّلة والمصروفة فقط؛ المسودات والملغاة مستبعدة. القسم هو القسم الحالي للموظف.</p>';
+
+  E.pages['pay-dept'] = (el) => shell(el, 'الرواتب حسب القسم', 'عدد الموظفين والأساسي والاستحقاقات والاستقطاعات والصافي وتكلفة صاحب العمل لكل قسم', payDates(), async (f) => {
+    const r = await api('GET', '/payroll/reports/by-department?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا كشوف مرحَّلة في هذه الفترة</div>';
+    const stat = (k, v) => '<div class="stat"><div class="muted">' + k + '</div><b>' + money(v) + '</b></div>';
+    return '<div class="cards">' + stat('الإجمالي', t.gross) + stat('الاستقطاعات والسلف', t.deductions + t.advance) + stat('الصافي', t.net) + stat('تكلفة صاحب العمل', t.employer) + '</div>' +
+      '<table><thead><tr><th>القسم</th><th class="n">الموظفون</th><th class="n">الأساسي</th><th class="n">استحقاقات</th><th class="n">الإجمالي</th><th class="n">استقطاعات</th><th class="n">سلف</th><th class="n">الصافي</th><th class="n">حصة صاحب العمل</th><th class="n">%</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.dept) + '</td><td class="n">' + x.employees + '</td><td class="n">' + money(x.basic) + '</td><td class="n">' + money(x.earnings) + '</td><td class="n">' + money(x.gross) + '</td><td class="n">' + money(x.deductions) + '</td><td class="n">' + money(x.advance) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.employer) + '</td><td class="n">' + pctTxt(t.gross ? x.gross / t.gross * 100 : null) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + t.employees + '</td><td class="n">' + money(t.basic) + '</td><td class="n">' + money(t.earnings) + '</td><td class="n">' + money(t.gross) + '</td><td class="n">' + money(t.deductions) + '</td><td class="n">' + money(t.advance) + '</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.employer) + '</td><td></td></tr></tfoot></table>' + note +
+      '<p class="muted">عدد الموظفين في الإجمالي مجموع أعدادهم في الأقسام (موظف واحد لا يُحتسب مرتين لأن له قسماً واحداً).</p>';
+  });
+
+  E.pages['pay-employee'] = (el) => shell(el, 'كشف رواتب الموظفين بالأشهر', 'صافي راتب كل موظف في كل شهر مع إجماليات الفترة', payDates(), async (f) => {
+    const r = await api('GET', '/payroll/reports/by-employee?' + E.qs(f));
+    if (!r.rows.length) return '<div class="msg warn">لا كشوف مرحَّلة في هذه الفترة</div>';
+    if (r.months.length > 14) return '<div class="msg warn">الفترة أطول من 14 شهراً: ضيّقها لعرض الأعمدة</div>';
+    return '<table><thead><tr><th>الرمز</th><th>الموظف</th><th>القسم</th>' + r.months.map((m) => '<th class="n">' + m + '</th>').join('') + '<th class="n">الإجمالي</th><th class="n">الاستقطاعات</th><th class="n">الصافي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.dept) + '</td>' + r.months.map((m) => '<td class="n">' + (x.months[m] ? money(x.months[m]) : '') + '</td>').join('') + '<td class="n">' + money(x.gross) + '</td><td class="n">' + money(x.deductions) + '</td><td class="n">' + money(x.net) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td>' + r.months.map((m) => '<td class="n">' + money(r.monthTotals[m]) + '</td>').join('') + '<td class="n">' + money(r.totals.gross) + '</td><td class="n">' + money(r.totals.deductions) + '</td><td class="n">' + money(r.totals.net) + '</td></tr></tfoot></table>' + note;
+  });
+
+  E.pages['pay-components'] = (el) => shell(el, 'الرواتب حسب المكوّن', 'إجمالي كل بدل واستقطاع وحصة صاحب عمل وسلفة في الفترة وعدد موظفيه (يفيد في مطابقة التأمينات والالتزامات)', payDates(), async (f) => {
+    const r = await api('GET', '/payroll/reports/components?' + E.qs(f)), K = { BASIC: 'الأساسي', EARNING: 'استحقاق', DEDUCTION: 'استقطاع من الموظف', ADVANCE: 'أقساط سلف', EMPLOYER: 'حصة صاحب العمل' };
+    if (!r.rows.length) return '<div class="msg warn">لا كشوف مرحَّلة في هذه الفترة</div>';
+    const sec = (k) => { const rows = r.rows.filter((x) => x.kind === k); return rows.length ? '<h3>' + K[k] + '</h3><table><thead><tr><th>المكوّن</th><th class="n">الموظفون</th><th class="n">المبلغ</th></tr></thead><tbody>' +
+      rows.map((x) => '<tr><td>' + esc(x.name) + '</td><td class="n">' + x.employees + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(rows.reduce((s, x) => s + x.amount, 0)) + '</td></tr></tfoot></table>' : ''; };
+    return ['BASIC', 'EARNING', 'DEDUCTION', 'ADVANCE', 'EMPLOYER'].map(sec).join('') + note;
+  });
+
+  E.pages['pay-trend'] = (el) => shell(el, 'اتجاه تكلفة الرواتب الشهري', 'الإجمالي والاستقطاعات والصافي وحصة صاحب العمل والتكلفة الكلية لكل شهر', payDates(), async (f) => {
+    const r = await api('GET', '/payroll/reports/trend?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا كشوف مرحَّلة في هذه الفترة</div>';
+    const max = Math.max(1, ...r.rows.map((x) => x.totalCost));
+    return '<table><thead><tr><th>الشهر</th><th>الحالة</th><th class="n">الموظفون</th><th class="n">الإجمالي</th><th class="n">الاستقطاعات</th><th class="n">الصافي</th><th class="n">حصة صاحب العمل</th><th class="n">التكلفة الكلية</th><th class="noprint"></th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + x.month + '</td><td>' + (x.status === 'PAID' ? 'مصروف' : 'مرحَّل') + '</td><td class="n">' + x.employees + '</td><td class="n">' + money(x.gross) + '</td><td class="n">' + money(x.deductions) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.employer) + '</td><td class="n">' + money(x.totalCost) + '</td><td class="noprint">' + bar(x.totalCost / max * 100) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + money(t.gross) + '</td><td class="n">' + money(t.deductions) + '</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.employer) + '</td><td class="n">' + money(t.totalCost) + '</td><td class="noprint"></td></tr></tfoot></table>' + note;
+  });
 })(window.ERP);
