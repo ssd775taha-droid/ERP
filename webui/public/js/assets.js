@@ -84,7 +84,7 @@
       el.innerHTML = E.head('الإهلاك الشهري', 'قيد واحد لكل شهر؛ التشغيل آمن للتكرار ويعوّض الأشهر الفائتة بالترتيب') +
         '<p class="noprint"><button class="btn gold sm" data-act="print">معاينة وطباعة</button></p><div class="card"><form id="f" class="row"><label>حتى شهر (أي يوم فيه)<input type="date" name="u" value="' + E.today() + '"></label><button class="btn">تشغيل الإهلاك</button></form></div>' +
         '<h2>الأشهر المُهلَكة</h2>' + (months.length ? '<table><thead><tr><th>الشهر</th><th>عدد الأصول</th><th class="n">الإجمالي</th><th class="noprint"></th></tr></thead><tbody>' +
-          months.map((m, i) => '<tr><td>' + esc(m.period.slice(0, 7)) + '</td><td>' + m.assets + '</td><td class="n">' + money(m.amount) + '</td><td class="noprint">' + (i === 0 ? '<button class="btn alt sm" data-act="rev" data-p="' + esc(m.period) + '">عكس هذا الشهر</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا إهلاك مسجّل</div>');
+          months.map((m, i) => '<tr><td>' + esc(m.period.slice(0, 7)) + '</td><td>' + m.assets + '</td><td class="n">' + money(m.amount) + '</td><td class="noprint">' + '<button class="btn alt sm" data-act="depdoc" data-p="' + esc(m.period) + '">طباعة المستند</button> ' + (i === 0 ? '<button class="btn alt sm" data-act="rev" data-p="' + esc(m.period) + '">عكس هذا الشهر</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا إهلاك مسجّل</div>');
       E.$('#f', el).addEventListener('submit', async (ev) => {
         ev.preventDefault();
         try {
@@ -93,7 +93,8 @@
         } catch (e) { E.toast(e.message, true); }
       });
     }
-    E.bind(el, { rev: async (b) => { if (confirm('عكس إهلاك شهر ' + b.dataset.p.slice(0, 7) + '؟')) { await api('POST', '/depreciation/reverse', { period: b.dataset.p }); E.toast('عُكس الإهلاك'); await load(); } } });
+    E.bind(el, { depdoc: async (b) => E.openDoc(E.docSpec.depreciation(await api('GET', '/depreciation/months/' + encodeURIComponent(b.dataset.p)))),
+      rev: async (b) => { if (confirm('عكس إهلاك شهر ' + b.dataset.p.slice(0, 7) + '؟')) { await api('POST', '/depreciation/reverse', { period: b.dataset.p }); E.toast('عُكس الإهلاك'); await load(); } } });
     await load();
   };
 })(window.ERP);

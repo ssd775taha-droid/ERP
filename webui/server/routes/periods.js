@@ -13,7 +13,8 @@ module.exports = function periodRoutes() {
       SELECT TO_CHAR(period, 'YYYY-MM-DD') AS "month", status AS "status", entries AS "entries"
         FROM v_erp_period_status ORDER BY period DESC`);
     const years = await db.query(`
-      SELECT TO_CHAR(year_end, 'YYYY-MM-DD') AS "yearEnd", net_income AS "netIncome", status AS "status"
+      SELECT TO_CHAR(year_end, 'YYYY-MM-DD') AS "yearEnd", net_income AS "netIncome", status AS "status", entry_id AS "entryId", reopen_entry_id AS "reopenEntryId",
+             changed_by AS "changedBy", TO_CHAR(changed_at, 'YYYY-MM-DD HH24:MI') AS "changedAt"
         FROM erp_year_closings ORDER BY year_end DESC`);
     res.json({ months, years });
   }));

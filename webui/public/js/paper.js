@@ -280,6 +280,37 @@
         sign: [['الكاشير', 'Cashier'], ['المشرف', 'Supervisor'], ['المحاسب', 'Accountant']],
       };
     },
+    // قيد إقفال السنة (من قيد الإقفال نفسه)
+    yearClose(y, entry) {
+      const lines = entry ? entry.lines : [];
+      const td = lines.reduce((s, l) => s + l.debit, 0), tc = lines.reduce((s, l) => s + l.credit, 0);
+      const reopened = y.status !== 'CLOSED';
+      return {
+        titleAr: 'مستند إقفال السنة المالية', titleEn: 'YEAR-END CLOSING VOUCHER', no: 'YC-' + y.yearEnd.slice(0, 4), windowTitle: 'إقفال سنة ' + y.yearEnd.slice(0, 4),
+        meta: [[['نهاية السنة', 'Year End', '<b dir="ltr">' + esc(y.yearEnd) + '</b>'], ['الحالة', 'Status', reopened ? '<b>أُعيد فتحها</b>' : 'مقفلة']],
+          [['صافي ' + (y.netIncome >= 0 ? 'الربح' : 'الخسارة'), 'Net ' + (y.netIncome >= 0 ? 'Profit' : 'Loss'), '<b dir="ltr">' + money(Math.abs(y.netIncome)) + '</b>'], ['قيد الإقفال', 'Closing Journal', y.entryId ? '<span dir="ltr">' + y.entryId + '</span>' : 'لا قيد (صافي صفر)']],
+          [['نفّذه', 'Executed by', esc(y.changedBy || '—')], ['بتاريخ', 'On', '<span dir="ltr">' + esc(y.changedAt || '') + '</span>']]],
+        table: entry ? { cols: [{ ar: '#', en: '' }, { ar: 'الحساب', en: 'Account' }, { ar: 'مدين', en: 'Debit', n: 1 }, { ar: 'دائن', en: 'Credit', n: 1 }],
+          rows: lines.map((l, k) => [k + 1, esc(l.account) + ' — ' + esc(l.accountName), l.debit ? num(l.debit) : '', l.credit ? num(l.credit) : '']),
+          foot: [[{ t: 'الإجمالي / Total', span: 2 }, { t: num(td), n: 1 }, { t: num(tc), n: 1 }]] } : null,
+        words: Math.abs(y.netIncome), note: 'تُقفل حسابات الإيرادات والمصروفات وتُرحَّل النتيجة إلى الأرباح المبقاة.' + (reopened ? ' أُعيد فتح السنة بقيد عكسي رقم ' + (y.reopenEntryId || '—') + '.' : ''),
+        sign: [['المحاسب', 'Accountant'], ['المدير المالي', 'Finance Manager'], ['المدير العام', 'General Manager']],
+        actions: [...(y.entryId ? [{ label: 'فتح قيد الإقفال', href: '#/entry/view/' + y.entryId }] : []), ...(E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [])],
+      };
+    },
+    // مستند إهلاك شهري للأصول
+    depreciation(d) {
+      const tot = d.rows.reduce((s, x) => s + x.amount, 0);
+      return {
+        titleAr: 'مستند إهلاك الأصول الثابتة', titleEn: 'FIXED ASSETS DEPRECIATION', no: 'DEP-' + d.period.slice(0, 7), windowTitle: 'إهلاك ' + d.period.slice(0, 7),
+        meta: [[['الشهر', 'Period', '<b dir="ltr">' + esc(d.period.slice(0, 7)) + '</b>'], ['قيد الإهلاك', 'Journal No.', d.run ? '<span dir="ltr">' + d.run.entryId + '</span>' : '—']], [['عدد الأصول', 'Assets', String(d.rows.length)], ['نفّذه', 'Executed by', esc((d.run && d.run.createdBy) || '—')]]],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'الأصل', en: 'Asset' }, { ar: 'الفئة', en: 'Category' }, { ar: 'التكلفة', en: 'Cost', n: 1 }, { ar: 'قسط الشهر', en: 'Month', n: 1 }, { ar: 'المجمّع', en: 'Accumulated', n: 1 }],
+          rows: d.rows.map((x, k) => [k + 1, esc(x.code + ' — ' + x.name), esc(x.catName), num(x.cost), num(x.amount), num(x.accumulated)]),
+          foot: [[{ t: 'الإجمالي / Total', span: 4 }, { t: num(tot), n: 1 }, { t: '', n: 1 }]] },
+        totals: [['إجمالي الإهلاك', 'Total SAR', num(tot), 1]], words: tot, note: 'مدين: مصروف الإهلاك / دائن: مجمع الإهلاك.', sign: SIGN3,
+        actions: [...(d.run ? [{ label: 'فتح قيد الإهلاك', href: '#/entry/view/' + d.run.entryId }] : []), ...(E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [])],
+      };
+    },
     // إشعار استلام بضاعة لأمر شراء
     receipt(o, r) {
       const rows = r.lines.map((l, k) => [k + 1, esc(l.description), q3(l.orderedQty), q3(l.qty), num(l.price), l.price !== l.poPrice ? '<span dir="ltr">' + money(l.poPrice) + '</span>' : '—', num(Math.round(l.qty * l.price * 100) / 100)]);

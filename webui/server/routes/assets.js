@@ -101,8 +101,20 @@ module.exports = function assetRoutes() {
   }));
   // إجمالي الإهلاك المسجّل لكل شهر (للعرض وللعكس)
   r.get('/depreciation/months', wrap(async (req, res) => {
-    res.json({ months: await db.query(`SELECT TO_CHAR(period, 'YYYY-MM-DD') AS "period", COUNT(*) AS "assets", SUM(amount) AS "amount"
-                                         FROM erp_depreciation WHERE status = 'OK' GROUP BY period ORDER BY period DESC FETCH FIRST 60 ROWS ONLY`) });
+    res.json({ months: await db.query(`SELECT TO_CHAR(d.period, 'YYYY-MM-DD') AS "period", COUNT(*) AS "assets", SUM(d.amount) AS "amount",
+                                              (SELECT MAX(r.entry_id) KEEP (DENSE_RANK LAST ORDER BY r.run_id) FROM erp_dep_runs r WHERE r.period = d.period AND r.status = 'OK') AS "entryId"
+                                         FROM erp_depreciation d WHERE d.status = 'OK' GROUP BY d.period ORDER BY d.period DESC FETCH FIRST 60 ROWS ONLY`) });
+  }));
+  // تفصيل إهلاك شهر: كل أصل وقسطه
+  r.get('/depreciation/months/:period', wrap(async (req, res) => {
+    const period = v.date(req.params.period, 'الشهر');
+    const rows = await db.query(`SELECT a.code AS "code", a.name AS "name", c.name AS "catName", a.cost AS "cost", d.amount AS "amount",
+        (SELECT NVL(SUM(x.amount), 0) FROM erp_depreciation x WHERE x.asset_id = a.asset_id AND x.status = 'OK' AND x.period <= d.period) AS "accumulated"
+      FROM erp_depreciation d JOIN erp_assets a ON a.asset_id = d.asset_id JOIN erp_asset_categories c ON c.cat_id = a.cat_id
+     WHERE d.period = TO_DATE(:p, 'YYYY-MM-DD') AND d.status = 'OK' ORDER BY a.code`, { p: period });
+    const [run] = await db.query(`SELECT entry_id AS "entryId", total AS "total", created_by AS "createdBy" FROM erp_dep_runs WHERE period = TO_DATE(:p, 'YYYY-MM-DD') AND status = 'OK' ORDER BY run_id DESC FETCH FIRST 1 ROWS ONLY`, { p: period });
+    if (!rows.length) throw new db.HttpError(404, 'لا إهلاك مسجّل لهذا الشهر');
+    res.json({ period, rows, run: run || null });
   }));
 
   return r;

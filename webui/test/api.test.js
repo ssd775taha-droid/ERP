@@ -352,6 +352,20 @@ test('ميزان المراجعة بأعمدة الفترة: افتتاحي + ح
   assert.strictEqual((await call('GET', '/api/reports/trial-balance?from=2026-12-31&to=2026-01-01')).status, 400);
 });
 
+test('تفاصيل مستندات الإهلاك وإقفال السنة', { skip: !hasDb || !canWrite }, async () => {
+  const months = (await call('GET', '/api/depreciation/months')).data.months;
+  if (months.length) {
+    const d = await call('GET', `/api/depreciation/months/${months[0].period}`);
+    assert.strictEqual(d.status, 200);
+    assert.strictEqual(Math.round(d.data.rows.reduce((s, x) => s + x.amount, 0) * 100), Math.round(months[0].amount * 100));
+    assert.ok(months[0].entryId);
+  }
+  assert.strictEqual((await call('GET', '/api/depreciation/months/2000-01-01')).status, 404);
+  assert.strictEqual((await call('GET', '/api/depreciation/months/x')).status, 400);
+  const per = (await call('GET', '/api/periods')).data;
+  for (const y of per.years) assert.ok('entryId' in y && 'changedBy' in y);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة
