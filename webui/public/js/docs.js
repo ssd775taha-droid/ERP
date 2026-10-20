@@ -94,6 +94,7 @@
   };
 
   E.pages.poView = async function (el, id) {
+    let cur = null;
     async function load() {
       const { order: o } = await api('GET', '/po/' + encodeURIComponent(id));
       const open = o.lines.filter((l) => l.received < l.qty);
@@ -107,7 +108,8 @@
         (canRecv ? '<div class="card noprint" style="margin-top:12px"><h3>استلام</h3><form id="fr" class="row"><label>تاريخ الاستلام<input type="date" name="d" value="' + E.today() + '"></label><label>رقم فاتورة المورد<input name="r" maxlength="60"></label><label style="flex:1">ملاحظة<input name="n" maxlength="300"></label><button class="btn">استلام وإنشاء الفاتورة</button></form><p class="muted">اكتب الكميات المستلمة في الجدول أعلاه؛ اترك سعر الفاتورة فارغاً لاستخدام سعر الأمر.</p></div>' : '') +
         (o.receipts.length ? '<h3>الاستلامات</h3><table><tbody>' + o.receipts.map((r) => '<tr><td>استلام ' + r.id + '</td><td>' + esc(r.date) + '</td><td><a href="#/invoice/view/' + r.invoiceId + '">فاتورة ' + r.invoiceId + '</a></td><td>' + (r.status === 'VOID' ? '<span class="tag bad">ملغى</span>' : '<span class="tag good">فعّال</span>') + '</td><td class="noprint">' + (r.status === 'ACTIVE' ? '<button class="btn alt sm" data-act="vr" data-r="' + r.id + '">إلغاء الاستلام</button>' : '') + '</td></tr>').join('') + '</tbody></table>' : '') +
         '<div class="card noprint" style="margin-top:12px">' + (o.status === 'DRAFT' ? '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/po/edit/' + o.id + '">تعديل البنود</a> <button class="btn" data-act="approve">اعتماد</button> ' : '') + (['DRAFT', 'APPROVED'].includes(o.status) && !o.receipts.some((r) => r.status === 'ACTIVE') ? '<button class="btn danger sm" data-act="cancel">إلغاء الأمر</button> ' : '') +
-        (o.status === 'PARTIAL' ? '<button class="btn alt" data-act="close">إغلاق ما تبقى</button> ' : '') + '<button class="btn alt" data-act="print">طباعة</button> <a href="#/po">رجوع</a></div>';
+        (o.status === 'PARTIAL' ? '<button class="btn alt" data-act="close">إغلاق ما تبقى</button> ' : '') + '<button class="btn" data-act="doc">معاينة وطباعة المستند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <a href="#/po">رجوع</a></div>';
+      cur = o; el._openDoc = () => E.openDoc(E.docSpec.po(o, PO_ST[o.status] && PO_ST[o.status][0]));
       const fr = E.$('#fr', el);
       if (fr) fr.addEventListener('submit', async (ev) => {
         ev.preventDefault(); const f = new FormData(fr);
@@ -116,7 +118,7 @@
       });
     }
     const act = (p, m, ask) => async () => { if (ask && !confirm(ask)) return; await api('POST', '/po/' + encodeURIComponent(id) + '/' + p); E.toast(m); await load(); };
-    E.bind(el, { print: () => window.print(), approve: act('approve', 'اعتُمد الأمر'), cancel: act('cancel', 'أُلغي الأمر', 'إلغاء الأمر؟'), close: act('close', 'أُغلق الأمر', 'إغلاق ما تبقى من الأمر؟'),
+    E.bind(el, { print: () => window.print(), doc: () => E.openDoc(E.docSpec.po(cur, PO_ST[cur.status] && PO_ST[cur.status][0])), approve: act('approve', 'اعتُمد الأمر'), cancel: act('cancel', 'أُلغي الأمر', 'إلغاء الأمر؟'), close: act('close', 'أُغلق الأمر', 'إغلاق ما تبقى من الأمر؟'),
       vr: async (b) => { if (confirm('إلغاء الاستلام؟ تُلغى فاتورته وتعود الكميات.')) { await api('POST', '/po/receipts/' + b.dataset.r + '/void'); E.toast('أُلغي الاستلام'); await load(); } } });
     await load();
   };
@@ -176,8 +178,10 @@
   };
 
   E.pages.quoteView = async function (el, id) {
+    let cur = null;
     async function load() {
       const { quote: q } = await api('GET', '/quotes/' + encodeURIComponent(id));
+      cur = q; el._openDoc = () => E.openDoc(E.docSpec.quote(q, Q_ST[q.status] && Q_ST[q.status][0]));
       const s = q.status;
       el.innerHTML = E.head('عرض سعر ' + q.no, q.partyName + ' — ' + q.date + ' — صالح حتى ' + q.validUntil) + '<p>' + tag(Q_ST, s) + (q.expiredFlag === 'Y' ? ' <span class="tag bad">انتهت صلاحيته</span>' : '') + ' <span class="muted">' +
         (q.revisionOf ? 'تعديل للعرض <a href="#/quote/view/' + q.revisionOf + '">' + q.revisionOf + '</a> ' : '') + (q.revisedBy ? '· عُدّل بالعرض <a href="#/quote/view/' + q.revisedBy + '">' + q.revisedBy + '</a> ' : '') + (q.invoiceId ? '· <a href="#/invoice/view/' + q.invoiceId + '">فاتورة ' + q.invoiceId + '</a>' : '') + '</span></p>' +
@@ -188,12 +192,12 @@
         (s === 'ACCEPTED' ? '<div class="card noprint" style="margin-top:12px"><h3>تحويل إلى فاتورة مبيعات</h3><form id="fc" class="row"><label>تاريخ الفاتورة<input type="date" name="d" value="' + E.today() + '"></label><label>الاستحقاق<input type="date" name="du"></label><button class="btn">تحويل</button></form><p class="muted">تخرج البضاعة من المخزن وتُرحَّل التكلفة تلقائياً.</p></div>' : '') +
         '<div class="card noprint" style="margin-top:12px">' + (s === 'DRAFT' ? '<a class="btn alt" style="padding:7px 16px;border:1px solid var(--brand);border-radius:8px" href="#/quote/edit/' + q.id + '">تعديل البنود</a> <button class="btn" data-act="send">إرسال للعميل</button> ' : '') + (s === 'SENT' ? '<button class="btn" data-act="accept">قبول</button> <button class="btn alt" data-act="reject">رفض</button> ' : '') +
         (['SENT', 'REJECTED'].includes(s) ? '<button class="btn alt" data-act="revise">عرض معدَّل</button> ' : '') + (['DRAFT', 'SENT'].includes(s) ? '<button class="btn danger sm" data-act="cancel">إلغاء</button> ' : '') +
-        (s === 'CONVERTED' ? '<button class="btn danger sm" data-act="unconvert">إلغاء التحويل (يلغي الفاتورة)</button> ' : '') + '<button class="btn alt" data-act="print">طباعة</button> <a href="#/quotes">رجوع</a></div>';
+        (s === 'CONVERTED' ? '<button class="btn danger sm" data-act="unconvert">إلغاء التحويل (يلغي الفاتورة)</button> ' : '') + '<button class="btn" data-act="doc">معاينة وطباعة المستند</button> <button class="btn alt" data-act="print">طباعة الشاشة</button> <a href="#/quotes">رجوع</a></div>';
       const fc = E.$('#fc', el);
       if (fc) fc.addEventListener('submit', async (ev) => { ev.preventDefault(); const f = new FormData(fc); try { const r = await api('POST', '/quotes/' + id + '/convert', { date: f.get('d'), due: f.get('du') || null }); E.toast('أُنشئت الفاتورة'); location.hash = '#/invoice/view/' + r.invoiceId; } catch (e) { E.toast(e.message, true); } });
     }
     const act = (p, m, ask) => async () => { if (ask && !confirm(ask)) return; await api('POST', '/quotes/' + encodeURIComponent(id) + '/' + p); E.toast(m); await load(); };
-    E.bind(el, { print: () => window.print(), send: act('send', 'أُرسل العرض', 'إرسال العرض؟ تُقفل بنوده بعده.'), accept: act('accept', 'قُبل العرض'), reject: act('reject', 'رُفض العرض'),
+    E.bind(el, { print: () => window.print(), doc: () => E.openDoc(E.docSpec.quote(cur, Q_ST[cur.status] && Q_ST[cur.status][0])), send: act('send', 'أُرسل العرض', 'إرسال العرض؟ تُقفل بنوده بعده.'), accept: act('accept', 'قُبل العرض'), reject: act('reject', 'رُفض العرض'),
       cancel: act('cancel', 'أُلغي العرض', 'إلغاء العرض؟'), unconvert: act('unconvert', 'أُلغي التحويل', 'إلغاء الفاتورة وإعادة العرض مقبولاً؟'),
       revise: async () => { const r = await api('POST', '/quotes/' + encodeURIComponent(id) + '/revise', {}); E.toast('أُنشئ عرض معدَّل'); location.hash = '#/quote/view/' + r.quote.id; } });
     await load();

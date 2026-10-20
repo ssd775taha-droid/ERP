@@ -53,7 +53,7 @@ module.exports = function docRoutes() {
   }));
 
   // ======================= أوامر الشراء =======================
-  const PO = `SELECT po.po_id AS "id", po.po_no AS "no", po.party_id AS "partyId", pa.name AS "partyName", TO_CHAR(po.po_date, 'YYYY-MM-DD') AS "date",
+  const PO = `SELECT po.po_id AS "id", po.po_no AS "no", po.party_id AS "partyId", pa.name AS "partyName", pa.phone AS "partyPhone", pa.tax_no AS "partyTaxNo", TO_CHAR(po.po_date, 'YYYY-MM-DD') AS "date",
       TO_CHAR(po.expected_date, 'YYYY-MM-DD') AS "expected", po.status AS "status", po.subtotal AS "subtotal", po.vat_amount AS "vat", po.total AS "total",
       po.notes AS "notes", po.created_by AS "createdBy", po.approved_by AS "approvedBy",
       CASE WHEN po.status IN ('APPROVED','PARTIAL') AND po.expected_date < TRUNC(SYSDATE) THEN 'Y' ELSE 'N' END AS "overdue"
@@ -125,7 +125,7 @@ module.exports = function docRoutes() {
   }));
 
   // ======================= عروض الأسعار =======================
-  const Q = `SELECT q.quote_id AS "id", q.quote_no AS "no", q.party_id AS "partyId", pa.name AS "partyName", TO_CHAR(q.quote_date, 'YYYY-MM-DD') AS "date",
+  const Q = `SELECT q.quote_id AS "id", q.quote_no AS "no", q.party_id AS "partyId", pa.name AS "partyName", pa.phone AS "partyPhone", pa.tax_no AS "partyTaxNo", TO_CHAR(q.quote_date, 'YYYY-MM-DD') AS "date",
       TO_CHAR(q.valid_until, 'YYYY-MM-DD') AS "validUntil", q.status AS "status", q.subtotal AS "subtotal", q.vat_amount AS "vat", q.total AS "total",
       q.notes AS "notes", q.terms AS "terms", q.revision_of AS "revisionOf", q.invoice_id AS "invoiceId",
       CASE WHEN q.status = 'SENT' AND q.valid_until < TRUNC(SYSDATE) THEN 'Y' ELSE 'N' END AS "expiredFlag",

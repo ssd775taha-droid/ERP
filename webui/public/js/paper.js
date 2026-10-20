@@ -156,6 +156,37 @@
         actions: E.can('trade', 'w') ? [{ label: rec ? 'إلغاء السند' : 'إلغاء السند', cls: 'danger', fn: (close) => { close(); const b = document.querySelector('[data-act=c-del]'); if (b) b.click(); } }] : [],
       };
     },
+    // أمر شراء
+    po(o, statusText) {
+      return {
+        titleAr: 'أمر شراء', titleEn: 'PURCHASE ORDER', no: o.no, windowTitle: 'أمر شراء ' + o.no, phone: o.partyPhone, waAmount: o.total,
+        meta: [[['رقم الأمر', 'PO No.', '<b dir="ltr">' + esc(o.no) + '</b>'], ['التاريخ', 'Date', '<b dir="ltr">' + esc(o.date) + '</b>']],
+          [['تاريخ التسليم المتوقع', 'Expected Delivery', esc(o.expected || '—')], ['الحالة', 'Status', esc(statusText || o.status)]],
+          [['العملة', 'Currency', 'ريال سعودي SAR'], ['أنشأه / اعتمده', 'Created / Approved', esc(o.createdBy || '—') + (o.approvedBy ? ' / ' + esc(o.approvedBy) : '')]]],
+        parties: [party(o.partyName, o.partyTaxNo, o.partyPhone, 'المورد', 'Supplier'), seller('المشتري', 'Buyer')],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'البيان', en: 'Description' }, { ar: 'الكمية', en: 'Qty', n: 1 }, { ar: 'المستلم', en: 'Received', n: 1 }, { ar: 'السعر', en: 'Price', n: 1 }, { ar: 'الضريبة %', en: 'VAT %', n: 1 }, { ar: 'الصافي', en: 'Net', n: 1 }, { ar: 'الإجمالي', en: 'Amount', n: 1 }],
+          rows: o.lines.map((l) => [l.no, esc(l.description), q3(l.qty), q3(l.received), num(l.price), l.vatRate + '%', num(l.net), num(l.net + l.vat)]) },
+        totals: [['الإجمالي قبل الضريبة', 'Subtotal', num(o.subtotal)], ['ضريبة القيمة المضافة', 'VAT', num(o.vat)], ['الإجمالي', 'Total SAR', num(o.total), 1]],
+        words: o.total, note: o.notes, sign: [['أعدّه', 'Prepared by'], ['اعتمده (المدير)', 'Approved by'], ['المورد — الاستلام والتوقيع', 'Supplier — Acknowledgement']],
+        actions: E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [],
+      };
+    },
+    // عرض سعر
+    quote(q, statusText) {
+      return {
+        titleAr: 'عرض سعر', titleEn: 'QUOTATION', no: q.no, windowTitle: 'عرض سعر ' + q.no, phone: q.partyPhone, waAmount: q.total,
+        meta: [[['رقم العرض', 'Quote No.', '<b dir="ltr">' + esc(q.no) + '</b>'], ['التاريخ', 'Date', '<b dir="ltr">' + esc(q.date) + '</b>']],
+          [['صالح حتى', 'Valid Until', '<b dir="ltr">' + esc(q.validUntil) + '</b>'], ['الحالة', 'Status', esc(statusText || q.status)]],
+          [['العملة', 'Currency', 'ريال سعودي SAR'], ['المرجع', 'Reference', q.revisionOf ? 'تعديل للعرض ' + q.revisionOf : '—']]],
+        parties: [seller('مقدّم العرض', 'Supplier'), party(q.partyName, q.partyTaxNo, q.partyPhone, 'المقدَّم إليه', 'Customer')],
+        table: { cols: [{ ar: '#', en: '' }, { ar: 'البيان', en: 'Description' }, { ar: 'الكمية', en: 'Qty', n: 1 }, { ar: 'سعر الوحدة', en: 'Unit Price', n: 1 }, { ar: 'الخصم %', en: 'Disc. %', n: 1 }, { ar: 'الضريبة %', en: 'VAT %', n: 1 }, { ar: 'الصافي', en: 'Net', n: 1 }, { ar: 'الإجمالي', en: 'Amount', n: 1 }],
+          rows: q.lines.map((l) => [l.no, esc(l.description), q3(l.qty), num(l.unitNetPrice), l.discountPct + '%', l.vatRate + '%', num(l.net), num(l.net + l.vat)]) },
+        totals: [['الإجمالي قبل الضريبة', 'Subtotal', num(q.subtotal)], ['ضريبة القيمة المضافة', 'VAT', num(q.vat)], ['الإجمالي', 'Total SAR', num(q.total), 1]],
+        words: q.total, note: [q.notes, q.terms ? 'الشروط: ' + q.terms : ''].filter(Boolean).join(' — '), bank: true,
+        sign: [['مقدّم العرض', 'Issued by'], ['اعتمده (المدير)', 'Approved by'], ['العميل — الموافقة والتوقيع', 'Customer — Acceptance']],
+        actions: E.me.isAdmin ? [{ label: 'سجل العمليات', href: '#/settings/audit' }] : [],
+      };
+    },
     // سند قيد يومية
     entry(e) {
       const td = e.lines.reduce((s, l) => s + l.debit, 0), tc = e.lines.reduce((s, l) => s + l.credit, 0);
