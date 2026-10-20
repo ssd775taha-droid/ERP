@@ -281,4 +281,58 @@
       '<table><thead><tr><th>الرمز</th><th>الموظف</th><th>القسم</th><th>الهوية</th><th>الحساب البنكي</th><th>القسم</th><th>الوظيفة</th></tr></thead><tbody>' +
       r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td><a href="#/hr/employees">' + esc(x.name) + '</a></td><td>' + esc(x.dept) + '</td><td>' + no(x.noId) + '</td><td>' + no(x.noBank) + '</td><td>' + no(x.noDept) + '</td><td>' + no(x.noJob) + '</td></tr>').join('') + '</tbody></table>';
   });
+
+  // ---------- تقارير نقاط البيع ----------
+  E.pages['pos-daily'] = (el) => shell(el, 'المبيعات اليومية (نقاط البيع)', 'العمليات والمبيعات والمرتجعات والصافي والضريبة لكل يوم، وتوزيع النقد والبطاقة (النقد بعد خصم الباقي والمردود)', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/pos/reports/daily?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا عمليات في هذه الفترة</div>';
+    const max = Math.max(1, ...r.rows.map((x) => Math.abs(x.total)));
+    return '<div class="cards">' + stat('عدد العمليات', t.sales) + stat('صافي المبيعات (قبل الضريبة)', money(t.net)) + stat('الضريبة', money(t.vat)) + stat('الإجمالي بعد المرتجعات', money(t.total)) + stat('متوسط الفاتورة', money(t.avgTicket)) + '</div>' +
+      '<table><thead><tr><th>التاريخ</th><th class="n">عمليات</th><th class="n">مرتجعات</th><th class="n">المبيعات</th><th class="n">المرتجع</th><th class="n">الصافي</th><th class="n">الضريبة</th><th class="n">الإجمالي</th><th class="n">نقد</th><th class="n">بطاقة</th><th class="noprint"></th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.date) + '</td><td class="n">' + x.sales + '</td><td class="n">' + x.returns + '</td><td class="n">' + money(x.gross) + '</td><td class="n">' + money(x.returned) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.vat) + '</td><td class="n">' + money(x.total) + '</td><td class="n">' + money(x.cash) + '</td><td class="n">' + money(x.card) + '</td><td class="noprint">' + bar(Math.abs(x.total) / max * 100) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + t.sales + '</td><td class="n">' + t.returns + '</td><td class="n">' + money(t.gross) + '</td><td class="n">' + money(t.returned) + '</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.vat) + '</td><td class="n">' + money(t.total) + '</td><td class="n">' + money(t.cash) + '</td><td class="n">' + money(t.card) + '</td><td class="noprint"></td></tr></tfoot></table><p class="muted">نقد + بطاقة = الإجمالي بعد المرتجعات. العمليات الملغاة مستبعدة.</p>';
+  });
+
+  E.pages['pos-items'] = (el) => shell(el, 'مبيعات الأصناف (نقاط البيع)', 'الكمية والصافي والتكلفة والهامش لكل صنف بعد خصم المرتجعات', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/pos/reports/items?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا مبيعات في هذه الفترة</div>';
+    return '<table><thead><tr><th>#</th><th>الرمز</th><th>الصنف</th><th class="n">الكمية</th><th class="n">متوسط السعر</th><th class="n">الصافي</th><th class="n">الضريبة</th><th class="n">التكلفة</th><th class="n">الهامش</th></tr></thead><tbody>' +
+      r.rows.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + q3(x.qty) + '</td><td class="n">' + money(x.avgPrice) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.vat) + '</td><td class="n">' + money(x.cost) + '</td><td class="n ' + (x.margin < 0 ? 'bad' : '') + '">' + money(x.margin) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="3">الإجمالي</td><td class="n">' + q3(t.qty) + '</td><td></td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.vat) + '</td><td class="n">' + money(t.cost) + '</td><td class="n">' + money(t.margin) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['pos-cashiers'] = (el) => shell(el, 'المبيعات حسب الكاشير والنقطة', 'عدد الورديات والعمليات والمبيعات والمرتجعات ومتوسط الفاتورة لكل كاشير على كل نقطة', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/pos/reports/cashiers?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا عمليات في هذه الفترة</div>';
+    return '<table><thead><tr><th>الكاشير</th><th>النقطة</th><th class="n">الورديات</th><th class="n">عمليات</th><th class="n">مرتجعات</th><th class="n">المبيعات</th><th class="n">الصافي</th><th class="n">الإجمالي</th><th class="n">متوسط الفاتورة</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.cashier) + '</td><td>' + esc(x.register) + '</td><td class="n">' + x.shifts + '</td><td class="n">' + x.sales + '</td><td class="n">' + x.returns + '</td><td class="n">' + money(x.gross) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.total) + '</td><td class="n">' + money(x.avgTicket) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + t.shifts + '</td><td class="n">' + t.sales + '</td><td class="n">' + t.returns + '</td><td class="n">' + money(t.gross) + '</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.total) + '</td><td></td></tr></tfoot></table>';
+  });
+
+  E.pages['pos-hourly'] = (el) => shell(el, 'المبيعات بالساعة', 'توزيع عمليات البيع على ساعات اليوم لمعرفة أوقات الذروة (حسب وقت تسجيل العملية)', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/pos/reports/hourly?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا عمليات في هذه الفترة</div>';
+    const max = Math.max(1, ...r.rows.map((x) => x.total));
+    return '<table><thead><tr><th>الساعة</th><th class="n">العمليات</th><th class="n">الصافي</th><th class="n">الإجمالي</th><th class="n">%</th><th class="noprint"></th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td dir="ltr">' + String(x.hour).padStart(2, '0') + ':00 – ' + String(x.hour).padStart(2, '0') + ':59</td><td class="n">' + x.sales + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.total) + '</td><td class="n">' + pctTxt(t.total ? x.total / t.total * 100 : null) + '</td><td class="noprint">' + bar(x.total / max * 100) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + t.sales + '</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.total) + '</td><td colspan="2"></td></tr></tfoot></table>';
+  });
+
+  E.pages['pos-shifts'] = (el) => shell(el, 'فروقات الورديات (عجز وزيادة)', 'الورديات المقفلة في الفترة: النقد المتوقع مقابل المعدود والفرق', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/pos/reports/shifts?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا ورديات مقفلة في هذه الفترة</div>';
+    return '<div class="cards">' + stat('ورديات مقفلة', t.shifts) + stat('زيادات', money(t.over)) + stat('عجز', money(t.short)) + stat('صافي الفروقات', money(t.net)) + '</div>' +
+      '<table><thead><tr><th>الوردية</th><th>النقطة</th><th>الكاشير</th><th>أُغلقت</th><th class="n">الافتتاحي</th><th class="n">المتوقع</th><th class="n">المعدود</th><th class="n">الفرق</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td><a href="#/pos/shift/' + x.id + '">' + x.id + '</a></td><td>' + esc(x.register) + '</td><td>' + esc(x.cashier) + '</td><td dir="ltr">' + esc(x.closedAt) + '</td><td class="n">' + money(x.opening) + '</td><td class="n">' + money(x.expected) + '</td><td class="n">' + money(x.counted) + '</td><td class="n ' + (x.variance < 0 ? 'bad' : x.variance > 0 ? 'good' : '') + '">' + money(x.variance) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="5">الإجمالي</td><td class="n">' + money(t.expected) + '</td><td class="n">' + money(t.counted) + '</td><td class="n">' + money(t.net) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['pos-returns'] = (el) => shell(el, 'مرتجعات نقاط البيع', 'عمليات المرتجع في الفترة ونسبتها من المبيعات', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/pos/reports/returns?' + E.qs(f)), t = r.totals;
+    if (!r.rows.length) return '<div class="msg good">لا مرتجعات في هذه الفترة</div>';
+    return '<div class="cards">' + stat('عدد المرتجعات', t.count) + stat('قيمة المرتجعات (بالضريبة)', money(t.total)) + stat('نسبة المرتجعات من المبيعات', pctTxt(t.rate)) + '</div>' +
+      '<table><thead><tr><th>المرتجع</th><th>التاريخ</th><th>على عملية</th><th>الكاشير</th><th class="n">الصافي</th><th class="n">الضريبة</th><th class="n">الإجمالي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td><a href="#/pos/sale/' + x.id + '">' + esc(x.no) + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.origNo) + '</td><td>' + esc(x.cashier) + '</td><td class="n">' + money(x.net) + '</td><td class="n">' + money(x.vat) + '</td><td class="n">' + money(x.total) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="4">الإجمالي</td><td class="n">' + money(t.net) + '</td><td class="n">' + money(t.vat) + '</td><td class="n">' + money(t.total) + '</td></tr></tfoot></table>';
+  });
 })(window.ERP);

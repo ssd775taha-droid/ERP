@@ -419,6 +419,28 @@ test('تقارير الموارد البشرية: القوى العاملة وا
   assert.strictEqual((await call('GET', '/api/hr/reports/headcount')).status, 400);
 });
 
+test('تقارير نقاط البيع: تطابق اليومي والأصناف والكاشير والساعة مع ملخص الورديات', { skip: !hasDb || !canWrite }, async () => {
+  const q = 'from=2000-01-01&to=2099-12-31', cents = (n) => Math.round(n * 100);
+  const d = (await call('GET', `/api/pos/reports/daily?${q}`)).data;
+  const it = (await call('GET', `/api/pos/reports/items?${q}`)).data;
+  const ca = (await call('GET', `/api/pos/reports/cashiers?${q}`)).data;
+  const hr = await call('GET', `/api/pos/reports/hourly?${q}`);
+  const sh = await call('GET', `/api/pos/reports/shifts?${q}`);
+  const rt = await call('GET', `/api/pos/reports/returns?${q}`);
+  for (const x of [hr, sh, rt]) assert.strictEqual(x.status, 200);
+  assert.strictEqual(cents(d.totals.net), cents(it.totals.net));           // صافي اليومي = صافي الأصناف
+  assert.strictEqual(cents(d.totals.net), cents(ca.totals.net));           // = صافي الكاشير
+  assert.strictEqual(cents(d.totals.cash + d.totals.card), cents(d.totals.total));   // نقد + بطاقة = الإجمالي بعد المرتجعات
+  assert.strictEqual(cents(d.totals.net + d.totals.vat), cents(d.totals.total));
+  assert.strictEqual(cents(d.totals.gross - d.totals.returned), cents(d.totals.net));
+  assert.strictEqual(d.totals.sales, ca.totals.sales);
+  assert.strictEqual(d.totals.sales, hr.data.totals.sales);
+  assert.strictEqual(rt.data.totals.count, d.totals.returns);
+  assert.strictEqual(cents(rt.data.totals.total + 0), cents(rt.data.rows.reduce((s, x) => s + x.total, 0)));
+  for (const x of sh.data.rows) assert.strictEqual(cents(x.counted - x.expected), cents(x.variance));
+  assert.strictEqual((await call('GET', '/api/pos/reports/daily?from=2026-05-01&to=2026-01-01')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

@@ -19,7 +19,8 @@
       { t: 'الأرصدة والحركات', items: [['inventory/stock', 'أرصدة المخزون', 'inventory'], ['inventory/moves', 'حركات المخزون', 'inventory']] },
       { t: 'التقارير', items: [['inventory/valuation', 'تقييم المخزون', 'inventory'], ['inventory/card', 'كارت الصنف', 'inventory'], ['inventory/movement', 'ملخص حركة المخزون', 'inventory'], ['inventory/slow', 'ركود المخزون', 'inventory'], ['inventory/shortage', 'نواقص وتغطية', 'inventory']] } ] },
     { id: 'pos', title: 'نقاط البيع', groups: [
-      { t: '', items: [['pos/sell', 'شاشة البيع', 'pos'], ['pos/sales', 'العمليات', 'pos'], ['pos/shifts', 'الورديات', 'pos'], ['pos/registers', 'النقاط', 'pos']] } ] },
+      { t: 'العمل اليومي', items: [['pos/sell', 'شاشة البيع', 'pos'], ['pos/sales', 'العمليات', 'pos'], ['pos/shifts', 'الورديات', 'pos'], ['pos/registers', 'النقاط', 'pos']] },
+      { t: 'التقارير', items: [['pos/rep-daily', 'المبيعات اليومية', 'pos'], ['pos/rep-items', 'مبيعات الأصناف', 'pos'], ['pos/rep-cashiers', 'حسب الكاشير والنقطة', 'pos'], ['pos/rep-hourly', 'المبيعات بالساعة', 'pos'], ['pos/rep-shifts', 'فروقات الورديات', 'pos'], ['pos/rep-returns', 'المرتجعات', 'pos']] } ] },
     { id: 'assets', title: 'الأصول الثابتة', groups: [
       { t: '', items: [['assets', 'سجل الأصول', 'assets'], ['assets/new', 'أصل جديد', 'assets'], ['assets/depreciation', 'الإهلاك الشهري', 'assets']] } ] },
     { id: 'hr', title: 'الموارد البشرية والرواتب', groups: [
@@ -40,7 +41,7 @@
     'inventory/valuation': ['inventory', R], 'inventory/card': ['inventory', R], 'inventory/movement': ['inventory', R], 'inventory/slow': ['inventory', R], 'inventory/shortage': ['inventory', R], 'inventory/items': ['inventory', R], 'inventory/warehouses': ['inventory', R], 'inventory/stock': ['inventory', R], 'inventory/moves': ['inventory', R], 'inventory/adjust': ['inventory', W],
     assets: ['assets', R], 'assets/new': ['assets', W], 'assets/view': ['assets', R], 'assets/depreciation': ['assets', W],
     'hr/employees': ['hr', R], 'employee/view': ['hr', R], 'hr/components': ['hr', R], 'hr/adjustments': ['hr', R], 'hr/advances': ['hr', R], 'hr/headcount': ['hr', R], 'hr/tenure': ['hr', R], 'hr/movements': ['hr', R], 'hr/salary-changes': ['hr', R], 'hr/advances-report': ['hr', R], 'hr/data-gaps': ['hr', R], payroll: ['payroll', R], 'payroll/view': ['payroll', R], 'payroll/dept': ['payroll', R], 'payroll/employee-sheet': ['payroll', R], 'payroll/components': ['payroll', R], 'payroll/trend': ['payroll', R],
-    'pos/sell': ['pos', W], 'pos/sales': ['pos', R], 'pos/sale': ['pos', R], 'pos/shifts': ['pos', R], 'pos/shift': ['pos', R], 'pos/registers': ['pos', R],
+    'pos/sell': ['pos', W], 'pos/sales': ['pos', R], 'pos/sale': ['pos', R], 'pos/shifts': ['pos', R], 'pos/shift': ['pos', R], 'pos/registers': ['pos', R], 'pos/rep-daily': ['pos', R], 'pos/rep-items': ['pos', R], 'pos/rep-cashiers': ['pos', R], 'pos/rep-hourly': ['pos', R], 'pos/rep-shifts': ['pos', R], 'pos/rep-returns': ['pos', R],
     po: ['orders', R], 'po/new': ['orders', W], 'po/view': ['orders', R], 'po/edit': ['orders', W], quotes: ['orders', R], 'quote/new': ['orders', W], 'quote/view': ['orders', R], 'quote/edit': ['orders', W],
     'reports/trial-balance': ['reports', R], 'reports/ledger': ['reports', R], 'reports/income-statement': ['reports', R], 'reports/aging': ['reports', R], 'reports/vat': ['reports', R],
     'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], 'reports/sales-analysis': ['reports', R], 'reports/item-profit': ['reports', R], 'reports/comparative': ['reports', R], periods: ['periods', R],
@@ -58,7 +59,7 @@
     assets: 'assets', 'assets/new': 'assetNew', 'assets/view': 'assetView', 'assets/depreciation': 'depreciation',
     'hr/employees': 'hrEmployees', 'employee/view': 'hrEmployee', 'hr/components': 'hrComponents', 'hr/adjustments': 'hrAdjustments', 'hr/advances': 'hrAdvances', 'hr/headcount': 'hr-headcount', 'hr/tenure': 'hr-tenure', 'hr/movements': 'hr-movements', 'hr/salary-changes': 'hr-salary-changes', 'hr/advances-report': 'hr-advances-report', 'hr/data-gaps': 'hr-data-gaps',
     payroll: 'payroll', 'payroll/view': 'payrollView', 'payroll/dept': 'pay-dept', 'payroll/employee-sheet': 'pay-employee', 'payroll/components': 'pay-components', 'payroll/trend': 'pay-trend',
-    'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters',
+    'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters', 'pos/rep-daily': 'pos-daily', 'pos/rep-items': 'pos-items', 'pos/rep-cashiers': 'pos-cashiers', 'pos/rep-hourly': 'pos-hourly', 'pos/rep-shifts': 'pos-shifts', 'pos/rep-returns': 'pos-returns',
     'po/edit': 'poEdit', 'quote/edit': 'quoteEdit', po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
     'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
     'settings/home': 'settingsHome', 'settings/users': 'adminUsers', 'settings/roles': 'adminRoles', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
