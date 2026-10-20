@@ -126,9 +126,22 @@
   };
 
   // ---------- الإيصال + إلغاء + مرتجع ----------
+  // إيصال حراري 80مم: ترويسة البائع، البنود (اسم، ثم كمية × سعر والصافي)، المجاميع، الدفع، رمز QR للمبيعات
+  function receiptHtml(s) {
+    const t = E.tax, row = (a, b, bold) => '<div class="rl">' + (bold ? '<b>' + a + '</b><b>' + b + '</b>' : '<span>' + a + '</span><span>' + b + '</span>') + '</div>';
+    return '<div class="c"><b>' + esc(t.sellerName || 'نظام ERP') + '</b>' + (t.sellerVatNo ? '<br>الرقم الضريبي ' + esc(t.sellerVatNo) : '') + (t.sellerAddress ? '<br>' + esc(t.sellerAddress) : '') +
+      '<br>' + (s.kind === 'SALE' ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)') + '<br>' + esc(s.no) + ' — ' + esc(s.date) + '</div><hr>' +
+      s.lines.map((l) => '<div>' + esc(l.description) + '</div>' + row(q3(l.qty) + ' × ' + money(l.price) + (l.discountPct ? ' (−' + l.discountPct + '%)' : ''), money(l.net))).join('') + '<hr>' +
+      row('المجموع قبل الضريبة', money(s.subtotal)) + row('الضريبة', money(s.vat)) + row('الإجمالي', money(s.total), true) + '<hr>' +
+      s.payments.map((p) => row(p.method === 'CASH' ? 'نقداً' : 'بطاقة', money(p.amount))).join('') + (s.changeDue ? row('الباقي', money(s.changeDue)) : '') +
+      (s.kind === 'SALE' && s.status === 'COMPLETED' ? E.zatcaQr(s.date, s.total, s.vat) : '') + '<div class="c">شكراً لزيارتكم</div>';
+  }
+
   E.pages.posSale = async function (el, id) {
+    let cur = null;
     async function load() {
       const { sale: s } = await api('GET', '/pos/sales/' + encodeURIComponent(id));
+      cur = s;
       const { shifts } = await api('GET', '/pos/shifts?status=OPEN');
       const canReturn = s.kind === 'SALE' && s.status === 'COMPLETED' && s.lines.some((l) => l.returnable > 0);
       el.innerHTML = E.head('إيصال ' + s.no, SK[s.kind] + ' — ' + s.date) + E.taxHeader(s.kind === 'SALE' ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)', null, null, s.date, s.total, s.vat, s.kind === 'SALE' && s.status === 'COMPLETED') +
@@ -139,7 +152,7 @@
         '</tbody><tfoot><tr><td colspan="4">المجموع قبل الضريبة · الضريبة</td><td class="n">' + money(s.subtotal) + '</td><td class="n">' + money(s.vat) + '</td>' + (canReturn ? '<td></td>' : '') + '</tr><tr><td colspan="4">الإجمالي</td><td class="n" colspan="2">' + money(s.total) + '</td>' + (canReturn ? '<td></td>' : '') + '</tr></tfoot></table>' +
         '<p>' + s.payments.map((p) => (p.method === 'CASH' ? 'نقداً' : 'بطاقة') + ' ' + money(p.amount)).join(' · ') + (s.changeDue ? ' · الباقي ' + money(s.changeDue) : '') + '</p>' +
         (canReturn ? '<div class="card noprint"><h3>مرتجع</h3>' + (shifts.length ? '<form id="fr" class="row"><label>على وردية<select name="sh">' + shifts.map((x) => '<option value="' + x.id + '">' + x.id + ' — ' + esc(x.regName) + '</option>').join('') + '</select></label><label>رد المبلغ<select name="m"><option value="CASH">نقداً</option><option value="CARD">بطاقة</option></select></label><button class="btn">تنفيذ المرتجع</button></form><p class="muted">اكتب الكميات في عمود «إرجاع» أعلاه.</p>' : '<div class="msg warn">افتح وردية أولاً لتنفيذ مرتجع</div>') + '</div>' : '') +
-        '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> ' + (s.status === 'COMPLETED' ? '<button class="btn danger sm" data-act="void">إلغاء العملية</button>' : '') + ' <a href="#/pos/sales">رجوع</a></p>';
+        '<p class="noprint"><button class="btn alt" data-act="print">طباعة A4</button> <button class="btn alt" data-act="thermal">إيصال حراري 80مم</button> ' + (s.status === 'COMPLETED' ? '<button class="btn danger sm" data-act="void">إلغاء العملية</button>' : '') + ' <a href="#/pos/sales">رجوع</a></p>';
       const fr = E.$('#fr', el);
       if (fr) fr.addEventListener('submit', async (ev) => {
         ev.preventDefault();
@@ -150,7 +163,7 @@
       });
     }
     E.bind(el, {
-      print: () => window.print(),
+      print: () => window.print(), thermal: () => E.printThermal(receiptHtml(cur)),
       void: async () => { if (confirm('إلغاء العملية؟ مسموح فقط في وردية مفتوحة وبلا مرتجعات سارية.')) { await api('POST', '/pos/sales/' + encodeURIComponent(id) + '/void'); E.toast('أُلغيت العملية'); await load(); } },
     });
     await load();

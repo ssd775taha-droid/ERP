@@ -94,8 +94,12 @@ window.ERP = (function () {
       t.dataset.x = '1';
       const b = document.createElement('p');
       b.className = 'noprint'; b.style.margin = '0 0 6px';
-      b.innerHTML = '<button type="button" class="btn alt sm">⬇ تصدير Excel/CSV</button>';
-      b.firstChild.addEventListener('click', () => E.downloadCsv(t, title() + '_' + E.today()));
+      b.innerHTML = '<button type="button" class="btn alt sm" data-x="xlsx">⬇ Excel</button> <button type="button" class="btn alt sm" data-x="csv">⬇ CSV</button>';
+      b.addEventListener('click', (ev) => {
+        const k = ev.target.dataset && ev.target.dataset.x; if (!k) return;
+        if (k === 'xlsx' && E.downloadXlsx) E.downloadXlsx(t, title() + '_' + E.today(), E.$('h1', main) ? E.$('h1', main).textContent.trim() : 'ERP');
+        else E.downloadCsv(t, title() + '_' + E.today());
+      });
       t.parentNode.insertBefore(b, t);
     });
     new MutationObserver(scan).observe(main, { childList: true, subtree: true });
