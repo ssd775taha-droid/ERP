@@ -500,6 +500,33 @@ test('تقارير المحاسبة الإضافية: تطابق الشهري م
   assert.strictEqual((await call('GET', '/api/reports/monthly-pl?from=2026-05-01&to=2026-01-01')).status, 400);
 });
 
+test('تقارير المبيعات والمشتريات الإضافية: المستحقات والأرصدة والمقبوضات والمقارنة والإشعارات', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100), far = '2099-12-31', q = 'from=2000-01-01&to=' + far;
+  for (const kind of ['SALES', 'PURCHASE']) {
+    const op = (await call('GET', `/api/reports/open-invoices?kind=${kind}&asof=${far}`)).data;
+    assert.strictEqual(cents(op.buckets.reduce((s, b) => s + b.amount, 0)), cents(op.totals.remaining));
+    assert.ok(op.rows.every((x) => x.remaining > 0));
+  }
+  // أرصدة الأطراف: المجموع = مجموع party_balance، والرصيد = مفوتر + إشعارات − مسدد
+  for (const kind of ['CUSTOMER', 'SUPPLIER']) {
+    const pb = (await call('GET', `/api/reports/party-balances?kind=${kind}`)).data;
+    for (const x of pb.rows) assert.strictEqual(cents(x.invoiced + x.notes - x.paid), cents(x.balance), x.name);
+    assert.strictEqual(cents(pb.totals.balance), cents(pb.rows.reduce((s, x) => s + x.balance, 0)));
+  }
+  const ps = (await call('GET', `/api/reports/payments-summary?${q}`)).data;
+  assert.strictEqual(cents(ps.totals.receipts), cents(ps.methods.filter((m) => m.kind === 'RECEIPT').reduce((s, m) => s + m.amount, 0)));
+  assert.strictEqual(cents(ps.totals.payments), cents(ps.methods.filter((m) => m.kind === 'PAYMENT').reduce((s, m) => s + m.amount, 0)));
+  // المقارنة: إجمالي الفترة الحالية = تحليل المبيعات للفترة نفسها
+  const cmp = (await call('GET', `/api/reports/sales-comparison?kind=SALES&by=party&f1=2000-01-01&t1=${far}&f2=2000-01-01&t2=${far}`)).data;
+  const an = (await call('GET', `/api/reports/sales-analysis?${q}&kind=SALES&by=party`)).data;
+  assert.strictEqual(cents(cmp.totals.current), cents(an.total));
+  assert.strictEqual(cents(cmp.totals.diff), 0);
+  const ns = (await call('GET', `/api/reports/notes-summary?${q}`)).data;
+  assert.strictEqual(ns.groups.reduce((s, g) => s + g.count, 0), ns.rows.length);
+  assert.strictEqual((await call('GET', '/api/reports/payments-summary?from=2026-05-01&to=2026-01-01')).status, 400);
+  assert.strictEqual((await call('GET', '/api/reports/open-invoices?kind=SALES')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

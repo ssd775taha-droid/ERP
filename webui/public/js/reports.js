@@ -432,4 +432,61 @@
         r.reversals.map((x) => '<tr><td><a href="#/entry/view/' + x.id + '">' + x.id + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.memo || '') + '</td><td class="n">' + money(x.amount) + '</td><td><a href="#/entry/view/' + x.reversalId + '">' + x.reversalId + '</a></td><td>' + esc(x.reversalDate) + '</td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا قيود معكوسة</p>') +
       '<h3>قيود الإقفال</h3>' + (r.closing.length ? '<table><thead><tr><th>القيد</th><th>التاريخ</th><th>البيان</th><th class="n">المبلغ</th></tr></thead><tbody>' + r.closing.map((x) => '<tr><td><a href="#/entry/view/' + x.id + '">' + x.id + '</a></td><td>' + esc(x.date) + '</td><td>' + esc(x.memo || '') + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا قيود إقفال</p>');
   });
+
+  // ---------- تقارير المبيعات والمشتريات الإضافية ----------
+  const kindSel = (opts, cur) => sel('kind', 'النوع', opts, cur);
+
+  E.pages['trade-open'] = (el) => shell(el, 'الفواتير المستحقة والمتأخرة', 'فواتير سارية متبقٍّ عليها مبلغ (بعد الإشعارات) بعمر التأخر عن الاستحقاق، أو عن تاريخ الفاتورة إن لم يُحدَّد استحقاق',
+    kindSel([['SALES', 'مبيعات (عملاء)'], ['PURCHASE', 'مشتريات (موردون)']], 'SALES') + dateF('asof', 'بتاريخ', E.today()), async (f) => {
+    const r = await api('GET', '/reports/open-invoices?' + E.qs(f)), T = r.totals;
+    if (!r.rows.length) return '<div class="msg good">لا فواتير مستحقة</div>';
+    return '<div class="cards">' + stat('عدد الفواتير', T.count) + stat('إجمالي المتبقي', money(T.remaining)) + stat('المتأخر (بعد الاستحقاق)', money(T.overdue)) + '</div>' +
+      '<h3>أعمار الاستحقاق</h3><table><thead><tr><th>الفئة</th><th class="n">الفواتير</th><th class="n">المتبقي</th></tr></thead><tbody>' + r.buckets.map((b) => '<tr><td>' + b.label + '</td><td class="n">' + b.count + '</td><td class="n">' + money(b.amount) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>الفواتير</h3><table><thead><tr><th>الفاتورة</th><th>الطرف</th><th>التاريخ</th><th>الاستحقاق</th><th class="n">الإجمالي</th><th class="n">المسدد</th><th class="n">المتبقي</th><th class="n">أيام التأخر</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td><a href="#/invoice/view/' + x.id + '">' + esc(x.no) + '</a></td><td>' + esc(x.party) + '</td><td>' + esc(x.date) + '</td><td>' + esc(x.due) + '</td><td class="n">' + money(x.total) + '</td><td class="n">' + money(x.paid) + '</td><td class="n">' + money(x.remaining) + '</td><td class="n ' + (x.overdue > 0 ? 'bad' : '') + '">' + (x.overdue > 0 ? x.overdue : '—') + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="6">الإجمالي</td><td class="n">' + money(T.remaining) + '</td><td></td></tr></tfoot></table>';
+  });
+
+  E.pages['trade-payments'] = (el) => shell(el, 'المقبوضات والمدفوعات', 'سندات القبض والصرف في الفترة: يومياً وحسب الطريقة وأكبر الأطراف', dateF('from', 'من', E.monthStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/reports/payments-summary?' + E.qs(f)), T = r.totals, MT = { CASH: 'نقداً', BANK: 'بنك' };
+    if (!r.days.length) return '<div class="msg warn">لا سندات في هذه الفترة</div>';
+    return '<div class="cards">' + stat('المقبوضات', money(T.receipts)) + stat('المدفوعات', money(T.payments)) + stat('الصافي', money(T.net)) + stat('عدد السندات', T.count) + '</div>' +
+      '<h3>حسب الطريقة</h3><table><thead><tr><th>النوع</th><th>الطريقة</th><th class="n">العدد</th><th class="n">المبلغ</th></tr></thead><tbody>' + r.methods.map((x) => '<tr><td>' + (x.kind === 'RECEIPT' ? 'قبض' : 'صرف') + '</td><td>' + MT[x.method] + '</td><td class="n">' + x.count + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>أكبر الأطراف</h3><table><thead><tr><th>الطرف</th><th>النوع</th><th class="n">العدد</th><th class="n">المبلغ</th></tr></thead><tbody>' + r.parties.map((x) => '<tr><td>' + esc(x.party) + '</td><td>' + (x.kind === 'RECEIPT' ? 'قبض' : 'صرف') + '</td><td class="n">' + x.count + '</td><td class="n">' + money(x.amount) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>يومياً</h3><table><thead><tr><th>التاريخ</th><th class="n">السندات</th><th class="n">مقبوضات</th><th class="n">مدفوعات</th><th class="n">الصافي</th></tr></thead><tbody>' +
+      r.days.map((x) => '<tr><td>' + esc(x.date) + '</td><td class="n">' + x.count + '</td><td class="n">' + money(x.receipts) + '</td><td class="n">' + money(x.payments) + '</td><td class="n">' + money(x.net) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + T.count + '</td><td class="n">' + money(T.receipts) + '</td><td class="n">' + money(T.payments) + '</td><td class="n">' + money(T.net) + '</td></tr></tfoot></table>';
+  });
+
+  E.pages['trade-balances'] = (el) => shell(el, 'أرصدة العملاء والموردين', 'المفوتر + أثر الإشعارات − المسدد = الرصيد (الموجب مستحق على العميل أو للمورد)', kindSel([['CUSTOMER', 'العملاء'], ['SUPPLIER', 'الموردون']], 'CUSTOMER'), async (f) => {
+    const r = await api('GET', '/reports/party-balances?' + E.qs(f)), T = r.totals;
+    if (!r.rows.length) return '<div class="msg warn">لا أطراف</div>';
+    return '<div class="cards">' + stat('إجمالي المفوتر', money(T.invoiced)) + stat('أثر الإشعارات', money(T.notes)) + stat('المسدد', money(T.paid)) + stat('إجمالي الأرصدة', money(T.balance)) + stat('أطراف لها رصيد', T.withBalance) + '</div>' +
+      '<table><thead><tr><th>الطرف</th><th>الهاتف</th><th class="n">المفوتر</th><th class="n">الإشعارات</th><th class="n">المسدد</th><th class="n">الرصيد</th><th class="noprint"></th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.name) + '</td><td>' + esc(x.phone || '') + '</td><td class="n">' + money(x.invoiced) + '</td><td class="n">' + money(x.notes) + '</td><td class="n">' + money(x.paid) + '</td><td class="n ' + (x.balance < 0 ? 'good' : '') + '">' + money(x.balance) + '</td><td class="noprint"><a href="#/party/statement/' + x.id + '">كشف حساب</a></td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(T.invoiced) + '</td><td class="n">' + money(T.notes) + '</td><td class="n">' + money(T.paid) + '</td><td class="n">' + money(T.balance) + '</td><td class="noprint"></td></tr></tfoot></table>';
+  });
+
+  E.pages['trade-comparison'] = (el) => {
+    const y = new Date().getFullYear();
+    shell(el, 'مقارنة المبيعات والمشتريات بين فترتين', 'صافي كل طرف أو صنف في فترتين: الفرق ونسبة التغير (قبل الضريبة، بعد الإشعارات)',
+      kindSel([['SALES', 'مبيعات'], ['PURCHASE', 'مشتريات']], 'SALES') + sel('by', 'حسب', [['party', 'الطرف'], ['item', 'الصنف']], 'party') +
+      dateF('f1', 'الحالية من', y + '-01-01') + dateF('t1', 'إلى', E.today()) + dateF('f2', 'المقارنة من', (y - 1) + '-01-01') + dateF('t2', 'إلى', (y - 1) + E.today().slice(4)), async (f) => {
+      const r = await api('GET', '/reports/sales-comparison?' + E.qs(f)), T = r.totals;
+      if (!r.rows.length) return '<div class="msg warn">لا حركة في الفترتين</div>';
+      return '<div class="cards">' + stat('الفترة الحالية', money(T.current)) + stat('فترة المقارنة', money(T.previous)) + stat('الفرق', money(T.diff)) + stat('نسبة التغير', pctTxt(T.pct)) + '</div>' +
+        '<table><thead><tr><th>' + (r.by === 'item' ? 'الصنف' : 'الطرف') + '</th><th class="n">الحالية</th><th class="n">المقارنة</th><th class="n">الفرق</th><th class="n">%</th></tr></thead><tbody>' +
+        r.rows.map((x) => '<tr><td>' + esc(x.label) + '</td><td class="n">' + money(x.current) + '</td><td class="n">' + money(x.previous) + '</td><td class="n ' + (x.diff < 0 ? 'bad' : x.diff > 0 ? 'good' : '') + '">' + money(x.diff) + '</td><td class="n">' + pctTxt(x.pct) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(T.current) + '</td><td class="n">' + money(T.previous) + '</td><td class="n">' + money(T.diff) + '</td><td class="n">' + pctTxt(T.pct) + '</td></tr></tfoot></table>';
+    });
+  };
+
+  E.pages['trade-notes'] = (el) => shell(el, 'ملخص الإشعارات الدائنة والمدينة', 'الإشعارات السارية في الفترة حسب النوع، مع قائمتها وأسبابها', dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/reports/notes-summary?' + E.qs(f)), L = { SALES: 'مبيعات', PURCHASE: 'مشتريات' }, T = { CREDIT: 'دائن', DEBIT: 'مدين' };
+    if (!r.rows.length) return '<div class="msg warn">لا إشعارات في هذه الفترة</div>';
+    return '<table><thead><tr><th>النوع</th><th class="n">العدد</th><th class="n">قبل الضريبة</th><th class="n">الضريبة</th><th class="n">الإجمالي</th><th class="n">المردود</th></tr></thead><tbody>' +
+      r.groups.map((g) => '<tr><td>إشعار ' + T[g.type] + ' ' + L[g.docKind] + '</td><td class="n">' + g.count + '</td><td class="n">' + money(g.subtotal) + '</td><td class="n">' + money(g.vat) + '</td><td class="n">' + money(g.total) + '</td><td class="n">' + money(g.refund) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>الإشعارات</h3><table><thead><tr><th>الإشعار</th><th>التاريخ</th><th>النوع</th><th>الطرف</th><th>الفاتورة</th><th>السبب</th><th class="n">الإجمالي</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td><a href="#/note/view/' + x.id + '">' + esc(x.no) + '</a></td><td>' + esc(x.date) + '</td><td>' + T[x.type] + ' ' + L[x.docKind] + '</td><td>' + esc(x.party) + '</td><td>' + esc(x.invoiceNo) + '</td><td>' + esc(x.reason || '') + '</td><td class="n">' + money(x.total) + '</td></tr>').join('') + '</tbody></table>';
+  });
 })(window.ERP);

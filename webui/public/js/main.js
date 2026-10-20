@@ -13,7 +13,7 @@
       { t: 'المبيعات', items: [['customers', 'العملاء', 'trade'], ['sales', 'فواتير المبيعات', 'trade'], ['quotes', 'عروض الأسعار', 'orders'], ['quote/new', 'عرض سعر جديد', 'orders']] },
       { t: 'المشتريات', items: [['suppliers', 'الموردون', 'trade'], ['purchases', 'فواتير المشتريات', 'trade'], ['po', 'أوامر الشراء', 'orders'], ['po/new', 'أمر شراء جديد', 'orders']] },
       { t: 'السندات والإشعارات', items: [['payments', 'سندات القبض والصرف', 'trade'], ['notes', 'إشعارات الدائن والمدين', 'trade']] },
-      { t: 'التقارير', items: [['reports/sales-analysis', 'تحليل المبيعات والمشتريات', 'reports'], ['reports/item-profit', 'ربحية الأصناف', 'reports'], ['reports/aging', 'أعمار الديون', 'reports'], ['reports/vat', 'إقرار الضريبة', 'reports']] } ] },
+      { t: 'التقارير', items: [['reports/sales-analysis', 'تحليل المبيعات والمشتريات', 'reports'], ['reports/item-profit', 'ربحية الأصناف', 'reports'], ['reports/aging', 'أعمار الديون', 'reports'], ['reports/open-invoices', 'الفواتير المستحقة والمتأخرة', 'reports'], ['reports/party-balances', 'أرصدة العملاء والموردين', 'reports'], ['reports/payments-summary', 'المقبوضات والمدفوعات', 'reports'], ['reports/sales-comparison', 'مقارنة مبيعات فترتين', 'reports'], ['reports/notes-summary', 'ملخص الإشعارات', 'reports'], ['reports/vat', 'إقرار الضريبة', 'reports']] } ] },
     { id: 'inv', title: 'المخزون', groups: [
       { t: 'البيانات والعمليات', items: [['inventory/items', 'الأصناف', 'inventory'], ['inventory/warehouses', 'المخازن', 'inventory'], ['inventory/adjust', 'تسوية وتحويل', 'inventory']] },
       { t: 'الأرصدة والحركات', items: [['inventory/stock', 'أرصدة المخزون', 'inventory'], ['inventory/moves', 'حركات المخزون', 'inventory']] },
@@ -45,7 +45,7 @@
     'pos/sell': ['pos', W], 'pos/sales': ['pos', R], 'pos/sale': ['pos', R], 'pos/shifts': ['pos', R], 'pos/shift': ['pos', R], 'pos/registers': ['pos', R], 'pos/rep-daily': ['pos', R], 'pos/rep-items': ['pos', R], 'pos/rep-cashiers': ['pos', R], 'pos/rep-hourly': ['pos', R], 'pos/rep-shifts': ['pos', R], 'pos/rep-returns': ['pos', R],
     po: ['orders', R], 'po/new': ['orders', W], 'po/view': ['orders', R], 'po/edit': ['orders', W], quotes: ['orders', R], 'quote/new': ['orders', W], 'quote/view': ['orders', R], 'quote/edit': ['orders', W],
     'reports/trial-balance': ['reports', R], 'reports/ledger': ['reports', R], 'reports/income-statement': ['reports', R], 'reports/aging': ['reports', R], 'reports/vat': ['reports', R],
-    'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], 'reports/monthly-pl': ['reports', R], 'reports/activity': ['reports', R], 'reports/cash-book': ['reports', R], 'reports/ratios': ['reports', R], 'reports/journal-audit': ['reports', R], 'reports/sales-analysis': ['reports', R], 'reports/item-profit': ['reports', R], 'reports/comparative': ['reports', R], periods: ['periods', R],
+    'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], 'reports/open-invoices': ['reports', R], 'reports/party-balances': ['reports', R], 'reports/payments-summary': ['reports', R], 'reports/sales-comparison': ['reports', R], 'reports/notes-summary': ['reports', R], 'reports/monthly-pl': ['reports', R], 'reports/activity': ['reports', R], 'reports/cash-book': ['reports', R], 'reports/ratios': ['reports', R], 'reports/journal-audit': ['reports', R], 'reports/sales-analysis': ['reports', R], 'reports/item-profit': ['reports', R], 'reports/comparative': ['reports', R], periods: ['periods', R],
     settings: ['settings', R], 'tax/settings': ['settings', R],
     'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'],
   };
@@ -67,7 +67,7 @@
     notes: 'notes', 'note/new': 'noteNew', 'note/view': 'noteView',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',
-    'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow', 'reports/monthly-pl': 'acc-monthly-pl', 'reports/activity': 'acc-activity', 'reports/cash-book': 'acc-cash-book', 'reports/ratios': 'acc-ratios', 'reports/journal-audit': 'acc-journal-audit', 'reports/sales-analysis': 'sales-analysis', 'reports/item-profit': 'item-profit', 'reports/comparative': 'comparative',
+    'reports/balance-sheet': 'balance-sheet', 'reports/cash-flow': 'cash-flow', 'reports/open-invoices': 'trade-open', 'reports/party-balances': 'trade-balances', 'reports/payments-summary': 'trade-payments', 'reports/sales-comparison': 'trade-comparison', 'reports/notes-summary': 'trade-notes', 'reports/monthly-pl': 'acc-monthly-pl', 'reports/activity': 'acc-activity', 'reports/cash-book': 'acc-cash-book', 'reports/ratios': 'acc-ratios', 'reports/journal-audit': 'acc-journal-audit', 'reports/sales-analysis': 'sales-analysis', 'reports/item-profit': 'item-profit', 'reports/comparative': 'comparative',
   };
 
   function loginView(msg) {

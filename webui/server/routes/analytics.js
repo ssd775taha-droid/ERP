@@ -11,12 +11,8 @@ const D = (col, a, b) => `${col} BETWEEN TO_DATE(:${a}, 'YYYY-MM-DD') AND TO_DAT
 module.exports = function analyticsRoutes() {
   const r = express.Router();
 
-  // تحليل المبيعات أو المشتريات حسب الطرف أو الصنف أو الشهر
-  r.get('/reports/sales-analysis', wrap(async (req, res) => {
-    const from = v.date(req.query.from, 'من تاريخ'), to = v.date(req.query.to, 'إلى تاريخ');
-    const kind = req.query.kind === 'PURCHASE' ? 'PURCHASE' : 'SALES';
-    const by = ['party', 'item', 'month'].includes(req.query.by) ? req.query.by : 'party';
-    // كل مصدر يعيد: k (مفتاح المجموعة)، lbl (الاسم)، doc (مفتاح المستند لعدّه)، net (موقّع)
+  // يعيد تجميع المبيعات/المشتريات الصافية (قبل الضريبة) حسب الطرف أو الصنف أو الشهر
+  async function analysis(kind, by, from, to) {
     const grp = {
       party: { inv: 'TO_CHAR(i.party_id)', invL: 'p.name', note: 'TO_CHAR(n.party_id)', noteL: 'p.name', pos: `'0'`, posL: `'نقاط البيع'`,
                invJ: 'JOIN erp_parties p ON p.party_id = i.party_id', noteJ: 'JOIN erp_parties p ON p.party_id = n.party_id' },
@@ -40,8 +36,31 @@ module.exports = function analyticsRoutes() {
     }
     const rows = await db.query(`SELECT k AS "key", MIN(lbl) AS "label", COUNT(DISTINCT doc) AS "docs", SUM(net) AS "net" FROM (${parts.join(' UNION ALL ')}) GROUP BY k
       ORDER BY ${by === 'month' ? 'k' : 'SUM(net) DESC'}`, { f: from, t: to });
-    const total = r2(rows.reduce((s, x) => s + x.net, 0));
-    res.json({ kind, by, rows: rows.map((x) => ({ ...x, net: r2(x.net) })), total });
+    return rows.map((x) => ({ ...x, net: r2(x.net) }));
+  }
+
+  // تحليل المبيعات أو المشتريات حسب الطرف أو الصنف أو الشهر
+  r.get('/reports/sales-analysis', wrap(async (req, res) => {
+    const from = v.date(req.query.from, 'من تاريخ'), to = v.date(req.query.to, 'إلى تاريخ');
+    const kind = req.query.kind === 'PURCHASE' ? 'PURCHASE' : 'SALES';
+    const by = ['party', 'item', 'month'].includes(req.query.by) ? req.query.by : 'party';
+    const rows = await analysis(kind, by, from, to);
+    res.json({ kind, by, rows, total: r2(rows.reduce((s, x) => s + x.net, 0)) });
+  }));
+
+  // مقارنة مبيعات/مشتريات فترتين حسب الطرف أو الصنف: الفرق ونسبة التغير
+  r.get('/reports/sales-comparison', wrap(async (req, res) => {
+    const f1 = v.date(req.query.f1, 'بداية الفترة الحالية'), t1 = v.date(req.query.t1, 'نهاية الفترة الحالية');
+    const f2 = v.date(req.query.f2, 'بداية فترة المقارنة'), t2 = v.date(req.query.t2, 'نهاية فترة المقارنة');
+    const kind = req.query.kind === 'PURCHASE' ? 'PURCHASE' : 'SALES';
+    const by = req.query.by === 'item' ? 'item' : 'party';
+    const [cur, prev] = await Promise.all([analysis(kind, by, f1, t1), analysis(kind, by, f2, t2)]);
+    const map = new Map();
+    for (const x of cur) map.set(x.key, { key: x.key, label: x.label, current: x.net, previous: 0 });
+    for (const x of prev) { const m = map.get(x.key) || { key: x.key, label: x.label, current: 0, previous: 0 }; m.previous = x.net; map.set(x.key, m); }
+    const rows = [...map.values()].map((m) => { const diff = r2(m.current - m.previous); return { ...m, diff, pct: m.previous ? r2(diff / Math.abs(m.previous) * 100) : null }; }).sort((a, b) => b.current - a.current || b.previous - a.previous);
+    const cur$ = r2(rows.reduce((s, x) => s + x.current, 0)), prev$ = r2(rows.reduce((s, x) => s + x.previous, 0));
+    res.json({ kind, by, rows, totals: { current: cur$, previous: prev$, diff: r2(cur$ - prev$), pct: prev$ ? r2((cur$ - prev$) / Math.abs(prev$) * 100) : null } });
   }));
 
   // ربحية الأصناف: كمية وإيراد وتكلفة وهامش (بيع − مرتجع، فواتير − إشعارات دائنة، ونقاط البيع)
