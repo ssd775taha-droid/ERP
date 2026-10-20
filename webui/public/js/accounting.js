@@ -125,6 +125,21 @@
   };
 
   // ---------- دفتر اليومية ----------
+  // ---------- سند قيد يومية (للعرض والطباعة منفرداً) ----------
+  E.pages.entryView = async function (el, id) {
+    const { entry: e } = await api('GET', '/entries/' + encodeURIComponent(id));
+    const td = e.lines.reduce((s, l) => s + l.debit, 0), tc = e.lines.reduce((s, l) => s + l.credit, 0);
+    el.innerHTML = E.head('سند قيد رقم ' + e.id, esc(e.date) + (e.ref ? ' — المرجع ' + e.ref : '')) +
+      '<p>' + (e.voidOf ? '<span class="tag warn">عكس القيد ' + e.voidOf + '</span> ' : '') + (e.reversedBy ? '<span class="tag bad">معكوس بالقيد ' + e.reversedBy + '</span> ' : '') + (e.kind === 'CLOSING' ? '<span class="tag">إقفال سنة</span> ' : '') +
+      '<span class="muted">أنشأه: ' + esc(e.createdBy || '—') + '</span></p>' +
+      (e.memo ? '<div class="card"><b>البيان:</b> ' + esc(e.memo) + '</div>' : '') +
+      '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
+      e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(tc) + '</td><td></td></tr></tfoot></table>' + E.signBlock(['أعدّه', 'راجعه', 'اعتمده']) +
+      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/entries">رجوع لدفتر اليومية</a></p>';
+    E.bind(el, { print: () => window.print() });
+  };
+
   E.pages.entries = async function (el) {
     const accts = await E.loadAccounts();
     const q = { from: E.monthStart(), to: E.today(), account: '' };
@@ -147,7 +162,7 @@
           const td = e.lines.reduce((s, l) => s + l.debit, 0);
           return '<div class="card"><div class="row" style="margin:0 0 8px"><strong>قيد ' + e.id + '</strong><span>' + esc(e.date) + '</span><span class="muted">' + esc(e.ref || '') + '</span>' + tag +
             '<span style="flex:1">' + esc(e.memo || '') + '</span>' +
-            (!e.voidOf && !e.reversedBy ? '<button class="btn alt sm noprint" data-act="reverse" data-id="' + e.id + '">عكس</button>' : '') + '</div>' +
+            '<a class="noprint" href="#/entry/view/' + e.id + '?print=1">طباعة السند</a> ' + (!e.voidOf && !e.reversedBy ? '<button class="btn alt sm noprint" data-act="reverse" data-id="' + e.id + '">عكس</button>' : '') + '</div>' +
             '<table><thead><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th>ملاحظة</th></tr></thead><tbody>' +
             e.lines.map((l) => '<tr><td>' + esc(l.account) + ' — ' + esc(l.accountName) + '</td><td class="n">' + (l.debit ? money(l.debit) : '') + '</td><td class="n">' + (l.credit ? money(l.credit) : '') + '</td><td>' + esc(l.note || '') + '</td></tr>').join('') +
             '</tbody><tfoot><tr><td>الإجمالي</td><td class="n">' + money(td) + '</td><td class="n">' + money(td) + '</td><td></td></tr></tfoot></table></div>';

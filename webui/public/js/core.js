@@ -57,6 +57,42 @@ window.ERP = (function () {
       (buyerName ? '<div class="lh-buyer">العميل: ' + E.esc(buyerName) + (buyerTaxNo ? ' — الرقم الضريبي: <span dir="ltr">' + E.esc(buyerTaxNo) + '</span>' : '') + '</div>' : '') +
       '</div><div>' + (withQr ? E.zatcaQr(date, total, vat) : '') + '</div></div></div>';
   };
+  // المبلغ كتابةً بالريال السعودي (تفقيط): 1250.50 → «ألف ومائتان وخمسون ريالاً وخمسون هللة فقط لا غير»
+  E.amountWords = (amount) => {
+    const ONES = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+    const TENS = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
+    const HUND = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
+    const below1000 = (n) => {
+      const parts = [], h = Math.floor(n / 100), r = n % 100;
+      if (h) parts.push(HUND[h]);
+      if (r) parts.push(r < 20 ? ONES[r] : (r % 10 ? ONES[r % 10] + ' و' : '') + TENS[Math.floor(r / 10)]);
+      return parts.join(' و');
+    };
+    const SCALES = [['ألف', 'ألفان', 'آلاف', 'ألفاً'], ['مليون', 'مليونان', 'ملايين', 'مليوناً'], ['مليار', 'ملياران', 'مليارات', 'ملياراً']];
+    const words = (n) => {
+      if (n === 0) return 'صفر';
+      const groups = []; let x = n;
+      while (x > 0) { groups.push(x % 1000); x = Math.floor(x / 1000); }
+      const out = [];
+      for (let i = groups.length - 1; i >= 0; i--) {
+        const g = groups[i]; if (!g) continue;
+        if (i === 0) out.push(below1000(g));
+        else { const sc = SCALES[i - 1]; out.push(g === 1 ? sc[0] : g === 2 ? sc[1] : below1000(g) + ' ' + (g <= 10 ? sc[2] : sc[3])); }
+      }
+      return out.join(' و');
+    };
+    const unit = (n, one, two, few, many) => n === 2 ? two : (n % 100 >= 3 && n % 100 <= 10) ? few : (n % 100 >= 11 || n === 0) ? many : one;
+    const total = Math.round(Number(amount) * 100);
+    if (!Number.isFinite(total) || total < 0 || total > 9e14) return '';
+    const riyal = Math.floor(total / 100), hal = total % 100;
+    const parts = [];
+    const phrase = (n, one, oneW, two, few, many) => n === 1 ? oneW : n === 2 ? two : words(n) + ' ' + unit(n, one, two, few, many);
+    if (riyal || !hal) parts.push(riyal === 0 ? 'صفر ريال' : phrase(riyal, 'ريال', 'ريال واحد', 'ريالان', 'ريالات', 'ريالاً'));
+    if (hal) parts.push(phrase(hal, 'هللة', 'هللة واحدة', 'هللتان', 'هللات', 'هللة'));
+    return parts.join(' و') + ' فقط لا غير';
+  };
+  // سطر توقيعات للسندات المطبوعة
+  E.signBlock = (labels) => '<div class="sign">' + labels.map((l) => '<div><span>' + E.esc(l) + '</span><i></i></div>').join('') + '</div>';
   // صلاحيات المستخدم الحالي (من /api/me): E.can('trade', 'w')
   E.me = { perms: {}, isAdmin: false };
   E.can = (mod, level) => E.me.isAdmin || ({ n: 0, r: 1, w: 2 }[E.me.perms[mod] || 'n'] >= { r: 1, w: 2 }[level || 'r']);

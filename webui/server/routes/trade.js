@@ -198,6 +198,16 @@ module.exports = function tradeRoutes() {
     res.json({ payments: rows });
   }));
 
+  r.get('/payments/:id', wrap(async (req, res) => {
+    const id = v.int(req.params.id, 'رقم السند');
+    const rows = await db.query(`
+      SELECT y.payment_id AS "id", y.kind AS "kind", y.party_id AS "partyId", p.name AS "partyName", p.tax_no AS "partyTaxNo", y.invoice_id AS "invoiceId",
+             i.invoice_no AS "invoiceNo", TO_CHAR(y.pay_date, 'YYYY-MM-DD') AS "date", y.amount AS "amount", y.method AS "method", y.note AS "note", y.entry_id AS "entryId"
+        FROM erp_payments y JOIN erp_parties p ON p.party_id = y.party_id LEFT JOIN erp_invoices i ON i.invoice_id = y.invoice_id WHERE y.payment_id = :id`, { id });
+    if (!rows.length) throw new db.HttpError(404, 'السند غير موجود');
+    res.json({ payment: rows[0] });
+  }));
+
   r.post('/payments', wrap(async (req, res) => {
     const b = req.body || {};
     const partyId = v.int(b.partyId, 'الطرف');

@@ -134,7 +134,7 @@
         (i.effectiveTotal !== i.total ? '<tr><td colspan="4">الإجمالي بعد الإشعارات</td><td class="n" colspan="2">' + money(i.effectiveTotal) + '</td></tr>' : '') + '</tfoot></table>' +
         (i.notes.length ? '<h3>الإشعارات على هذه الفاتورة</h3><table><tbody>' + i.notes.map((n) => '<tr><td><a href="#/note/view/' + n.id + '">' + esc(n.no) + '</a></td><td>' + (n.type === 'CREDIT' ? 'دائن' : 'مدين') + '</td><td>' + esc(n.date) + '</td><td>' + esc(n.reason) + '</td><td class="n">' + (n.type === 'CREDIT' ? '−' : '') + money(n.total) + '</td><td>' + (n.status === 'VOID' ? '<span class="tag bad">ملغى</span>' : '') + '</td></tr>').join('') + '</tbody></table>' : '') +
         (i.note ? '<p>' + esc(i.note) + '</p>' : '') +
-        (i.payments.length ? '<h3>المدفوعات</h3><table><tbody>' + i.payments.map((p) => '<tr><td>سند ' + p.id + '</td><td>' + esc(p.date) + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td></tr>').join('') + '</tbody></table>' : '') +
+        (i.payments.length ? '<h3>المدفوعات</h3><table><tbody>' + i.payments.map((p) => '<tr><td>سند ' + p.id + '</td><td>' + esc(p.date) + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td><td class="noprint"><a href="#/payment/view/' + p.id + '?print=1">طباعة</a></td></tr>').join('') + '</tbody></table>' : '') +
         (i.status === 'OPEN' ? '<div class="card noprint" style="margin-top:14px"><h3>' + (sales ? 'تسجيل قبض' : 'تسجيل صرف') + '</h3><form id="pf" class="row"><label>التاريخ<input type="date" name="d" value="' + E.today() + '"></label>' +
           '<label>المبلغ<input name="a" inputmode="decimal" value="' + Math.max(i.remaining, 0) + '"></label><label>الطريقة<select name="m"><option value="CASH">نقداً</option><option value="BANK">بنك</option></select></label><button class="btn"' + (i.remaining <= 0 ? ' disabled' : '') + '>تسجيل</button></form>' +
           (i.paid === 0 && !i.notes.some((n) => n.status === 'OPEN') ? '<button class="btn danger sm" data-act="void">إلغاء الفاتورة (قيد عكسي)</button>' : '<span class="muted">لا تُلغى فاتورة عليها مدفوعات أو إشعارات سارية</span>') + '</div>' +
@@ -160,9 +160,26 @@
   E.pages.payments = async function (el) {
     const { payments } = await api('GET', '/payments');
     el.innerHTML = E.head('سندات القبض والصرف') + '<p class="noprint"><a href="#/payment/new">+ سند جديد (دفعة على الحساب)</a></p>' +
-      (payments.length ? '<table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>الطرف</th><th>الفاتورة</th><th>الطريقة</th><th class="n">المبلغ</th></tr></thead><tbody>' +
-        payments.map((p) => '<tr><td>' + p.id + '</td><td>' + (p.kind === 'RECEIPT' ? 'قبض' : 'صرف') + '</td><td>' + esc(p.date) + '</td><td>' + esc(p.partyName) + '</td><td>' + (p.invoiceId ? '<a href="#/invoice/view/' + p.invoiceId + '">' + esc(p.invoiceNo) + '</a>' : 'على الحساب') + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td></tr>').join('') + '</tbody></table>'
+      (payments.length ? '<table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>الطرف</th><th>الفاتورة</th><th>الطريقة</th><th class="n">المبلغ</th><th class="noprint"></th></tr></thead><tbody>' +
+        payments.map((p) => '<tr><td><a href="#/payment/view/' + p.id + '">' + p.id + '</a></td><td>' + (p.kind === 'RECEIPT' ? 'قبض' : 'صرف') + '</td><td>' + esc(p.date) + '</td><td>' + esc(p.partyName) + '</td><td>' + (p.invoiceId ? '<a href="#/invoice/view/' + p.invoiceId + '">' + esc(p.invoiceNo) + '</a>' : 'على الحساب') + '</td><td>' + (p.method === 'CASH' ? 'نقداً' : 'بنك') + '</td><td class="n">' + money(p.amount) + '</td></tr>').join('') + '</tbody></table>'
         : '<div class="msg warn">لا سندات</div>');
+  };
+
+  // ---------- سند قبض / صرف منفرد للعرض والطباعة ----------
+  E.pages.paymentView = async function (el, id) {
+    const { payment: p } = await api('GET', '/payments/' + encodeURIComponent(id));
+    const rec = p.kind === 'RECEIPT';
+    el.innerHTML = E.head('سند ' + (rec ? 'قبض' : 'صرف') + ' رقم ' + p.id, esc(p.date)) +
+      '<div class="card"><table><tbody>' +
+      '<tr><th>' + (rec ? 'استلمنا من' : 'صرفنا إلى') + '</th><td>' + esc(p.partyName) + (p.partyTaxNo ? ' — الرقم الضريبي <span dir="ltr">' + esc(p.partyTaxNo) + '</span>' : '') + '</td></tr>' +
+      '<tr><th>المبلغ</th><td><b>' + money(p.amount) + '</b> ريال — ' + E.amountWords(p.amount) + '</td></tr>' +
+      '<tr><th>طريقة الدفع</th><td>' + (p.method === 'CASH' ? 'نقداً' : 'تحويل بنكي') + '</td></tr>' +
+      '<tr><th>عن</th><td>' + (p.invoiceId ? 'فاتورة <a href="#/invoice/view/' + p.invoiceId + '">' + esc(p.invoiceNo) + '</a>' : 'دفعة على الحساب') + '</td></tr>' +
+      (p.note ? '<tr><th>ملاحظة</th><td>' + esc(p.note) + '</td></tr>' : '') +
+      '<tr><th>القيد المحاسبي</th><td>' + (p.entryId ? '<a href="#/entry/view/' + p.entryId + '">قيد ' + p.entryId + '</a>' : '—') + '</td></tr>' +
+      '</tbody></table></div>' + E.signBlock([rec ? 'المستلم' : 'المستلم (المستفيد)', 'المحاسب', 'المدير']) +
+      '<p class="noprint"><button class="btn alt" data-act="print">طباعة</button> <a href="#/payments">رجوع للسندات</a></p>';
+    E.bind(el, { print: () => window.print() });
   };
 
   E.pages.paymentNew = async function (el, partyId) {

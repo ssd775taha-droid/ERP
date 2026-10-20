@@ -5,7 +5,7 @@
 
   // [المسار، العنوان، الوحدة المطلوبة (قراءة) أو 'admin']؛ العنوان وحده = رأس مجموعة تُخفى إن لم يبق تحتها شيء
   const NAV = [
-    ['', 'الرئيسية'],
+    ['', 'الرئيسية'], ['search', 'الاستعلام'],
     ['المحاسبة'],
     ['accounts', 'دليل الحسابات', 'accounting'], ['entry/new', 'قيد يومية جديد', 'accounting'], ['entries', 'دفتر اليومية', 'accounting'],
     ['المبيعات والمشتريات'],
@@ -32,7 +32,7 @@
   // الوحدة والمستوى اللازمان لكل صفحة (مفتاح المسار). صفحات الإنشاء/التنفيذ تتطلب كتابة. ما لا يُذكر هنا مفتوح لكل مستخدم مسجَّل
   const R = 'r', W = 'w';
   const PAGE = {
-    accounts: ['accounting', R], 'entry/new': ['accounting', W], entries: ['accounting', R],
+    accounts: ['accounting', R], 'entry/view': ['accounting', R], 'payment/view': ['trade', R], 'entry/new': ['accounting', W], entries: ['accounting', R],
     customers: ['trade', R], sales: ['trade', R], suppliers: ['trade', R], purchases: ['trade', R], payments: ['trade', R], notes: ['trade', R],
     'invoice/new': ['trade', W], 'invoice/view': ['trade', R], 'party/statement': ['trade', R], 'payment/new': ['trade', W], 'note/new': ['trade', W], 'note/view': ['trade', R],
     'inventory/items': ['inventory', R], 'inventory/warehouses': ['inventory', R], 'inventory/stock': ['inventory', R], 'inventory/moves': ['inventory', R], 'inventory/adjust': ['inventory', W],
@@ -50,7 +50,7 @@
   const permits = (key, level) => { const p = PAGE[key]; if (!p) return true; return p[0] === 'admin' ? !!E.me.isAdmin : E.can(p[0], level || p[1]); };
   const allowed = (n) => !n[2] || permits(n[0]);
   const ROUTES = {
-    '': 'dashboard', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
+    '': 'dashboard', search: 'search', 'entry/view': 'entryView', 'payment/view': 'paymentView', accounts: 'accounts', 'entry/new': 'entryNew', entries: 'entries', periods: 'periods',
     'reports/trial-balance': 'trial-balance', 'reports/ledger': 'ledger', 'reports/income-statement': 'income-statement',
     'inventory/items': 'invItems', 'inventory/warehouses': 'invWarehouses', 'inventory/stock': 'invStock', 'inventory/moves': 'invMoves', 'inventory/adjust': 'invAdjust',
     assets: 'assets', 'assets/new': 'assetNew', 'assets/view': 'assetView', 'assets/depreciation': 'depreciation',
@@ -104,7 +104,10 @@
 
   async function route() {
     if (!me) return;
-    const h = location.hash.replace(/^#\/?/, '');
+    const full = location.hash.replace(/^#\/?/, '');
+    const qi = full.indexOf('?');
+    const h = qi < 0 ? full : full.slice(0, qi);
+    const wantPrint = qi >= 0 && /(^|&)print=1(&|$)/.test(full.slice(qi + 1));      // «…?print=1» يفتح العملية ويطبعها مباشرة
     const parts = h.split('/');
     let key = h, param = null;
     if (!(key in ROUTES) && parts.length >= 2) { key = parts.slice(0, 2).join('/'); param = parts[2]; }
@@ -126,7 +129,8 @@
     // صلاحية قراءة فقط على وحدة الصفحة: تُخفى أدوات الإضافة والتعديل والإلغاء
     const pm = PAGE[key];
     if (pm && pm[0] !== 'admin' && !E.can(pm[0], 'w')) E.readOnly(main, MODULE_LABEL[pm[0]] || pm[0]);
-    try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); }
+    try { await E.pages[name](main, param); } catch (e) { main.innerHTML = E.err(e.message); return; }
+    if (wantPrint) setTimeout(() => { if (E.$('#main') !== main) return; history.replaceState(null, '', '#/' + h); window.print(); }, 500);
   }
 
   E.onUnauth = () => loginView('انتهت الجلسة، سجّل الدخول من جديد');

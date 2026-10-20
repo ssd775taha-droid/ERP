@@ -196,6 +196,30 @@ test('ترويسة المستندات: حفظ وقراءة والتحقق من �
   assert.strictEqual((await call('POST', '/api/letterhead', {})).data.logo, ''); // مسح كل شيء
 });
 
+test('الاستعلام الموحَّد: بحث بنص ونوع ومبلغ، وسند منفرد، والكاشير يرى أنواعه فقط', { skip: !hasDb || !canWrite }, async () => {
+  const stamp = 'بحث' + Date.now().toString(36);
+  const p = await call('POST', '/api/parties', { kind: 'CUSTOMER', name: 'عميل ' + stamp });
+  assert.strictEqual(p.status, 201);
+  const inv = await call('POST', '/api/invoices', { kind: 'SALES', partyId: p.data.id, date: '2026-01-20', note: 'ملاحظة ' + stamp, lines: [{ description: 'خدمة', qty: '1', price: '123.45', vatRate: 15, account: '4200' }] });
+  assert.strictEqual(inv.status, 201);
+  const byText = await call('GET', '/api/search?q=' + encodeURIComponent(stamp));
+  assert.strictEqual(byText.status, 200);
+  assert.ok(byText.data.rows.some((x) => x.type === 'SALES' && x.id === inv.data.invoice.id));
+  assert.ok(!byText.data.rows.some((x) => x.type === 'PURCHASE'));
+  assert.strictEqual((await call('GET', '/api/search?q=' + encodeURIComponent(stamp) + '&type=ENTRY')).data.rows.filter((x) => x.type !== 'ENTRY').length, 0);
+  assert.strictEqual((await call('GET', '/api/search?type=NOPE')).status, 400);
+  assert.strictEqual((await call('GET', '/api/search?min=abc')).status, 400);
+  const amt = await call('GET', '/api/search?q=' + encodeURIComponent(String(inv.data.invoice.total)) + '&type=SALES');
+  assert.ok(amt.data.rows.some((x) => x.id === inv.data.invoice.id)); // يطابق المبلغ أيضاً
+  // سند قبض منفرد
+  const pay = await call('POST', '/api/payments', { partyId: p.data.id, invoiceId: inv.data.invoice.id, date: '2026-01-21', amount: '10', method: 'CASH', note: 'دفعة ' + stamp });
+  assert.strictEqual(pay.status, 201);
+  const pid = pay.data.payment ? pay.data.payment.id : pay.data.id;
+  assert.strictEqual((await call('GET', '/api/payments/' + pid)).data.payment.amount, 10);
+  assert.strictEqual((await call('GET', '/api/payments/999999999')).status, 404);
+  assert.ok((await call('GET', '/api/search?q=' + encodeURIComponent('دفعة ' + stamp))).data.rows.some((x) => x.type === 'PAYMENT'));
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة
