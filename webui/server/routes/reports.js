@@ -9,25 +9,26 @@ const S = (val) => ({ val, type: db.oracledb.STRING });
 module.exports = function reportRoutes() {
   const r = express.Router();
 
-  // ميزان المراجعة حتى تاريخ (اختياري)
+  // ميزان المراجعة: بدون «من» أرصدة تراكمية حتى التاريخ؛ ومع «من» أعمدة الفترة: افتتاحي (قبل البداية) + حركة الفترة = ختامي (حتى النهاية)
   r.get('/reports/trial-balance', wrap(async (req, res) => {
+    const from = v.date(req.query.from, 'من تاريخ', { optional: true });
     const to = v.date(req.query.to, 'حتى تاريخ', { optional: true });
+    if (from && to && from > to) v.bad('تاريخ البداية بعد تاريخ النهاية');
     const rows = await db.query(`
-      SELECT a.code AS "code", a.name AS "name", a.acc_type AS "type",
-             SUM(l.debit) AS "debit", SUM(l.credit) AS "credit",
-             GREATEST(SUM(l.debit) - SUM(l.credit), 0) AS "balanceDebit",
-             GREATEST(SUM(l.credit) - SUM(l.debit), 0) AS "balanceCredit"
-        FROM erp_accounts a
-        JOIN erp_lines l   ON l.account_code = a.code
-        JOIN erp_entries e ON e.entry_id = l.entry_id AND (:to_d IS NULL OR e.entry_date <= TO_DATE(:to_d, 'YYYY-MM-DD'))
-       GROUP BY a.code, a.name, a.acc_type ORDER BY a.code`, { to_d: S(to) });
-    const t = rows.reduce((s, x) => ({
-      debit: s.debit + x.debit, credit: s.credit + x.credit,
-      balanceDebit: s.balanceDebit + x.balanceDebit, balanceCredit: s.balanceCredit + x.balanceCredit,
-    }), { debit: 0, credit: 0, balanceDebit: 0, balanceCredit: 0 });
-    const round = (n) => Math.round(n * 100) / 100;
-    for (const k of Object.keys(t)) t[k] = round(t[k]);
-    res.json({ rows, totals: t, balanced: t.debit === t.credit });
+      SELECT code AS "code", name AS "name", type AS "type", debit AS "debit", credit AS "credit",
+             GREATEST(open_net, 0) AS "openDebit", GREATEST(-open_net, 0) AS "openCredit", pdebit AS "periodDebit", pcredit AS "periodCredit",
+             GREATEST(debit - credit, 0) AS "balanceDebit", GREATEST(credit - debit, 0) AS "balanceCredit"
+        FROM (SELECT a.code, a.name, a.acc_type AS type, SUM(l.debit) AS debit, SUM(l.credit) AS credit,
+                     SUM(CASE WHEN :from_d IS NOT NULL AND e.entry_date < TO_DATE(:from_d, 'YYYY-MM-DD') THEN l.debit - l.credit ELSE 0 END) AS open_net,
+                     SUM(CASE WHEN :from_d IS NULL OR e.entry_date >= TO_DATE(:from_d, 'YYYY-MM-DD') THEN l.debit ELSE 0 END) AS pdebit,
+                     SUM(CASE WHEN :from_d IS NULL OR e.entry_date >= TO_DATE(:from_d, 'YYYY-MM-DD') THEN l.credit ELSE 0 END) AS pcredit
+                FROM erp_accounts a
+                JOIN erp_lines l   ON l.account_code = a.code
+                JOIN erp_entries e ON e.entry_id = l.entry_id AND (:to_d IS NULL OR e.entry_date <= TO_DATE(:to_d, 'YYYY-MM-DD'))
+               GROUP BY a.code, a.name, a.acc_type) ORDER BY code`, { to_d: S(to), from_d: S(from) });
+    const keys = ['debit', 'credit', 'openDebit', 'openCredit', 'periodDebit', 'periodCredit', 'balanceDebit', 'balanceCredit'];
+    const t = Object.fromEntries(keys.map((k) => [k, Math.round(rows.reduce((s, x) => s + x[k], 0) * 100) / 100]));
+    res.json({ rows, totals: t, balanced: t.debit === t.credit, openBalanced: t.openDebit === t.openCredit, hasPeriod: !!from });
   }));
 
   // دفتر الأستاذ لحساب برصيد جارٍ بالجانب الطبيعي

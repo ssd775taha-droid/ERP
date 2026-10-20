@@ -330,6 +330,24 @@ test('تعديل وحذف البيانات الأساسية وإلغاء الس�
   assert.strictEqual(list.bankAccount, 'SA00'); assert.strictEqual(list.deptId, dp.data.id);
 });
 
+test('ميزان المراجعة بأعمدة الفترة: افتتاحي + حركة = ختامي لكل حساب', { skip: !hasDb || !canWrite }, async () => {
+  const cum = (await call('GET', '/api/reports/trial-balance?to=2099-12-31')).data;
+  assert.strictEqual(cum.hasPeriod, false);
+  const per = await call('GET', '/api/reports/trial-balance?from=2026-01-15&to=2026-12-31');
+  assert.strictEqual(per.status, 200);
+  assert.strictEqual(per.data.hasPeriod, true);
+  for (const x of per.data.rows) {
+    const open = x.openDebit - x.openCredit, mov = x.periodDebit - x.periodCredit, close = x.balanceDebit - x.balanceCredit;
+    assert.strictEqual(Math.round((open + mov) * 100), Math.round(close * 100), x.code);
+  }
+  assert.strictEqual(per.data.openBalanced, true);
+  assert.strictEqual(per.data.balanced, true);
+  // ختامي الفترة = الأرصدة التراكمية لنفس التاريخ
+  const cum2 = (await call('GET', '/api/reports/trial-balance?to=2026-12-31')).data;
+  assert.strictEqual(per.data.totals.balanceDebit, cum2.totals.balanceDebit);
+  assert.strictEqual((await call('GET', '/api/reports/trial-balance?from=2026-12-31&to=2026-01-01')).status, 400);
+});
+
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {
   const name = 'cash' + Date.now().toString(36);
   assert.strictEqual((await call('POST', '/api/users', { username: name, roleId: 'cashier', password: 'short' })).status, 400); // كلمة سر قصيرة

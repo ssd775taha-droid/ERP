@@ -18,12 +18,23 @@
     (rows.length ? rows.map((r) => '<tr><td>' + esc(r.code) + '</td><td>' + esc(r.name) + '</td><td class="n">' + money(r.amount) + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">لا شيء</td></tr>') +
     '</tbody><tfoot><tr><td colspan="2">' + totalLabel + '</td><td class="n">' + money(total) + '</td></tr></tfoot></table>';
 
-  E.pages['trial-balance'] = (el) => shell(el, 'ميزان المراجعة', 'أرصدة كل الحسابات حتى التاريخ', dateF('to', 'حتى تاريخ', E.today()), async (f) => {
-    const r = await api('GET', '/reports/trial-balance?' + E.qs({ to: f.to }));
-    return (r.balanced ? '<div class="msg good">الميزان متوازن</div>' : '<div class="msg bad">الميزان غير متوازن!</div>') +
-      '<table><thead><tr><th>الرمز</th><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">رصيد مدين</th><th class="n">رصيد دائن</th></tr></thead><tbody>' +
-      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + money(x.debit) + '</td><td class="n">' + money(x.credit) + '</td><td class="n">' + (x.balanceDebit ? money(x.balanceDebit) : '') + '</td><td class="n">' + (x.balanceCredit ? money(x.balanceCredit) : '') + '</td></tr>').join('') +
-      '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(r.totals.debit) + '</td><td class="n">' + money(r.totals.credit) + '</td><td class="n">' + money(r.totals.balanceDebit) + '</td><td class="n">' + money(r.totals.balanceCredit) + '</td></tr></tfoot></table>';
+  E.pages['trial-balance'] = (el) => shell(el, 'ميزان المراجعة', 'افتتاحي + حركة الفترة = ختامي. امسح «من» لعرض الأرصدة التراكمية حتى التاريخ',
+    dateF('from', 'من', E.yearStart()) + dateF('to', 'إلى', E.today()), async (f) => {
+    const r = await api('GET', '/reports/trial-balance?' + E.qs({ from: f.from, to: f.to }));
+    const t = r.totals, m = (x) => (x ? money(x) : '');
+    const stat = (k, v) => '<div class="stat"><div class="muted">' + k + '</div><b>' + v + '</b></div>';
+    const cards = '<div class="cards">' + (r.hasPeriod ? stat('إجمالي المدين (الحركة)', money(t.periodDebit)) + stat('إجمالي الدائن (الحركة)', money(t.periodCredit)) : stat('إجمالي المدين', money(t.debit)) + stat('إجمالي الدائن', money(t.credit))) +
+      stat('الأرصدة المدينة', money(t.balanceDebit)) + stat('الأرصدة الدائنة', money(t.balanceCredit)) + stat(r.balanced ? 'الميزان متوازن ✓' : 'الميزان غير متوازن!', money(Math.abs(t.debit - t.credit))) + '</div>';
+    if (!r.rows.length) return cards + '<div class="msg warn">لا حركة</div>';
+    if (!r.hasPeriod) {
+      return cards + '<table><thead><tr><th>الرمز</th><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">رصيد مدين</th><th class="n">رصيد دائن</th></tr></thead><tbody>' +
+        r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + money(x.debit) + '</td><td class="n">' + money(x.credit) + '</td><td class="n">' + m(x.balanceDebit) + '</td><td class="n">' + m(x.balanceCredit) + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(t.debit) + '</td><td class="n">' + money(t.credit) + '</td><td class="n">' + money(t.balanceDebit) + '</td><td class="n">' + money(t.balanceCredit) + '</td></tr></tfoot></table>';
+    }
+    return cards + (r.openBalanced ? '' : '<div class="msg warn">الرصيد الافتتاحي غير متوازن: راجع قيود ما قبل الفترة</div>') +
+      '<table><thead><tr><th>الرمز</th><th>اسم الحساب</th><th class="n">افتتاحي مدين</th><th class="n">افتتاحي دائن</th><th class="n">حركة مدين</th><th class="n">حركة دائن</th><th class="n">ختامي مدين</th><th class="n">ختامي دائن</th></tr></thead><tbody>' +
+      r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + m(x.openDebit) + '</td><td class="n">' + m(x.openCredit) + '</td><td class="n">' + m(x.periodDebit) + '</td><td class="n">' + m(x.periodCredit) + '</td><td class="n">' + m(x.balanceDebit) + '</td><td class="n">' + m(x.balanceCredit) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="n">' + money(t.openDebit) + '</td><td class="n">' + money(t.openCredit) + '</td><td class="n">' + money(t.periodDebit) + '</td><td class="n">' + money(t.periodCredit) + '</td><td class="n">' + money(t.balanceDebit) + '</td><td class="n">' + money(t.balanceCredit) + '</td></tr></tfoot></table>';
   });
 
   E.pages.ledger = async function (el, param) {
