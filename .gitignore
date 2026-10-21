@@ -9,3 +9,4 @@ webui/node_modules/
 .env-docker
 installer/ERP-Setup.exe
 installer/ERP-*-Setup.exe
+installer/.cache/

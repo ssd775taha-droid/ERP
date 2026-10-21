@@ -1,0 +1,38 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>ERP Server</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+body{font-family:Tahoma,Segoe UI,sans-serif;background:#efede8;color:#22302c;margin:0;padding:22px 26px}h1{margin:0 0 14px;font-size:22px}h2{font-size:15px;margin:18px 0 8px;color:#445}
+.card{background:#fff;border:1px solid #d6d2c8;border-radius:8px;padding:14px 18px}.row{display:flex;align-items:center;gap:10px;padding:5px 0}.dot{width:11px;height:11px;border-radius:50%;background:#aaa;flex:none}.ok{background:#2a8a4a}.bad{background:#c0392b}.na{background:#d4a017}
+.sp{flex:1}button{padding:8px 16px;font-size:14px;border:1px solid #1f5c4f;background:#1f5c4f;color:#fff;border-radius:5px;cursor:pointer;margin:4px 0 0 6px}button.alt{background:#fff;color:#1f5c4f}button.danger{background:#fff;color:#a33;border-color:#a33}
+code{direction:ltr;unicode-bidi:embed;background:#f2f0ea;padding:2px 8px;border-radius:4px;font-size:15px}.hint{font-size:13px;color:#667;margin-top:6px}#m{min-height:1.3em;margin-top:10px;font-size:14px}
+</style></head><body>
+<h1>ERP Server — لوحة تحكم السيرفر</h1>
+<div class="card" id="st"></div>
+<h2>التحكم</h2><div class="card">
+<button id="b-start">تشغيل</button><button class="danger" id="b-stop">إيقاف</button><button class="alt" id="b-web">فتح النظام على هذا الجهاز</button><button class="alt" id="b-inst">تثبيت / إصلاح قاعدة البيانات</button>
+<div class="hint">أول مرة: «تثبيت / إصلاح» (يتطلب Docker Desktop). الإغلاق من هذه النافذة لا يوقف النظام.</div></div>
+<h2>عناوين الاتصال لأجهزة العميل ونقاط البيع</h2><div class="card" id="ad"></div>
+<h2>الدخول والنسخ الاحتياطي</h2><div class="card">
+<button class="alt" id="b-pw">إظهار كلمة سر المدير ونسخها</button><button class="alt" id="b-bk">نسخ احتياطي الآن</button><button class="alt" id="b-rs">استعادة نسخة</button><button class="alt" id="b-sc">نسخ يومي تلقائي (تفعيل/إيقاف)</button>
+<div id="m"></div></div>
+<script>
+const $ = (i) => document.getElementById(i);
+const row = (ok, text, extra) => '<div class="row"><span class="dot ' + (ok === null ? 'na' : ok ? 'ok' : 'bad') + '"></span><span>' + text + '</span><span class="sp"></span>' + (extra || '') + '</div>';
+async function refresh() {
+  const s = await srv.status();
+  $('st').innerHTML = row(s.docker, 'Docker Desktop') + row(s.db, 'قاعدة بيانات Oracle') + row(s.web, 'واجهة الويب (الحاوية)') + row(s.healthy, 'الخدمة تستجيب على المنفذ 3001') +
+    (s.firewall === null ? '' : row(s.firewall, 'الجدار الناري يسمح للأجهزة الأخرى', s.firewall ? '' : '<button class="alt" id="b-fw">فتح المنفذ</button>')) +
+    (s.installed ? '' : '<div class="hint" style="color:#a33">لم يُثبَّت النظام بعد: اضغط «تثبيت / إصلاح قاعدة البيانات».</div>');
+  if ($('b-fw')) $('b-fw').onclick = async () => { await srv.firewall(); refresh(); };
+  $('ad').innerHTML = s.addresses.length ? s.addresses.map((a) => '<div class="row"><code>' + a + '</code><span class="sp"></span><button class="alt" data-c="' + a + '">نسخ</button></div>').join('') + '<div class="hint">اكتب أحد العناوين في برنامج العميل أو نقطة البيع (الاتصال داخل الشبكة المحلية فقط).</div>' : '<div class="hint">لا توجد شبكة نشطة.</div>';
+  document.querySelectorAll('[data-c]').forEach((b) => { b.onclick = () => srv.copy(b.dataset.c); });
+}
+const msg = (t) => { $('m').textContent = t; };
+$('b-start').onclick = async () => { msg('جارٍ التشغيل…'); await srv.start(); msg('تم'); refresh(); };
+$('b-stop').onclick = async () => { if (await srv.stop()) { msg('أُوقف النظام'); refresh(); } };
+$('b-web').onclick = () => srv.openWeb();
+$('b-inst').onclick = () => srv.install();
+$('b-bk').onclick = () => srv.backup(); $('b-rs').onclick = () => srv.restore(); $('b-sc').onclick = () => srv.schedule();
+$('b-pw').onclick = async () => { const r = await srv.password(); msg(r.password ? 'المستخدم: ' + r.user + ' — كلمة السر: ' + r.password + ' (نُسخت إلى الحافظة)' : 'لا كلمة سر بعد: ثبّت النظام أولاً'); };
+refresh(); setInterval(refresh, 6000);
+</script></body></html>

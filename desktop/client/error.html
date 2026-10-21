@@ -1,0 +1,11 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تعذّر الاتصال</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>body{font-family:Tahoma,Segoe UI,sans-serif;background:#efede8;color:#22302c;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.c{background:#fff;border:1px solid #d6d2c8;border-radius:8px;padding:28px 32px;width:460px}h1{margin:0 0 8px;font-size:20px;color:#a33}p{color:#556;font-size:14px;line-height:1.7}
+button{margin:8px 0 0 8px;padding:9px 20px;font-size:15px;border:1px solid #1f5c4f;background:#1f5c4f;color:#fff;border-radius:5px;cursor:pointer}button.alt{background:#fff;color:#1f5c4f}</style></head><body><div class="c">
+<h1>تعذّر الاتصال بالسيرفر</h1><p>العنوان: <b dir="ltr" id="u"></b><br>تأكد أن جهاز السيرفر يعمل وأن الشبكة والجدار الناري يسمحان بالمنفذ 3001.</p>
+<button id="r">إعادة المحاولة</button><button class="alt" id="c">تغيير العنوان</button>
+<script>
+document.getElementById('u').textContent = new URLSearchParams(location.search).get('url') || '';
+document.getElementById('r').onclick = () => window.erpDesktop.retry(); document.getElementById('c').onclick = () => window.erpDesktop.change();
+</script></div></body></html>

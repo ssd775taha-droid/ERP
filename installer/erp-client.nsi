@@ -1,18 +1,22 @@
-; مثبّت برنامج العميل أو نقطة البيع (NSIS). لا قاعدة بيانات ولا Docker: يتصل بالسيرفر عبر الشبكة.
-; يُبنى مرتين:  makensis -DMODE=client erp-client.nsi   و   makensis -DMODE=pos erp-client.nsi   (STAGE = مجلد ملفات السكربتات)
+; مثبّت برنامج العميل أو نقطة البيع (NSIS): برنامج سطح مكتب (Electron) مستقل يتصل بالسيرفر عبر الشبكة، بلا قاعدة بيانات ولا Docker.
+; يُبنى مرتين:  makensis -DMODE=client erp-client.nsi   و   makensis -DMODE=pos erp-client.nsi   (DIST = مجلد البرنامج المجهّز)
 Unicode true
 !ifndef MODE
   !define MODE "client"
 !endif
-!define VER "0.32.0"
+!define VER "0.33.0"
 !if "${MODE}" == "pos"
   !define APP "ERP POS"
   !define DIRNAME "ERP-POS"
   !define OUT "ERP-POS-Setup.exe"
+  !define EXE "ERP-POS.exe"
+  !define ICO "pos.ico"
 !else
   !define APP "ERP Client"
   !define DIRNAME "ERP-Client"
   !define OUT "ERP-Client-Setup.exe"
+  !define EXE "ERP-Client.exe"
+  !define ICO "client.ico"
 !endif
 Name "${APP} ${VER}"
 OutFile "${OUT}"
@@ -23,6 +27,7 @@ SetCompressor /SOLID lzma
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 !define MUI_ABORTWARNING
+!define MUI_ICON "${ICONDIR}\${ICO}"
 Var Dlg
 Var Edit
 Var Addr
@@ -55,24 +60,18 @@ FunctionEnd
 
 Section "Install"
   SetOutPath "$INSTDIR"
-  File "${STAGE}\client-launch.ps1"
-!if "${MODE}" == "pos"
-  File "${STAGE}\pos-silent-print.ps1"
-!endif
+  File /r "${DIST}\*.*"
   FileOpen $0 "$INSTDIR\server.txt" w
   FileWrite $0 "$Addr"
   FileClose $0
   CreateDirectory "$SMPROGRAMS\${APP}"
-  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "powershell.exe" '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\client-launch.ps1" -Mode ${MODE}' "" 0
-  CreateShortcut "$SMPROGRAMS\${APP}\${APP} - change server address.lnk" "powershell.exe" '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\client-launch.ps1" -Mode ${MODE} -Reconfigure' "" 0
-!if "${MODE}" == "pos"
-  CreateShortcut "$SMPROGRAMS\${APP}\${APP} - silent receipt printing (on-off).lnk" "powershell.exe" '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\pos-silent-print.ps1"' "" 0
-!endif
-  CreateShortcut "$DESKTOP\${APP}.lnk" "powershell.exe" '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\client-launch.ps1" -Mode ${MODE}' "" 0
+  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\${ICO}" 0
+  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\${ICO}" 0
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${DIRNAME}" "DisplayName" "${APP}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${DIRNAME}" "DisplayVersion" "${VER}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${DIRNAME}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${DIRNAME}" "DisplayIcon" "$INSTDIR\${ICO}"
 SectionEnd
 
 Section "Uninstall"
@@ -80,4 +79,5 @@ Section "Uninstall"
   RMDir /r "$SMPROGRAMS\${APP}"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${DIRNAME}"
   RMDir /r "$LOCALAPPDATA\${DIRNAME}"
+  RMDir /r "$APPDATA\erp-${MODE}"
 SectionEnd
