@@ -2,6 +2,10 @@
 (function (E) {
   const app = E.$('#app');
   let me = null;
+  // وضع «نقطة البيع فقط» لبرنامج الكاشير: يُفعَّل بالرابط ?mode=pos ويُلغى بـ ?mode=full، ويُحفظ في المتصفح
+  try { const m = /[?&]mode=(\w+)/.exec(location.search); if (m) { if (m[1] === 'pos') localStorage.setItem('erp_mode', 'pos'); else localStorage.removeItem('erp_mode'); } } catch (e) { /* التخزين غير متاح */ }
+  const posOnly = () => { try { return localStorage.getItem('erp_mode') === 'pos'; } catch (e) { return false; } };
+  const POS_PAGES = new Set(['pos/sell', 'pos/sales', 'pos/sale', 'pos/shifts', 'pos/shift']);
 
   // الأقسام: كل قسم قابل للطي وفيه مجموعات فرعية. عنصر = [المسار، العنوان، الوحدة المطلوبة (قراءة) أو 'admin']؛ يُخفى العنصر بلا صلاحية، وتُخفى المجموعة والقسم إن فرغا
   const SECTIONS = [
@@ -153,13 +157,14 @@
   function layout() {
     const open = openSet();
     const link = (n) => '<a href="#/' + n[0] + '" data-r="' + n[0] + '">' + E.esc(n[1]) + '</a>';
-    const html = '<a href="#/" data-r="">الرئيسية</a><a href="#/search" data-r="search">الاستعلام</a>' + SECTIONS.map((sec) => {
-      const groups = sec.groups.map((g) => ({ t: g.t, items: g.items.filter((n) => allowed(n)) })).filter((g) => g.items.length);
+    const po = posOnly();
+    const html = (po ? '' : '<a href="#/" data-r="">الرئيسية</a><a href="#/search" data-r="search">الاستعلام</a>') + SECTIONS.filter((sec) => !po || sec.id === 'pos').map((sec) => {
+      const groups = sec.groups.map((g) => ({ t: g.t, items: g.items.filter((n) => allowed(n) && (!po || POS_PAGES.has(n[0]))) })).filter((g) => g.items.length);
       if (!groups.length) return '';
-      return '<details class="sec" data-s="' + sec.id + '"' + (open.has(sec.id) ? ' open' : '') + '><summary>' + (ICONS[sec.id] || '') + E.esc(sec.title) + '</summary>' +
+      return '<details class="sec" data-s="' + sec.id + '"' + (open.has(sec.id) || po ? ' open' : '') + '><summary>' + (ICONS[sec.id] || '') + E.esc(sec.title) + '</summary>' +
         groups.map((g) => (g.t ? '<div class="grp">' + E.esc(g.t) + '</div>' : '') + g.items.map(link).join('')).join('') + '</details>';
     }).join('');
-    app.innerHTML = '<div class="layout"><nav class="side"><div class="brand"><i>E</i>نظام ERP</div>' + html +
+    app.innerHTML = '<div class="layout' + (po ? ' posmode' : '') + '"><nav class="side"><div class="brand"><i>E</i>نظام ERP</div>' + html +
       '<div class="who">' + E.esc(E.me.fullName || me) + '<br><span style="opacity:.7">' + E.esc(E.me.roleName || '') + '</span> · <button class="link" id="lo">خروج</button><div style="opacity:.55;font-size:11px;margin-top:6px" id="ver"></div></div></nav><div class="print-only" id="phead"></div><main id="main"></main><div class="print-only" id="pfoot"></div><button class="fab noprint" id="pbtn" title="طباعة هذه الشاشة" aria-label="طباعة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/></svg>طباعة</button></div>';
     E.$('nav.side').addEventListener('toggle', (ev) => {
       const d = ev.target; if (!d || !d.matches || !d.matches('details.sec')) return;
@@ -176,6 +181,7 @@
     const qi = full.indexOf('?');
     const h = qi < 0 ? full : full.slice(0, qi);
     const wantPrint = qi >= 0 && /(^|&)print=1(&|$)/.test(full.slice(qi + 1));      // «…?print=1» يفتح العملية ويطبعها مباشرة
+    if (posOnly() && !POS_PAGES.has(h.split('/').slice(0, 2).join('/'))) { location.hash = '#/pos/sell'; return; }   // برنامج الكاشير: لا شيء خارج شاشات البيع
     const parts = h.split('/');
     let key = h, param = null;
     if (!(key in ROUTES) && parts.length >= 2) { key = parts.slice(0, 2).join('/'); param = parts[2]; }

@@ -4,6 +4,8 @@ $ErrorActionPreference = 'Continue'
 Set-Location $PSScriptRoot
 $name = if ($env:ERP_WEB_NAME) { $env:ERP_WEB_NAME } else { 'erp-web' }
 $port = if ($env:ERP_WEB_PORT) { $env:ERP_WEB_PORT } else { '3001' }
+# الربط: 0.0.0.0 (افتراضي) ليتصل برنامج العميل ونقاط البيع من أجهزة الشبكة، أو 127.0.0.1 لجهاز واحد فقط (ERP_WEB_BIND)
+$bind = if ($env:ERP_WEB_BIND) { $env:ERP_WEB_BIND } else { '0.0.0.0' }
 $dbport = if ($env:ERP_ORACLE_PORT) { $env:ERP_ORACLE_PORT } else { '1521' }
 $envf = '.env-docker'
 $dbenv = '..\oracle\local\.env'
@@ -62,7 +64,7 @@ docker build -t erp-web .
 if ($LASTEXITCODE -ne 0) { Write-Host 'فشل بناء الصورة'; exit 1 }
 docker rm -f $name 2>$null | Out-Null
 $netArg = if ($useNet) { @('--network', $net) } else { @() }
-docker run -d --name $name --restart unless-stopped @netArg --env-file $envf -e ERP_WEB_HOST=0.0.0.0 -p "127.0.0.1:${port}:3001" erp-web | Out-Null
+docker run -d --name $name --restart unless-stopped @netArg --env-file $envf -e ERP_WEB_HOST=0.0.0.0 -p "${bind}:${port}:3001" erp-web | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host 'فشل تشغيل الحاوية'; exit 1 }
 # انتظر جاهزية الواجهة والقاعدة؛ إن فشلت اعرض السبب الحقيقي من سجل الحاوية
 $ok = $false

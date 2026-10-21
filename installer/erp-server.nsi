@@ -1,9 +1,9 @@
-; مثبّت النظام (NSIS). يُبنى بـ: makensis erp-setup.nsi  (المتغير STAGE = مجلد الملفات المجهّزة)
+; مثبّت السيرفر (NSIS): قاعدة Oracle + واجهة الويب + إتاحتها لأجهزة الشبكة (العميل ونقاط البيع لهما مثبّتاهما). يُبنى بـ: makensis erp-setup.nsi  (المتغير STAGE = مجلد الملفات المجهّزة)
 Unicode true
 !define APP "ERP"
-!define VER "0.1.0"
-Name "${APP} ${VER}"
-OutFile "ERP-Setup.exe"
+!define VER "0.32.0"
+Name "${APP} Server ${VER}"
+OutFile "ERP-Server-Setup.exe"
 InstallDir "$LOCALAPPDATA\ERP"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
@@ -28,6 +28,7 @@ Section "Install"
   CreateShortcut "$SMPROGRAMS\ERP\ERP Restore backup.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\restore-erp.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\ERP Daily backup (on-off).lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\schedule-backup.ps1"' "" 0
   CreateShortcut "$SMPROGRAMS\ERP\ERP Setup (reinstall).lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup-all.ps1"' "" 0
+  CreateShortcut "$SMPROGRAMS\ERP\ERP Server address (for clients).lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\server-info.ps1"' "" 0
   CreateShortcut "$DESKTOP\ERP.lnk" "powershell.exe" '-NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\start-erp.ps1"' "" 0
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ERP" "DisplayName" "ERP"
