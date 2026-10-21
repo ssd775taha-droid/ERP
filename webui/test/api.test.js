@@ -679,9 +679,25 @@ test('الصلاحيات الحساسة: الإلغاء والاعتماد عل�
   assert.strictEqual(cl.perms.trade, 'w'); assert.strictEqual(cl.perms._void, 'n'); assert.strictEqual(cl.builtin, 'N');
   assert.strictEqual((await call('POST', `/api/roles/${rid}/clone`, { id: rid + 'c', name: 'مكرر' })).status, 409);
   assert.strictEqual((await call('POST', '/api/roles/nope/clone', { id: 'zz' + st, name: 'x' })).status, 404);
-  // دور بلا أعلام صريحة (قديم) يُعامل كمسموح
-  assert.strictEqual(require('../server/security').cleanPerms({ trade: 'w' })._void, 'y');
-  assert.strictEqual(require('../server/security').cleanPerms({ trade: 'w', _void: 'n' })._void, 'n');
+  // دور بلا أعلام صريحة (قديم، من قبل إضافة هذين العلمين) يُعامل كممنوع افتراضاً (أكثر أماناً)؛
+  // migrate.js يُكمِّل الأدوار الجاهزة القديمة بالقيمة الصحيحة من BUILTIN_ROLES عند الترقية
+  assert.strictEqual(require('../server/security').cleanPerms({ trade: 'w' })._void, 'n');
+  assert.strictEqual(require('../server/security').cleanPerms({ trade: 'w', _void: 'y' })._void, 'y');
+});
+
+test('ترقية الأدوار الجاهزة القديمة: migrate.js يُكمِّل أعلام _void/_approve الناقصة دون لمس بقية الصلاحيات', { skip: !hasDb || !canWrite }, async () => {
+  const db = require('../server/db');
+  const { ensureSchema } = require('../server/migrate');
+  // محاكاة دور جاهز محفوظ قبل إضافة هذين العلمين (كما في تثبيت أُنشئ قبل هذه الميزة ثم رُقّي)
+  const before = (await db.query("SELECT perms AS \"p\" FROM web_roles WHERE role_id = 'cashier'"))[0].p;
+  const stripped = JSON.parse(before); delete stripped._void; delete stripped._approve;
+  await db.run('UPDATE web_roles SET perms = :p WHERE role_id = :id', { p: JSON.stringify(stripped), id: 'cashier' });
+  const mid = JSON.parse((await db.query("SELECT perms AS \"p\" FROM web_roles WHERE role_id = 'cashier'"))[0].p);
+  assert.ok(!('_void' in mid) && !('_approve' in mid));
+  await ensureSchema();   // كما يحدث عند كل إقلاع للخادم
+  const after = JSON.parse((await db.query("SELECT perms AS \"p\" FROM web_roles WHERE role_id = 'cashier'"))[0].p);
+  assert.strictEqual(after._void, 'n'); assert.strictEqual(after._approve, 'n');   // القيمة الصحيحة من BUILTIN_ROLES، لا 'y' الخطرة
+  assert.strictEqual(after.pos, 'w');   // صلاحيات الوحدات لم تتأثر
 });
 
 test('المستخدمون والأدوار: كاشير يصل إلى نقاط البيع فقط، وتعطيله وتغيير كلمة سره يُسقطان جلسته', { skip: !hasDb || !canWrite }, async () => {

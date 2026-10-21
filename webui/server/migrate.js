@@ -40,6 +40,20 @@ async function ensureSchema() {
         WHEN NOT MATCHED THEN INSERT (role_id, name, perms, builtin) VALUES (:id, :name, :perms, 'Y')`,
       { id: r.id, name: r.name, perms: JSON.stringify(cleanPerms(r.perms)) });
     }
+    // ترقية من إصدار قبل أعلام _void/_approve: أدوار جاهزة قديمة محفوظة بلا هذين العلمين (ثغرة أُصلحت:
+    // غيابهما كان يُفسَّر «مسموح»، فصار الآن «ممنوع» افتراضياً). نُكمِّل القيمة الصحيحة من BUILTIN_ROLES
+    // لكل علم ناقص فقط، دون لمس مستويات الوحدات التي قد يكون المدير عدّلها.
+    const stale = (await c.execute("SELECT role_id AS \"id\", perms AS \"perms\" FROM web_roles WHERE builtin = 'Y'")).rows;
+    for (const row of stale) {
+      let p; try { p = JSON.parse(row.perms); } catch { continue; }
+      if ('_void' in p && '_approve' in p) continue;
+      const def = BUILTIN_ROLES.find((r) => r.id === row.id);
+      if (!def) continue;
+      const admin = row.id === 'admin';   // admin دائماً كامل الصلاحيات (authz.js يتجاوز هذا الفحص له أصلاً)، تُخزَّن قيمته الصريحة للوضوح فقط
+      if (!('_void' in p)) p._void = admin || def.perms._void === 'y' ? 'y' : 'n';
+      if (!('_approve' in p)) p._approve = admin || def.perms._approve === 'y' ? 'y' : 'n';
+      await c.execute('UPDATE web_roles SET perms = :p WHERE role_id = :id', { p: JSON.stringify(p), id: row.id });
+    }
     await c.commit();
   });
 }
