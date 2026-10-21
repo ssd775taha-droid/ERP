@@ -4,8 +4,14 @@
 .c{background:#fff;border:1px solid #d6d2c8;border-radius:8px;padding:28px 32px;width:460px}h1{margin:0 0 8px;font-size:20px;color:#a33}p{color:#556;font-size:14px;line-height:1.7}
 button{margin:8px 0 0 8px;padding:9px 20px;font-size:15px;border:1px solid #1f5c4f;background:#1f5c4f;color:#fff;border-radius:5px;cursor:pointer}button.alt{background:#fff;color:#1f5c4f}</style></head><body><div class="c">
 <h1>تعذّر الاتصال بالسيرفر</h1><p>العنوان: <b dir="ltr" id="u"></b><br>تأكد أن جهاز السيرفر يعمل وأن الشبكة والجدار الناري يسمحان بالمنفذ 3001.</p>
-<button id="r">إعادة المحاولة</button><button class="alt" id="c">تغيير العنوان</button>
+<button id="r">إعادة المحاولة</button><button class="alt" id="c">تغيير العنوان</button><button class="alt" id="d">بحث تلقائي</button><div id="m" style="margin-top:10px;font-size:14px"></div>
 <script>
 document.getElementById('u').textContent = new URLSearchParams(location.search).get('url') || '';
+document.getElementById('d').onclick = async () => {
+  const m = document.getElementById('m'); m.textContent = 'جارٍ البحث عن السيرفر…';
+  const l = await window.erpDesktop.discover();
+  if (!l.length) { m.textContent = 'لم يُعثر على سيرفر في الشبكة.'; return; }
+  const r = await window.erpDesktop.setServer(l[0]); if (!r.ok) m.textContent = r.error;
+};
 document.getElementById('r').onclick = () => window.erpDesktop.retry(); document.getElementById('c').onclick = () => window.erpDesktop.change();
 </script></div></body></html>

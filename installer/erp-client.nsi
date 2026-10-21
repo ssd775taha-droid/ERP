@@ -4,7 +4,7 @@ Unicode true
 !ifndef MODE
   !define MODE "client"
 !endif
-!define VER "0.33.0"
+!define VER "0.33.1"
 !if "${MODE}" == "pos"
   !define APP "ERP POS"
   !define DIRNAME "ERP-POS"
@@ -43,27 +43,25 @@ Page custom AddrPage AddrLeave
 Function AddrPage
   nsDialogs::Create 1018
   Pop $Dlg
-  ${NSD_CreateLabel} 0 0 100% 24u "Server address (the computer running ERP Server), e.g. 192.168.1.10 or 192.168.1.10:3001.$\r$\nYou can find it on the server: Start menu > ERP > ERP Server address."
+  ${NSD_CreateLabel} 0 0 100% 36u "Server address (optional). Leave it EMPTY to find the server automatically on first run.$\r$\nOr type it, e.g. 192.168.1.10 or localhost if the server is on this PC (shown in the ERP Server program)."
   Pop $0
-  ${NSD_CreateText} 0 34u 100% 12u "192.168.1.10:3001"
+  ${NSD_CreateText} 0 44u 100% 12u ""
   Pop $Edit
   nsDialogs::Show
 FunctionEnd
 
 Function AddrLeave
   ${NSD_GetText} $Edit $Addr
-  ${If} $Addr == ""
-    MessageBox MB_OK "Please enter the server address."
-    Abort
-  ${EndIf}
 FunctionEnd
 
 Section "Install"
   SetOutPath "$INSTDIR"
   File /r "${DIST}\*.*"
-  FileOpen $0 "$INSTDIR\server.txt" w
-  FileWrite $0 "$Addr"
-  FileClose $0
+  ${If} $Addr != ""
+    FileOpen $0 "$INSTDIR\server.txt" w
+    FileWrite $0 "$Addr"
+    FileClose $0
+  ${EndIf}
   CreateDirectory "$SMPROGRAMS\${APP}"
   CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\${ICO}" 0
   CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\${ICO}" 0

@@ -2,6 +2,8 @@
 // product.json يحدد النمط: client (النظام كاملاً حسب الصلاحيات) أو pos (شاشة البيع فقط).
 const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const fs = require('fs');
+const os = require('os');
+const http = require('http');
 const path = require('path');
 const product = require('./product.json');
 
@@ -23,6 +25,35 @@ function normalize(a) {
   if (!/^https?:\/\//i.test(a)) a = 'http://' + a;
   if (!/:\d+$/.test(a)) a += ':3001';
   try { return new URL(a).origin; } catch (e) { return ''; }
+}
+
+// اكتشاف السيرفر: يفحص localhost ثم كل عناوين الشبكات المحلية (/24 لكل بطاقة) على المنفذ 3001 ويقبل من يردّ على /healthz بـ {"ok":true}
+const VIRTUAL = /vEthernet|WSL|Docker|docker|veth|br-|virbr|VirtualBox|VMware|Hyper-V|Loopback/;
+function probe(host, port, ms) {
+  return new Promise((res) => {
+    const r = http.get({ host, port, path: '/healthz', timeout: ms, agent: false }, (x) => {
+      let b = ''; x.on('data', (d) => { if (b.length < 200) b += d; });
+      x.on('end', () => { try { res(x.statusCode === 200 && JSON.parse(b).ok === true); } catch (e) { res(false); } });
+    });
+    r.on('error', () => res(false)); r.on('timeout', () => { r.destroy(); res(false); });
+  });
+}
+async function discover() {
+  const hosts = ['127.0.0.1'];
+  const mine = new Set();
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    if (VIRTUAL.test(name)) continue;
+    for (const i of list) {
+      if (i.family !== 'IPv4' || i.internal || i.address.startsWith('169.254.')) continue;
+      mine.add(i.address);
+      const p = i.address.split('.'); for (let n = 1; n < 255; n++) { const h = `${p[0]}.${p[1]}.${p[2]}.${n}`; if (h !== i.address) hosts.push(h); }
+    }
+  }
+  const found = []; let next = 0;
+  const worker = async () => { while (next < hosts.length) { const h = hosts[next++]; if (await probe(h, 3001, 700)) found.push(h === '127.0.0.1' ? 'localhost' : h); } };
+  await Promise.all(Array.from({ length: 64 }, worker));
+  const own = found.filter((h) => !mine.has(h));
+  return [...new Set(own)].sort().map((h) => 'http://' + h + ':3001');
 }
 
 function loadConfig() {
@@ -90,6 +121,7 @@ ipcMain.handle('set-server', async (_e, a) => {
   show();
   return { ok: true };
 });
+ipcMain.handle('discover', () => discover());
 ipcMain.handle('retry', () => { show(); });
 ipcMain.handle('change', () => win.loadFile(path.join(__dirname, 'setup.html'), { query: { cur: cfg.server } }));
 ipcMain.handle('print', (e) => new Promise((res) => {

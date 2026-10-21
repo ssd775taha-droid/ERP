@@ -3,11 +3,21 @@
 <style>body{font-family:Tahoma,Segoe UI,sans-serif;background:#efede8;color:#22302c;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
 .c{background:#fff;border:1px solid #d6d2c8;border-radius:8px;padding:28px 32px;width:420px}h1{margin:0 0 6px;font-size:20px}p{color:#667;margin:0 0 16px;font-size:14px}
 input{width:100%;box-sizing:border-box;padding:9px;font-size:16px;direction:ltr;border:1px solid #b9b5aa;border-radius:5px}button{margin-top:14px;padding:9px 22px;font-size:15px;background:#1f5c4f;color:#fff;border:0;border-radius:5px;cursor:pointer}
-#e{color:#b00;margin-top:10px;min-height:1.2em;font-size:14px}</style></head><body><div class="c"><h1>عنوان السيرفر</h1>
+button.alt{background:#fff;color:#1f5c4f;border:1px solid #1f5c4f;margin-right:8px}.f{display:block;width:100%;text-align:right;margin:8px 0 0;direction:ltr}#e{color:#b00;margin-top:10px;min-height:1.2em;font-size:14px}</style></head><body><div class="c"><h1>عنوان السيرفر</h1>
 <p>اكتب عنوان الجهاز الذي يعمل عليه «ERP Server»، مثل <b dir="ltr">192.168.1.10</b></p>
-<input id="a" placeholder="192.168.1.10:3001" autofocus><br><button id="b">اتصال</button><div id="e"></div></div>
+<input id="a" placeholder="192.168.1.10:3001" autofocus><br><button id="b">اتصال</button><button id="s" class="alt">بحث تلقائي عن السيرفر</button><div id="e"></div><div id="f"></div></div>
 <script>
 const q = new URLSearchParams(location.search); if (q.get('cur')) a.value = q.get('cur');
 const go = async () => { const r = await window.erpDesktop.setServer(a.value); if (!r.ok) e.textContent = r.error; };
+const scan = async (auto) => {
+  e.style.color = '#556'; e.textContent = 'جارٍ البحث عن السيرفر في الشبكة…'; f.innerHTML = ''; s.disabled = true;
+  const list = await window.erpDesktop.discover(); s.disabled = false; e.style.color = '#b00';
+  if (!list.length) { e.textContent = 'لم يُعثر على سيرفر. تأكد أنه يعمل واكتب عنوانه يدوياً.'; return; }
+  if (list.length === 1 && auto) { a.value = list[0]; e.style.color = '#1f5c4f'; e.textContent = 'وُجد السيرفر: ' + list[0]; go(); return; }
+  e.style.color = '#1f5c4f'; e.textContent = 'اختر السيرفر:';
+  list.forEach((u) => { const x = document.createElement('button'); x.className = 'alt f'; x.textContent = u; x.onclick = () => { a.value = u; go(); }; f.appendChild(x); });
+};
+s.onclick = () => scan(false);
+if (!q.get('cur')) scan(true);   // أول تشغيل: بحث تلقائي ثم اتصال إن وُجد سيرفر واحد
 b.onclick = go; a.onkeydown = (ev) => { if (ev.key === 'Enter') go(); };
 </script></body></html>
