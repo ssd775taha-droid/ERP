@@ -10,6 +10,7 @@ const RULES = [
   R(/^\/entries(\/|$)/, 'accounting'),
   R(/^\/cost-centers(\/|$)/, 'accounting', { readAny: true }),
   R(/^\/budgets(\/|$)/, 'accounting'),
+  R(/^\/owner(\/|$)/, 'reports', { readAny: true }),
   R(/^\/summary$/, 'summary'),
   R(/^\/reports\//, 'reports'),
   R(/^\/(periods|years)(\/|$)/, 'periods'),

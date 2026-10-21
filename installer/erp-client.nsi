@@ -4,7 +4,7 @@ Unicode true
 !ifndef MODE
   !define MODE "client"
 !endif
-!define VER "0.35.1"
+!define VER "0.36.0"
 !if "${MODE}" == "pos"
   !define APP "ERP POS"
   !define DIRNAME "ERP-POS"

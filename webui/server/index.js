@@ -84,6 +84,7 @@ function createApp(cfg) {
   app.use('/api', require('./routes/accadv')());
   app.use('/api', require('./routes/budgets')());
   app.use('/api', require('./routes/system')(auth));
+  app.use('/api', require('./routes/owner')());
   app.use('/api', require('./routes/tradereports')());
   app.use('/api', require('./routes/alerts')());
   app.use('/api', require('./routes/import')());
