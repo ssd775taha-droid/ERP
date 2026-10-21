@@ -67,4 +67,4 @@ function auditWrites(auth) {
   };
 }
 
-module.exports = { authorize, auditWrites, RULES };
+module.exports = { authorize, auditWrites, RULES, VOID_RE, APPROVE_RE, sensitive };

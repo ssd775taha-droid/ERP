@@ -14,6 +14,7 @@
       card('settings/audit', 'سجل العمليات', 'من فعل ماذا ومتى', E.me.isAdmin) +
       card('settings/backup', 'النسخ الاحتياطي', 'كيف تنسخ بياناتك وتستعيدها', E.me.isAdmin) +
       card('settings/system', 'حالة النظام', 'الإصدار وحجم القاعدة والنشاط وفحوص سلامة الأرقام', E.me.isAdmin) +
+      card('settings/security-review', 'مراجعة أمنية', 'عمليات إلغاء أو اعتماد نُفِّذت بحسابات لا تملك هذه الصلاحية الآن', E.me.isAdmin) +
       card('settings/password', 'كلمة سري', 'تغيير كلمة السر الخاصة بك', true) + '</div>' +
       '<div class="card"><h3>ملاحظات</h3><ul><li>المدير الأساسي (من ملف الإعدادات) لا يُعطَّل ولا تُغيَّر صلاحياته؛ استخدمه للطوارئ وأنشئ لنفسك مستخدماً بدور «مدير النظام» للعمل اليومي.</li>' +
       '<li>الصلاحيات تُفرض في الخادم على كل طلب، وإخفاء القوائم للراحة فقط.</li>' +
@@ -36,6 +37,22 @@
       '<h3>معلومات</h3><table><tbody><tr><td>قاعدة البيانات</td><td dir="ltr">' + E.esc(s.db.banner || '—') + '</td></tr><tr><td>Node.js</td><td dir="ltr">' + E.esc(s.node) + '</td></tr>' +
       '<tr><td>آخر نشاط مسجَّل</td><td>' + E.esc(s.activity.lastAt || '—') + '</td></tr><tr><td>محاولات دخول فاشلة (24 ساعة)</td><td>' + s.activity.failedLogins + '</td></tr>' +
       '<tr><td>الفترات المقفلة</td><td>' + s.periods.closed + (s.periods.last ? ' (آخرها ' + E.esc(s.periods.last) + ')' : '') + '</td></tr></tbody></table>';
+  };
+
+  E.pages.adminSecurityReview = async function (el) {
+    el.innerHTML = E.head('مراجعة أمنية', 'فحص سجل العمليات بحثاً عن إلغاء أو حذف أو عكس أو اعتماد نُفِّذ بنجاح بحساب لا يملك دوره الحالي هذه الصلاحية — مؤشر على ثغرة إصدار سابق (0.35.0 فما قبله) وليس بالضرورة سوء استخدام') + '<div id="out"></div>';
+    const out = E.$('#out', el);
+    out.innerHTML = '<p class="muted">جارٍ الفحص…</p>';
+    try {
+      const r = await api('GET', '/system/audit-review');
+      const KIND = { void: 'إلغاء/حذف/عكس', approve: 'اعتماد/ترحيل/إقفال' };
+      out.innerHTML = '<div class="cards">' + '<div class="stat"><div class="muted">عمليات حساسة في السجل</div><b>' + r.scanned + '</b></div>' +
+        '<div class="stat"><div class="muted">' + (r.flagged.length ? 'حالات تحتاج مراجعة' : 'النتيجة') + '</div><b>' + (r.flagged.length ? r.flagged.length : 'لا شيء يستدعي القلق') + '</b></div></div>' +
+        '<p class="muted">' + esc(r.caveat) + '</p>' +
+        (r.flagged.length ? '<table><thead><tr><th>الوقت</th><th>المستخدم</th><th>الدور الحالي</th><th>نوع الإجراء</th><th>العملية</th><th>ملاحظة</th></tr></thead><tbody>' +
+          r.flagged.map((x) => '<tr><td>' + esc(x.at) + '</td><td>' + esc(x.username) + '</td><td>' + esc(x.roleName || '—') + '</td><td>' + KIND[x.kind] + '</td><td dir="ltr" style="text-align:right">' + esc(x.action) + '</td><td class="muted">' + esc(x.note || '') + '</td></tr>').join('') +
+          '</tbody></table>' : '<div class="msg good">لا عمليات حساسة سُجِّلت بحساب لا يملك دوره الحالي صلاحيتها.</div>');
+    } catch (e) { out.innerHTML = E.err(e.message); }
   };
 
   E.pages.adminBackup = async function (el) {

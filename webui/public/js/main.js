@@ -36,7 +36,7 @@
       { t: 'تقارير الرواتب', items: [['payroll/dept', 'الرواتب حسب القسم', 'payroll'], ['payroll/employee-sheet', 'رواتب الموظفين بالأشهر', 'payroll'], ['payroll/components', 'الرواتب حسب المكوّن', 'payroll'], ['payroll/trend', 'اتجاه تكلفة الرواتب', 'payroll']] } ] },
     { id: 'set', title: 'الإعدادات والإدارة', groups: [
       { t: 'المنشأة', items: [['tax/settings', 'المنشأة والضريبة السعودية', 'settings'], ['settings', 'ضوابط الاعتماد والخصم', 'settings']] },
-      { t: 'النظام', items: [['settings/import', 'استيراد البيانات'], ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/access', 'صلاحيات المستخدمين الفعلية', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/system', 'حالة النظام', 'admin'], ['settings/password', 'كلمة سري']] } ] },
+      { t: 'النظام', items: [['settings/import', 'استيراد البيانات'], ['settings/users', 'المستخدمون', 'admin'], ['settings/roles', 'الأدوار والصلاحيات', 'admin'], ['settings/access', 'صلاحيات المستخدمين الفعلية', 'admin'], ['settings/audit', 'سجل العمليات', 'admin'], ['settings/backup', 'النسخ الاحتياطي', 'admin'], ['settings/system', 'حالة النظام', 'admin'], ['settings/security-review', 'مراجعة أمنية', 'admin'], ['settings/password', 'كلمة سري']] } ] },
   ];
   // الوحدة والمستوى اللازمان لكل صفحة (مفتاح المسار). صفحات الإنشاء/التنفيذ تتطلب كتابة. ما لا يُذكر هنا مفتوح لكل مستخدم مسجَّل
   const R = 'r', W = 'w';
@@ -53,7 +53,7 @@
     'reports/balance-sheet': ['reports', R], 'reports/cash-flow': ['reports', R], 'reports/open-invoices': ['reports', R], 'reports/party-balances': ['reports', R], 'reports/payments-summary': ['reports', R], 'reports/sales-comparison': ['reports', R], 'reports/notes-summary': ['reports', R], 'reports/monthly-pl': ['reports', R], 'reports/activity': ['reports', R], 'reports/cash-book': ['reports', R], 'reports/ratios': ['reports', R], 'reports/journal-audit': ['reports', R], 'reports/general-journal': ['reports', R], 'reports/general-ledger': ['reports', R], 'reports/tb-compare': ['reports', R], 'reports/bs-compare': ['reports', R], 'reports/account-groups': ['reports', R], 'reports/sales-analysis': ['reports', R], 'reports/item-profit': ['reports', R], 'reports/comparative': ['reports', R], periods: ['periods', R],
     'cost-centers': ['accounting', R], budget: ['accounting', W], 'reports/budget-vs-actual': ['reports', R], 'reports/cc-pl': ['reports', R],
     settings: ['settings', R], 'tax/settings': ['settings', R],
-    'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/access': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'], 'settings/system': ['admin'],
+    'settings/users': ['admin'], 'settings/roles': ['admin'], 'settings/access': ['admin'], 'settings/audit': ['admin'], 'settings/backup': ['admin'], 'settings/system': ['admin'], 'settings/security-review': ['admin'],
   };
   const MODULE_LABEL = { accounting: 'المحاسبة', periods: 'إقفال الفترات', reports: 'التقارير', trade: 'المبيعات والمشتريات', inventory: 'المخزون', assets: 'الأصول الثابتة',
     hr: 'الموارد البشرية', payroll: 'الرواتب', pos: 'نقاط البيع', orders: 'الطلبات والعروض', settings: 'الإعدادات', admin: 'إدارة النظام' };
@@ -69,7 +69,7 @@
     'pos/sell': 'posSell', 'pos/sales': 'posSales', 'pos/sale': 'posSale', 'pos/shifts': 'posShifts', 'pos/shift': 'posShift', 'pos/registers': 'posRegisters', 'pos/rep-daily': 'pos-daily', 'pos/rep-items': 'pos-items', 'pos/rep-cashiers': 'pos-cashiers', 'pos/rep-hourly': 'pos-hourly', 'pos/rep-shifts': 'pos-shifts', 'pos/rep-returns': 'pos-returns',
     'po/edit': 'poEdit', 'quote/edit': 'quoteEdit', po: 'poList', 'po/new': 'poNew', 'po/view': 'poView', quotes: 'quoteList', 'quote/new': 'quoteNew', 'quote/view': 'quoteView', settings: 'settings',
     'tax/settings': 'taxSettings', 'reports/vat': 'vat-return',
-    'settings/home': 'settingsHome', 'settings/import': 'importData', 'settings/users': 'adminUsers', 'settings/system': 'adminSystem', 'settings/roles': 'adminRoles', 'settings/access': 'adminAccess', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
+    'settings/home': 'settingsHome', 'settings/import': 'importData', 'settings/users': 'adminUsers', 'settings/system': 'adminSystem', 'settings/security-review': 'adminSecurityReview', 'settings/roles': 'adminRoles', 'settings/access': 'adminAccess', 'settings/audit': 'adminAudit', 'settings/backup': 'adminBackup', 'settings/password': 'myPassword',
     notes: 'notes', 'note/new': 'noteNew', 'note/view': 'noteView',
     customers: 'customers', suppliers: 'suppliers', sales: 'sales', purchases: 'purchases', payments: 'payments',
     'invoice/new': 'invoiceNew', 'invoice/view': 'invoiceView', 'party/statement': 'partyStatement', 'payment/new': 'paymentNew', 'reports/aging': 'aging',

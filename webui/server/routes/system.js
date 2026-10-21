@@ -1,13 +1,15 @@
 // حالة النظام (للمدير): الإصدار والقاعدة والأحجام وعدد السجلات ونشاط المستخدمين، وفحوص سلامة محاسبية للقراءة فقط.
 const express = require('express');
 const db = require('../db');
+const { sensitive } = require('../authz');
+const { cleanPerms } = require('../security');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 const r2 = (n) => Math.round(n * 100) / 100;
 const one = async (sql, binds) => (await db.query(sql, binds || {}))[0] || {};
 const safe = async (fn, dflt) => { try { return await fn(); } catch (e) { return dflt; } };
 
-module.exports = function systemRoutes() {
+module.exports = function systemRoutes(auth) {
   const r = express.Router();
 
   r.get('/system/status', wrap(async (req, res) => {
@@ -40,6 +42,42 @@ module.exports = function systemRoutes() {
     ];
     res.json({ version: require('../../package.json').version, uptimeSec: Math.round(process.uptime()), node: process.version, db: { banner, sizeMb },
       counts, users, activity: { writes: act.writes, users: act.users, failedLogins: failed.n, lastAt: last.t }, periods, checks });
+  }));
+
+  // مراجعة أمنية: عمليات إلغاء/حذف/عكس أو اعتماد/ترحيل/إقفال ناجحة في السجل، نُفِّذت بحساب لا يملك الدور الحالي
+  // لصاحبه هذه الصلاحية (ثغرة 0.35.0: غياب العلم في دور كان يُعامَل كـ«مسموح» بدل «ممنوع» في إصدارات أقدم).
+  // المرجع هو دور المستخدم *الحالي* وقت الفحص لا وقت العملية؛ تغيير دوره لاحقاً يُفقِد الفحص الدقة فيُذكر ذلك صراحة.
+  r.get('/system/audit-review', wrap(async (req, res) => {
+    const rows = await db.query(`
+      SELECT a.audit_id AS "id", TO_CHAR(a.at, 'YYYY-MM-DD HH24:MI:SS') AS "at", a.username AS "username", a.action AS "action", a.ip AS "ip",
+             u.active AS "userActive", r.role_id AS "roleId", r.name AS "roleName", r.perms AS "rolePerms"
+        FROM web_audit a
+        LEFT JOIN web_users u ON LOWER(u.username) = LOWER(a.username)
+        LEFT JOIN web_roles r ON r.role_id = u.role_id
+       WHERE a.status < 400 AND a.username IS NOT NULL AND (a.action LIKE 'POST %' OR a.action LIKE 'DELETE %')
+       ORDER BY a.audit_id DESC FETCH FIRST 5000 ROWS ONLY`);
+    const flagged = [];
+    let scanned = 0;
+    for (const row of rows) {
+      const sp = row.action.indexOf(' ');
+      if (sp < 0) continue;
+      const method = row.action.slice(0, sp), path = row.action.slice(sp + 1);
+      const act = sensitive({ method, path });
+      if (!act) continue;
+      scanned++;
+      if (row.roleId === 'admin' || (!row.roleId && row.username.toLowerCase() === auth.rootName.toLowerCase())) continue;   // مدير: له الصلاحية دائماً، ليس ثغرة
+      let allowed, roleName, note;
+      if (!row.roleId) { allowed = null; roleName = null; note = 'المستخدم لم يعد موجوداً: تعذّر معرفة دوره الآن'; }
+      else {
+        let p; try { p = cleanPerms(JSON.parse(row.rolePerms)); } catch { p = cleanPerms({}); }
+        allowed = p[act] === 'y'; roleName = row.roleName;
+        note = row.userActive === 'N' ? 'الحساب معطَّل حالياً' : null;
+      }
+      if (allowed === true) continue;   // دوره الحالي يملك الصلاحية فعلاً: ليس أثراً للثغرة
+      flagged.push({ id: row.id, at: row.at, username: row.username, roleName, ip: row.ip,
+        kind: act === '_void' ? 'void' : 'approve', action: row.action, note });
+    }
+    res.json({ scanned, flagged, caveat: 'المرجع دور المستخدم الحالي وقت الفحص، لا دوره وقت تنفيذ العملية؛ إن غيَّرت دور أحدهم لاحقاً فقد لا تعكس النتيجة واقع تلك اللحظة بدقة.' });
   }));
 
   return r;
