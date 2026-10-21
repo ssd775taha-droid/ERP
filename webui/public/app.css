@@ -275,3 +275,6 @@ td.noprint { white-space: nowrap; } td.noprint .btn + .btn, td.noprint a + .btn,
 table.matrix th { min-width: 130px; vertical-align: top; } table.matrix th.dirty { box-shadow: inset 0 -3px 0 var(--accent); }
 table.matrix select.preset { width: 100%; margin-top: 6px; font-size: 12px; padding: 2px 4px; font-weight: 400; }
 label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink); }
+
+/* برنامج الكاشير: بلا زر الطباعة العائم */
+body:has(.layout.posmode) #pbtn { display: none; }

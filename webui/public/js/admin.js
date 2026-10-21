@@ -13,6 +13,7 @@
       card('settings/roles', 'الأدوار والصلاحيات', 'ما يستطيع كل دور رؤيته وتعديله في كل وحدة', E.me.isAdmin) +
       card('settings/audit', 'سجل العمليات', 'من فعل ماذا ومتى', E.me.isAdmin) +
       card('settings/backup', 'النسخ الاحتياطي', 'كيف تنسخ بياناتك وتستعيدها', E.me.isAdmin) +
+      card('settings/system', 'حالة النظام', 'الإصدار وحجم القاعدة والنشاط وفحوص سلامة الأرقام', E.me.isAdmin) +
       card('settings/password', 'كلمة سري', 'تغيير كلمة السر الخاصة بك', true) + '</div>' +
       '<div class="card"><h3>ملاحظات</h3><ul><li>المدير الأساسي (من ملف الإعدادات) لا يُعطَّل ولا تُغيَّر صلاحياته؛ استخدمه للطوارئ وأنشئ لنفسك مستخدماً بدور «مدير النظام» للعمل اليومي.</li>' +
       '<li>الصلاحيات تُفرض في الخادم على كل طلب، وإخفاء القوائم للراحة فقط.</li>' +
@@ -20,6 +21,23 @@
   };
 
   // ---------- النسخ الاحتياطي (تعليمات؛ التنفيذ من قائمة ابدأ لأن الواجهة لا تملك صلاحية Docker) ----------
+  E.pages.adminSystem = async function (el) {
+    const s = await api('GET', '/system/status');
+    const stat = (k, v) => '<div class="stat"><div class="muted">' + k + '</div><b>' + v + '</b></div>';
+    const up = s.uptimeSec >= 86400 ? Math.floor(s.uptimeSec / 86400) + ' يوم' : s.uptimeSec >= 3600 ? Math.floor(s.uptimeSec / 3600) + ' ساعة' : Math.max(1, Math.floor(s.uptimeSec / 60)) + ' دقيقة';
+    const C = s.counts, LBL = { entries: 'القيود', lines: 'أسطر القيود', accounts: 'الحسابات', parties: 'العملاء والموردون', invoices: 'الفواتير', payments: 'السندات', items: 'الأصناف', posSales: 'مبيعات نقاط البيع', employees: 'الموظفون', assets: 'الأصول' };
+    const bad = s.checks.filter((c) => c.ok === false).length;
+    el.innerHTML = E.head('حالة النظام', 'للمدير: صحة الخادم والقاعدة وسلامة الأرقام المحاسبية (قراءة فقط)') +
+      '<div class="cards">' + stat('الإصدار', s.version) + stat('مدة تشغيل الخادم', up) + stat('حجم البيانات', s.db.sizeMb == null ? '—' : E.money(s.db.sizeMb) + ' م.ب') +
+      stat('المستخدمون الفعّالون', s.users.active + ' / ' + s.users.total) + stat('عمليات كتابة آخر 24 ساعة', s.activity.writes + ' (' + s.activity.users + ' مستخدم)') + '</div>' +
+      '<h3>فحوص السلامة ' + (bad ? '<span class="tag bad">' + bad + ' تحتاج مراجعة</span>' : '<span class="tag good">سليمة</span>') + '</h3><table><tbody>' +
+      s.checks.map((c) => '<tr><td style="width:2em">' + (c.ok === null ? '—' : c.ok ? '<span class="good">✔</span>' : '<span class="bad">✘</span>') + '</td><td>' + E.esc(c.label) + '</td><td class="muted">' + E.esc(c.detail || '') + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>السجلات</h3><table><tbody>' + Object.keys(LBL).map((k) => '<tr><td>' + LBL[k] + '</td><td class="n">' + (C[k] == null ? '—' : C[k].toLocaleString('en-US')) + '</td></tr>').join('') + '</tbody></table>' +
+      '<h3>معلومات</h3><table><tbody><tr><td>قاعدة البيانات</td><td dir="ltr">' + E.esc(s.db.banner || '—') + '</td></tr><tr><td>Node.js</td><td dir="ltr">' + E.esc(s.node) + '</td></tr>' +
+      '<tr><td>آخر نشاط مسجَّل</td><td>' + E.esc(s.activity.lastAt || '—') + '</td></tr><tr><td>محاولات دخول فاشلة (24 ساعة)</td><td>' + s.activity.failedLogins + '</td></tr>' +
+      '<tr><td>الفترات المقفلة</td><td>' + s.periods.closed + (s.periods.last ? ' (آخرها ' + E.esc(s.periods.last) + ')' : '') + '</td></tr></tbody></table>';
+  };
+
   E.pages.adminBackup = async function (el) {
     el.innerHTML = E.head('النسخ الاحتياطي والاستعادة', 'كل بيانات النظام ومستخدمي الواجهة في مخطط واحد (erp_owner) يُنسخ بأداة Data Pump من Oracle') +
       '<div class="card"><h3>نسخة احتياطية</h3><ol><li>من قائمة ابدأ ← ERP ← <b>ERP Backup now</b>.</li><li>تُحفظ النسخة في <span dir="ltr">المستندات\\ERP-Backups</span> باسم <span dir="ltr">erp_التاريخ-الوقت.dmp</span> ويفتح المجلد (آخر 30 نسخة).</li>' +

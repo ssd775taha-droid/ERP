@@ -579,6 +579,14 @@ test('مراكز التكلفة والموازنات: الوسم والعكس و
   assert.strictEqual((await call('PATCH', `/api/cost-centers/${id}`, { active: false })).status, 200);
 });
 
+test('حالة النظام: فحوص السلامة وصلاحية المدير فقط', { skip: !hasDb || !canWrite }, async () => {
+  const st = await call('GET', '/api/system/status');
+  assert.strictEqual(st.status, 200);
+  assert.ok(st.data.version && st.data.counts.entries >= 0 && Array.isArray(st.data.checks));
+  assert.strictEqual(st.data.checks.find((c) => c.key === 'tb').ok, true);
+  assert.strictEqual(st.data.checks.find((c) => c.key === 'entries').ok, true);
+});
+
 test('تقارير المبيعات والمشتريات الإضافية: المستحقات والأرصدة والمقبوضات والمقارنة والإشعارات', { skip: !hasDb || !canWrite }, async () => {
   const cents = (n) => Math.round(n * 100), far = '2099-12-31', q = 'from=2000-01-01&to=' + far;
   for (const kind of ['SALES', 'PURCHASE']) {

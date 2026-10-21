@@ -31,7 +31,7 @@
       '<table><thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>خصم %</th><th class="n">الإجمالي</th><th></th></tr></thead><tbody id="cart"></tbody>' +
       '<tfoot><tr><td colspan="4">الإجمالي التقريبي (النهائي من الخادم)</td><td class="n" id="tot">0.00</td><td></td></tr></tfoot></table></div>' +
       '<div class="card"><h3>الدفع</h3><div class="row"><label>نقداً<input id="cash" inputmode="decimal" size="10"></label><label>بطاقة<input id="card" inputmode="decimal" size="10"></label>' +
-      '<label>الباقي<input id="chg" size="10" readonly></label><button class="btn" id="go" data-act="sell">إتمام البيع</button> <button class="btn alt" data-act="clear">تفريغ السلة</button></div></div>';
+      '<label>الباقي<input id="chg" size="10" readonly></label><button class="btn" id="go" data-act="sell" title="F9">إتمام البيع (F9)</button> <button class="btn alt" data-act="clear">تفريغ السلة</button></div></div>';
     wire();
     const body = E.$('#cart', el);
     const lineTotal = (l) => { const net = l.qty * l.price * (1 - l.disc / 100); return r2(incl ? net : net * (1 + l.vat / 100)); };
@@ -75,6 +75,14 @@
     });
     el.addEventListener('input', (ev) => { if (ev.target.id === 'cash' || ev.target.id === 'card') calcChange(); });
     E.$('#ap', el).addEventListener('change', (ev) => { try { localStorage.setItem('erp_pos_autoprint', ev.target.checked ? '1' : '0'); } catch (e) { /* التخزين غير متاح */ } });
+    // اختصارات الكاشير: F2 الباركود · F4 مبلغ النقد · F9 إتمام البيع (تُزال عند مغادرة الصفحة)
+    const keys = (ev) => {
+      if (!el.isConnected) { document.removeEventListener('keydown', keys); return; }
+      const t = { F2: '#bc', F4: '#cash' }[ev.key];
+      if (t) { ev.preventDefault(); const i = E.$(t, el); if (i) { i.focus(); i.select && i.select(); } }
+      else if (ev.key === 'F9') { ev.preventDefault(); const g = E.$('#go', el); if (g && !g.disabled) g.click(); }
+    };
+    document.addEventListener('keydown', keys);
     E.bind(el, {
       rm: (b) => { cart.splice(Number(b.dataset.i), 1); render(); },
       clear: () => { cart.length = 0; render(); },
