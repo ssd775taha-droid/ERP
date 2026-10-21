@@ -538,6 +538,28 @@ test('التقارير المحاسبية المتقدمة: اليومية وا�
   assert.strictEqual(cents(ag.totals.leafCredit), cents(tb.totals.credit));
 });
 
+test('تطبيق المالك: الملخص والمعتمدات قراءة فقط ومتسقة مع التقارير الأصلية', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100);
+  const s = await call('GET', '/api/owner/summary');
+  assert.strictEqual(s.status, 200);
+  assert.ok(s.data.can.reports);
+  const tb = (await call('GET', '/api/reports/trial-balance')).data;
+  const cashAcct = tb.rows.filter((x) => ['1100', '1200'].includes(x.code));
+  const cash = cashAcct.reduce((sum, x) => sum + (x.balanceDebit - x.balanceCredit), 0);
+  assert.strictEqual(cents(s.data.finance.cash), cents(cash));
+  const p = await call('GET', '/api/owner/pending');
+  assert.strictEqual(p.status, 200);
+  assert.ok(Array.isArray(p.data.items));
+  for (const it of p.data.items) {
+    assert.ok(['po', 'payroll-post', 'payroll-pay', 'period-close'].includes(it.kind));
+    assert.ok(it.action && it.action.path);
+  }
+  // غير مسجَّل دخول: لا وصول
+  const cur = cookie; cookie = '';
+  assert.strictEqual((await call('GET', '/api/owner/summary')).status, 401);
+  cookie = cur;
+});
+
 test('مراكز التكلفة والموازنات: الوسم والعكس والموازنة مقابل الفعلي', { skip: !hasDb || !canWrite }, async () => {
   const cents = (n) => Math.round(n * 100), code = 'T' + String(Date.now()).slice(-8);
   const c1 = await call('POST', '/api/cost-centers', { code, name: 'مركز اختبار' });

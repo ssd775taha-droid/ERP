@@ -116,7 +116,8 @@
     $$('.reports-grid button').forEach((b) => b.addEventListener('click', () => openReport(b.dataset.k, REPORTS.find((r) => r.key === b.dataset.k).label)));
   }
   const monthStart = () => today().slice(0, 8) + '01';
-  const table = (head, rows) => '<div class="rtab"><table class="rt"><thead><tr>' + head.map((h) => '<th class="' + (h.n ? 'n' : '') + '">' + esc(h.t) + '</th>').join('') +
+  const table = (head, rows) => (head.length > 2 ? '<p class="muted" style="font-size:12px;margin:0 0 6px">اسحب الجدول يساراً لعرض كل الأعمدة</p>' : '') +
+    '<div class="rtab"><table class="rt"><thead><tr>' + head.map((h) => '<th class="' + (h.n ? 'n' : '') + '">' + esc(h.t) + '</th>').join('') +
     '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   async function openReport(key, label) {
     const el = $('#pg-reports');
@@ -127,8 +128,8 @@
       let html = '';
       if (key === 'tb') {
         const r = await api('GET', '/reports/trial-balance');
-        html = table([{ t: 'الرمز' }, { t: 'الحساب' }, { t: 'مدين', n: 1 }, { t: 'دائن', n: 1 }],
-          r.rows.map((x) => '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td class="n">' + money(x.balanceDebit || '') + '</td><td class="n">' + money(x.balanceCredit || '') + '</td></tr>').join(''));
+        html = table([{ t: 'الحساب' }, { t: 'مدين', n: 1 }, { t: 'دائن', n: 1 }],
+          r.rows.map((x) => '<tr><td>' + esc(x.code) + ' ' + esc(x.name) + '</td><td class="n">' + money(x.balanceDebit || '') + '</td><td class="n">' + money(x.balanceCredit || '') + '</td></tr>').join(''));
       } else if (key === 'is') {
         const r = await api('GET', '/reports/income-statement?' + new URLSearchParams({ from: monthStart(), to: today() }));
         html = '<div class="cards"><div class="stat"><div class="k">الإيرادات</div><div class="v">' + money(r.totalRevenue) + '</div></div>' +
