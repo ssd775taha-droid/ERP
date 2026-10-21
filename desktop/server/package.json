@@ -1,1 +1,1 @@
-{ "name": "erp-server", "productName": "ERP Server", "version": "0.34.0", "main": "main.js", "private": true }
+{ "name": "erp-server", "productName": "ERP Server", "version": "0.34.1", "main": "main.js", "private": true }

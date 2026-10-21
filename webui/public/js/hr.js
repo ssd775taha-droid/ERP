@@ -1,6 +1,9 @@
 'use strict';
 (function (E) {
   const { esc, money, api } = E;
+  // مكوّن استحقاق باسم «أساسي/الراتب» يُضاف فوق الراتب الأساسي ولا يحل محله: ننبّه قبل الحفظ لمنع احتساب الأساسي مرتين
+  const basicLike = (name) => /(اساس|أساس|basic|salary|الراتب)/i.test(String(name || ''));
+  const warnBasic = (name) => !basicLike(name) || confirm('الراتب الأساسي يُدخل في حقل «الراتب الأساسي» للموظف ويُحتسب تلقائياً.\nالمكوّن «' + name + '» سيُضاف فوقه كاستحقاق ولن يحل محله، فيُحتسب الأساسي مرتين.\n\nهل تريد المتابعة فعلاً؟');
   const KIND = { EARNING: 'استحقاق', DEDUCTION: 'استقطاع', EMPLOYER: 'حصة صاحب العمل', BASIC: 'أساسي', ADVANCE: 'سلفة' };
   const RUN_ST = { DRAFT: '<span class="tag warn">مسودة</span>', POSTED: '<span class="tag">مرحَّل</span>', PAID: '<span class="tag good">مصروف</span>', VOID: '<span class="tag bad">ملغى</span>', CANCELLED: '<span class="tag bad">ملغى</span>' };
   const opts = (rows, f) => rows.map(f).join('');
@@ -38,7 +41,7 @@
         '<p>' + (e.status === 'ACTIVE' ? '<span class="tag good">على رأس العمل منذ ' + esc(e.hireDate) + '</span>' : '<span class="tag bad">انتهت خدمته ' + esc(e.termDate) + '</span>') + ' <span class="muted">' + esc(e.nationalId || '') + ' ' + esc(e.bankAccount || '') + '</span></p>' +
         '<h3>تاريخ الراتب الأساسي</h3><table><tbody>' + e.salary.map((s) => '<tr><td>من ' + esc(s.from) + '</td><td class="n">' + money(s.basic) + '</td></tr>').join('') + '</tbody></table>' +
         (e.status === 'ACTIVE' ? '<div class="card noprint" style="margin-top:12px"><h3>تعديل الراتب</h3><form id="fs" class="row"><label>الراتب الجديد<input name="b" inputmode="decimal" required size="10"></label><label>يسري من أول شهر<input type="date" name="f" value="' + monthFirst(E.today()) + '"></label><button class="btn">حفظ</button></form></div>' : '') +
-        '<h3>المكوّنات المرتبطة</h3>' + (e.components.length ? '<table><thead><tr><th>المكوّن</th><th>النوع</th><th>القيمة</th><th class="noprint"></th></tr></thead><tbody>' +
+        '<h3>المكوّنات المرتبطة</h3><p class="muted">الراتب الأساسي (' + money((e.salary[0] || {}).basic || 0) + ') يُحتسب تلقائياً؛ المكوّنات إضافات أو استقطاعات فوقه فلا تُضف الأساسي هنا.</p>' + (e.components.length ? '<table><thead><tr><th>المكوّن</th><th>النوع</th><th>القيمة</th><th class="noprint"></th></tr></thead><tbody>' +
           e.components.map((c) => '<tr><td>' + esc(c.name) + '</td><td>' + (KIND[c.kind] || c.kind) + '</td><td>' + (c.calcType === 'PCT' ? c.pct + '%' : money(c.amount)) + '</td><td class="noprint"><button class="btn alt sm" data-act="unassign" data-c="' + c.compId + '">إزالة</button></td></tr>').join('') + '</tbody></table>' : '<p class="muted">لا مكوّنات</p>') +
         (e.status === 'ACTIVE' && free.length ? '<div class="card noprint" style="margin-top:12px"><form id="fc" class="row"><label>مكوّن<select name="c">' + opts(free, (c) => '<option value="' + c.id + '">' + esc(c.name) + ' (' + (c.calcType === 'PCT' ? c.pct + '%' : 'مبلغ ثابت') + ')</option>') + '</select></label>' +
           '<label>المبلغ (للثابت)<input name="a" inputmode="decimal" size="10"></label><label>نسبة خاصة % (اختياري)<input name="p" inputmode="decimal" size="6"></label><button class="btn">ربط</button></form></div>' : '') +
@@ -47,7 +50,7 @@
       const fs = E.$('#fs', el), fc = E.$('#fc', el), ft = E.$('#ft', el);
       const on = (form, fn) => form && form.addEventListener('submit', async (ev) => { ev.preventDefault(); try { await fn(new FormData(form)); await load(); } catch (x) { E.toast(x.message, true); } });
       on(fs, async (f) => { await api('POST', '/hr/employees/' + id + '/salary', { basic: numv(f, 'b'), from: f.get('f') }); E.toast('عُدّل الراتب'); });
-      on(fc, async (f) => { await api('POST', '/hr/employees/' + id + '/components', { compId: Number(f.get('c')), amount: numv(f, 'a') || null, pct: numv(f, 'p') || null }); E.toast('رُبط المكوّن'); });
+      on(fc, async (f) => { const opt = fc.querySelector('select[name=c] option:checked'); if (!warnBasic(opt && opt.textContent)) return; await api('POST', '/hr/employees/' + id + '/components', { compId: Number(f.get('c')), amount: numv(f, 'a') || null, pct: numv(f, 'p') || null }); E.toast('رُبط المكوّن'); });
       on(ft, async (f) => { if (!confirm('إنهاء خدمة الموظف؟')) throw new Error('أُلغي'); await api('POST', '/hr/employees/' + id + '/terminate', { date: f.get('d') }); E.toast('أُنهيت الخدمة'); });
     }
     E.bind(el, { unassign: async (b) => { await api('POST', '/hr/employees/' + id + '/components/' + b.dataset.c + '/remove'); E.toast('أُزيل المكوّن'); await load(); } });
@@ -68,6 +71,7 @@
       (components.length ? '<table><thead><tr><th>الرمز</th><th>الاسم</th><th>النوع</th><th>الحساب</th><th>الوعاء</th><th>السقف</th><th>المصروف</th><th>الالتزام</th><th class="noprint"></th></tr></thead><tbody>' +
         components.map((c) => '<tr><td>' + esc(c.code) + '</td><td>' + esc(c.name) + '</td><td>' + (KIND[c.kind] || c.kind) + '</td><td>' + (c.calcType === 'PCT' ? c.pct + '%' : 'ثابت') + '</td><td>' + (c.calcType === 'PCT' ? (c.baseType === 'BASIC' ? 'الأساسي' : 'الإجمالي') : '') + '</td><td class="n">' + (c.baseCap ? money(c.baseCap) : '') + '</td><td>' + esc(c.expenseAccount || '') + '</td><td>' + esc(c.liabilityAccount || '') + '</td><td class="noprint">' + E.crudBtns('component', { id: c.id, name: c.name, pct: c.pct }) + '</td></tr>').join('') + '</tbody></table>' : '<div class="msg warn">لا مكوّنات معرّفة</div>');
     submit(el, '#f', async (f) => {
+      if (f.get('kind') === 'EARNING' && !warnBasic(val(f, 'name'))) return;
       await api('POST', '/hr/components', { code: val(f, 'code'), name: val(f, 'name'), kind: f.get('kind'), calcType: f.get('calc'), pct: f.get('pct'), baseType: f.get('base'), baseCap: numv(f, 'cap') || null, expenseAccount: f.get('ea') || null, liabilityAccount: f.get('la') || null });
       E.toast('أُضيف المكوّن'); E.pages.hrComponents(el);
     });
