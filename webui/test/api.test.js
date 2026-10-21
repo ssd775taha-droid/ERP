@@ -510,12 +510,15 @@ test('التقارير المحاسبية المتقدمة: اليومية وا�
   assert.strictEqual((await call('GET', `/api/reports/general-journal?${q}&kind=BAD`)).status, 400);
   assert.strictEqual((await call('GET', `/api/reports/general-journal?${q}&min=-5`)).status, 400);
   // الأستاذ العام يطابق ميزان المراجعة وكشف الحساب
-  const gl = (await call('GET', `/api/reports/general-ledger?${q}`)).data;
   const tb = (await call('GET', `/api/reports/trial-balance?to=2099-12-31`)).data;
-  assert.strictEqual(cents(gl.totals.debit), cents(tb.totals.debit));
-  assert.strictEqual(cents(gl.totals.credit), cents(tb.totals.credit));
-  assert.strictEqual(cents(gl.totals.close), 0);
-  const a0 = gl.accounts[0], lg = (await call('GET', `/api/reports/ledger/${a0.code}?${q}`)).data;
+  const gl0 = (await call('GET', `/api/reports/general-ledger?${q}`)).data;
+  assert.ok(gl0.truncated || cents(gl0.totals.debit) === cents(tb.totals.debit));      // الحد الأقصى للأسطر يقطع الفترات الكبيرة
+  const tbp = (await call('GET', '/api/reports/trial-balance?from=2026-12-01&to=2026-12-31')).data;
+  const gl = (await call('GET', '/api/reports/general-ledger?from=2026-12-01&to=2026-12-31')).data;
+  assert.ok(!gl.truncated);
+  assert.strictEqual(cents(gl.totals.debit), cents(tbp.totals.periodDebit));
+  assert.strictEqual(cents(gl.totals.credit), cents(tbp.totals.periodCredit));
+  const a0 = gl.accounts[0], lg = (await call("GET", `/api/reports/ledger/${a0.code}?from=2000-01-01&to=2026-12-31`)).data;
   assert.strictEqual(cents(a0.close), cents(lg.closing * (['ASSET', 'EXPENSE'].includes(lg.account.type) ? 1 : -1)));
   // مقارنة الميزان: الفترتان المتطابقتان بلا فروق ومجموعها صفر
   const tc = (await call('GET', `/api/reports/tb-compare?from1=2000-01-01&to1=2099-12-31&from2=2000-01-01&to2=2099-12-31`)).data;
