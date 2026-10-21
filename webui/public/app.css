@@ -278,3 +278,12 @@ label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px
 
 /* برنامج الكاشير: بلا زر الطباعة العائم */
 body:has(.layout.posmode) #pbtn { display: none; }
+
+/* نظام المقاهي: شبكة الطاولات والأصناف وبطاقات المطبخ */
+.cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.cf-table, .cf-item { background: var(--surface); border: 2px solid var(--line); border-radius: 12px; padding: 12px 10px; text-align: center; cursor: pointer; }
+.cf-table.free { border-color: var(--good); } .cf-table.busy { background: var(--warn-bg); border-color: var(--warn); }
+.cf-table b, .cf-item b { font-size: 16px; }
+.cf-line { padding: 10px 14px; }
+.cf-ticket { border: 2px solid var(--line); }
+.cf-ticket.late { border-color: var(--bad); background: var(--bad-bg); }

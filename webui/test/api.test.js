@@ -560,6 +560,76 @@ test('تطبيق المالك: الملخص والمعتمدات قراءة فق
   cookie = cur;
 });
 
+test('نظام المقاهي: خيارات الأصناف والطاولات ودورة الطلب كاملة حتى الدفع', { skip: !hasDb || !canWrite }, async () => {
+  const cents = (n) => Math.round(n * 100), st = Date.now().toString(36).slice(-6);
+  const regs = (await call('GET', '/api/pos/registers')).data.registers.filter((r) => r.active === 'Y');
+  assert.ok(regs.length, 'يلزم نقطة بيع فعّالة للاختبار');
+  let reg = regs.find((r) => r.openShiftId);
+  if (!reg) { reg = regs[0]; const sh = await call('POST', '/api/pos/shifts/open', { regId: reg.id, openingCash: '0' }); reg.openShiftId = sh.data.id; }
+
+  // مجموعتا خيارات: المقاس (إلزامية، اختيار واحد) وإضافات (اختيارية، متعدد)
+  const g1 = (await call('POST', '/api/cafe/modifier-groups', { name: 'مقاس ' + st, required: true, multi: false })).data.id;
+  const g2 = (await call('POST', '/api/cafe/modifier-groups', { name: 'إضافات ' + st, required: false, multi: true })).data.id;
+  const oSmall = (await call('POST', `/api/cafe/modifier-groups/${g1}/options`, { name: 'صغير', priceDelta: '0' })).data.id;
+  const oBig = (await call('POST', `/api/cafe/modifier-groups/${g1}/options`, { name: 'كبير', priceDelta: '2' })).data.id;
+  const oExtra = (await call('POST', `/api/cafe/modifier-groups/${g2}/options`, { name: 'شوت', priceDelta: '3' })).data.id;
+
+  const items = (await call('GET', '/api/inventory/items')).data.items;
+  const item = items.find((x) => x.trackStock === 'N' && x.active === 'Y');
+  assert.ok(item, 'يلزم صنف بلا تتبع مخزون للاختبار');
+  assert.strictEqual((await call('PUT', `/api/cafe/items/${item.id}/modifier-groups`, { groupIds: [g1, g2] })).status, 200);
+  const menuItem = (await call('GET', '/api/cafe/menu')).data.items.find((x) => x.id === item.id);
+  assert.strictEqual(menuItem.modifierGroups.length, 2);
+
+  // طاولة وطلب
+  const area = (await call('POST', '/api/cafe/areas', { regId: reg.id, name: 'قسم ' + st })).data.id;
+  const table = (await call('POST', '/api/cafe/tables', { regId: reg.id, areaId: area, code: 'T' + st, name: 'طاولة ' + st })).data.id;
+  const order = (await call('POST', '/api/cafe/orders/open', { regId: reg.id, tableId: table, guests: 2 })).data.order.id;
+  assert.strictEqual((await call('POST', '/api/cafe/orders/open', { regId: reg.id, tableId: table })).status, 400);   // طاولة مشغولة
+
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${order}/lines`, { itemId: item.id, qty: 1, optionIds: [oExtra] })).status, 400);        // بلا مقاس إلزامي
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${order}/lines`, { itemId: item.id, qty: 1, optionIds: [oSmall, oBig] })).status, 400);   // مقاسان معاً
+  const line = (await call('POST', `/api/cafe/orders/${order}/lines`, { itemId: item.id, qty: 2, optionIds: [oBig, oExtra] })).data;
+  assert.strictEqual(cents(line.order.lines[0].price), cents(item.price + 2 + 3));
+
+  // إرسال للمطبخ/البار وظهوره في شاشة المحطة الصحيحة
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${order}/send`, {})).status, 200);
+  const board = (await call('GET', `/api/cafe/kitchen?station=${item.station}`)).data.lines;
+  assert.ok(board.some((x) => x.id === line.lineId));
+  assert.strictEqual((await call('POST', '/api/cafe/lines/serve', { lineIds: [line.lineId] })).status, 200);
+
+  // الإجمالي يشمل الضريبة بشكل صحيح
+  const got = (await call('GET', `/api/cafe/orders/${order}`)).data.order;
+  const gross = 2 * (item.price + 2 + 3);
+  const incl = reg.pricesIncludeVat === 'Y';
+  const expVat = incl ? cents(gross * item.vat / (100 + item.vat)) : cents(gross * item.vat / 100);
+  assert.strictEqual(cents(got.vat), expVat);
+  assert.strictEqual(cents(got.total), cents(incl ? gross : gross + (expVat / 100)));
+
+  // تقسيم ثم دمج
+  const line2 = (await call('POST', `/api/cafe/orders/${order}/lines`, { itemId: item.id, qty: 1, optionIds: [oSmall] })).data.lineId;
+  const split = (await call('POST', `/api/cafe/orders/${order}/split`, { lineIds: [line2] })).data;
+  assert.strictEqual(split.newOrder.lines.length, 1);
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${split.newOrder.id}/merge`, { intoOrderId: order })).status, 200);
+  assert.strictEqual((await call('GET', `/api/cafe/orders/${order}`)).data.order.lines.length, 2);
+
+  // إغلاق بدفع ناقص يُرفض، والصحيح يحوّل الطلب إلى عملية بيع فعلية وتتحرر الطاولة
+  const due = (await call('GET', `/api/cafe/orders/${order}`)).data.order.total;
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${order}/close`, { payments: [{ method: 'CASH', amount: '1' }] })).status, 400);
+  const closed = await call('POST', `/api/cafe/orders/${order}/close`, { payments: [{ method: 'CASH', amount: String(due) }] });
+  assert.strictEqual(closed.status, 200);
+  const sale = (await call('GET', `/api/pos/sales/${closed.data.saleId}`)).data.sale;
+  assert.strictEqual(cents(sale.total), cents(due));
+  assert.strictEqual(sale.status, 'COMPLETED');
+  const freedTable = (await call('GET', `/api/cafe/tables?regId=${reg.id}`)).data.tables.find((t) => t.id === table);
+  assert.strictEqual(freedTable.openOrderId, null);
+
+  // إلغاء طلب مفتوح فارغ من أثر محاسبي
+  const emptyOrder = (await call('POST', '/api/cafe/orders/open', { regId: reg.id })).data.order.id;
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${emptyOrder}/close`, { payments: [{ method: 'CASH', amount: '5' }] })).status, 400);
+  assert.strictEqual((await call('POST', `/api/cafe/orders/${emptyOrder}/cancel`, {})).status, 200);
+});
+
 test('مراكز التكلفة والموازنات: الوسم والعكس والموازنة مقابل الفعلي', { skip: !hasDb || !canWrite }, async () => {
   const cents = (n) => Math.round(n * 100), code = 'T' + String(Date.now()).slice(-8);
   const c1 = await call('POST', '/api/cost-centers', { code, name: 'مركز اختبار' });

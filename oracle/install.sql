@@ -6,6 +6,7 @@ SET DEFINE OFF
 @sql/02_seed.sql
 @sql/01b_notes_schema.sql
 @sql/01c_budget_schema.sql
+@sql/01d_cafe_schema.sql
 @sql/03_pkg_erp_gl.sql
 @sql/04_pkg_erp_inventory.sql
 @sql/05_pkg_erp_trade.sql
@@ -19,4 +20,5 @@ SET DEFINE OFF
 @sql/13_pkg_erp_quote.sql
 @sql/13b_pkg_erp_cdnote.sql
 @sql/14_views.sql
+@sql/16_pkg_erp_cafe.sql
 PROMPT تم التثبيت. للاختبار الذاتي: SET SERVEROUTPUT ON ثم @sql/15_selftest.sql

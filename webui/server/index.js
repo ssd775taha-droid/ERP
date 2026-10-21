@@ -69,6 +69,7 @@ function createApp(cfg) {
   app.use('/api', require('./routes/assets')());
   app.use('/api', require('./routes/hr')());
   app.use('/api', require('./routes/pos')());
+  app.use('/api', require('./routes/cafe')());
   app.use('/api', require('./routes/docs')());
   app.use('/api', require('./routes/tax')());
   app.use('/api', require('./routes/letterhead')());

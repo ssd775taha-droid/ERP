@@ -23,6 +23,7 @@ const RULES = [
   R(/^\/hr(\/|$)/, 'hr'),
   R(/^\/payroll(\/|$)/, 'payroll'),
   R(/^\/pos(\/|$)/, 'pos'),
+  R(/^\/cafe(\/|$)/, 'pos'),
   R(/^\/(po|quotes)(\/|$)/, 'orders'),
   R(/^\/settings$/, 'settings'),
   R(/^\/(tax\/settings|letterhead)$/, 'settings', { readAny: true }),
