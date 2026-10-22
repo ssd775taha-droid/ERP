@@ -23,11 +23,15 @@
     '<div style="text-align:left"><div>' + money(l.qty * l.price) + '</div><span class="tag ' + (l.status === 'NEW' ? '' : l.status === 'SERVED' ? 'good' : l.status === 'CANCELLED' ? 'bad' : 'warn') + '">' + STATUS_LBL[l.status] + '</span></div></div>' +
     (l.status === 'NEW' || l.status === 'SENT' ? '<div class="noprint" style="margin-top:6px"><button class="btn alt sm" data-act="cf-rm" data-id="' + l.id + '">' + (l.status === 'NEW' ? 'حذف' : 'إلغاء') + '</button></div>' : '') + '</div>';
 
+  // ملاحظة لكل الصفحات أدناه: load() تُعاد استدعاؤها كثيراً (بعد كل عملية، وبعض الصفحات دورياً)، فتُعيد رسم innerHTML
+  // فقط. E.bind على العنصر الثابت يُستدعى مرة واحدة خارج load() ويقرأ متغيرات الحالة القابلة للتغيير (reg/order/...)
+  // التي تُحدَّث داخل load() في كل مرة؛ استدعاء E.bind داخل load() يُراكم مستمعات نقر متكررة على نفس العنصر.
+
   // ---------- شاشة الطاولات ----------
   E.pages.cafeTables = async function (el) {
     const list = await regs();
     if (!list.length) { el.innerHTML = E.head('المقاهي — الطاولات', '') + E.err('لا نقاط بيع فعّالة. أضف نقطة من «نقاط البيع ‹ النقاط»'); return; }
-    const reg = pickReg(list);
+    let reg = pickReg(list);
     async function load() {
       const [{ tables }, { orders: open }] = await Promise.all([api('GET', '/cafe/tables?regId=' + reg.id), api('GET', '/cafe/orders?status=OPEN&regId=' + reg.id)]);
       const takeaway = open.filter((o) => !o.tableId);
@@ -40,28 +44,28 @@
           : '<div class="msg warn">لا طاولات بعد. أضفها من «إعداد المقهى ‹ الأقسام والطاولات»</div>') +
         (takeaway.length ? '<h3 class="sec">طلبات سفرية مفتوحة</h3><div class="cf-grid">' +
           takeaway.map((o) => '<button class="cf-table busy noprint" data-act="cf-goto" data-order="' + o.id + '"><b>سفري #' + o.id + '</b><div>' + esc(o.openedAt || '').slice(11) + '</div></button>').join('') + '</div>' : '');
-      E.bind(el, {
-        'cf-new-take': (b) => E.busy(b, async () => { const r = await api('POST', '/cafe/orders/open', { regId: reg.id }); location.hash = '#/cafe/order/' + r.order.id; }),
-        'cf-goto': (b) => { location.hash = '#/cafe/order/' + b.dataset.order; },
-        'cf-open': async (b) => {
-          if (b.dataset.order) { location.hash = '#/cafe/order/' + b.dataset.order; return; }
-          try { const r = await api('POST', '/cafe/orders/open', { regId: reg.id, tableId: Number(b.dataset.table) }); location.hash = '#/cafe/order/' + r.order.id; }
-          catch (e) { E.toast(e.message, true); }
-        },
-      });
       const sel = E.$('#regsel', el);
-      if (sel) sel.addEventListener('change', () => { localStorage.setItem(regKey, sel.value); load(); });
+      if (sel) sel.addEventListener('change', () => { reg = list.find((r) => r.id === Number(sel.value)) || reg; localStorage.setItem(regKey, sel.value); load(); });
     }
     await load();
+    E.bind(el, {
+      'cf-new-take': (b) => E.busy(b, async () => { const r = await api('POST', '/cafe/orders/open', { regId: reg.id }); location.hash = '#/cafe/order/' + r.order.id; }),
+      'cf-goto': (b) => { location.hash = '#/cafe/order/' + b.dataset.order; },
+      'cf-open': async (b) => {
+        if (b.dataset.order) { location.hash = '#/cafe/order/' + b.dataset.order; return; }
+        try { const r = await api('POST', '/cafe/orders/open', { regId: reg.id, tableId: Number(b.dataset.table) }); location.hash = '#/cafe/order/' + r.order.id; }
+        catch (e) { E.toast(e.message, true); }
+      },
+    });
   };
 
   // ---------- شاشة الطلب ----------
   E.pages.cafeOrder = async function (el, id) {
     id = Number(id);
-    let menu = null;
+    let menu = null, order = null;
     async function load() {
-      const [order, m] = await Promise.all([api('GET', '/cafe/orders/' + id).then((r) => r.order), menu || api('GET', '/cafe/menu').then((r) => r.items)]);
-      menu = Array.isArray(m) ? m : m;
+      const [o, m] = await Promise.all([api('GET', '/cafe/orders/' + id).then((r) => r.order), menu || api('GET', '/cafe/menu').then((r) => r.items)]);
+      order = o; menu = Array.isArray(m) ? m : m;
       const title = order.tableName ? 'طاولة ' + order.tableCode + ' — ' + order.tableName : 'طلب سفري #' + order.id;
       const closed = order.status !== 'OPEN';
       el.innerHTML = E.head(title, (order.waiter ? 'النادل: ' + esc(order.waiter) + ' · ' : '') + (order.guests ? order.guests + ' ضيوف · ' : '') + 'فُتح ' + esc(order.openedAt)) +
@@ -90,48 +94,48 @@
         });
         E.$('#cf-ap', el).addEventListener('change', (ev) => { try { localStorage.setItem('erp_cafe_autoprint_kitchen', ev.target.checked ? '1' : '0'); } catch (e) { /* التخزين غير متاح */ } });
       }
-      E.bind(el, {
-        'cf-add': async (b) => {
-          const it = menu.find((x) => x.id === Number(b.dataset.id));
-          if (!it) return;
-          let optionIds = [], qty = 1, note = '';
-          if (it.modifierGroups.length) {
-            const r = await pickModifiers(it);
-            if (!r) return;
-            optionIds = r.optionIds; qty = r.qty; note = r.note;
-          }
-          try { await api('POST', '/cafe/orders/' + id + '/lines', { itemId: it.id, qty, optionIds, note: note || undefined }); E.$('#cf-q', el).value = ''; E.$('#cf-pick', el).innerHTML = ''; load(); }
-          catch (e) { E.toast(e.message, true); }
-        },
-        'cf-rm': async (b) => { try { await api('DELETE', '/cafe/orders/lines/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
-        'cf-send': (b) => E.busy(b, async () => {
-          const newLines = order.lines.filter((l) => l.status === 'NEW');
-          if (!newLines.length) { E.toast('لا بنود جديدة لإرسالها', true); return; }
-          await api('POST', '/cafe/orders/' + id + '/send', {});
-          E.toast('أُرسل للمطبخ');
-          if (autoPrintKitchen()) E.printThermal(E.kitchenTicketHtml({
-            table: order.tableName ? order.tableCode + ' — ' + order.tableName : null, orderId: order.id, at: E.today() + ' ' + new Date().toLocaleTimeString('ar'),
-            items: newLines.map((l) => ({ qty: l.qty, name: l.itemName, mod: l.modText, note: l.note, station: l.station })),
-          }));
-          load();
-        }),
-        'cf-print': (b) => E.busy(b, async () => {
-          if (order.status === 'CLOSED' && order.saleId) {
-            const sale = (await api('GET', '/pos/sales/' + order.saleId)).sale;
-            sale.cafeTable = order.tableName ? order.tableCode + ' — ' + order.tableName : null;
-            E.openThermal(sale);
-          } else {
-            E.printThermal(E.cafePreBillHtml(order));
-          }
-        }),
-        'cf-pay': () => payDialog(id, order.total, load),
-        'cf-transfer': () => transferDialog(id, load),
-        'cf-split': () => splitDialog(order, load),
-        'cf-merge': () => mergeDialog(order, load),
-        'cf-cancel': async () => { if (!confirm('إلغاء الطلب كاملاً؟')) return; try { await api('POST', '/cafe/orders/' + id + '/cancel', {}); location.hash = '#/cafe/tables'; } catch (e) { E.toast(e.message, true); } },
-      });
     }
     await load();
+    E.bind(el, {
+      'cf-add': async (b) => {
+        const it = menu.find((x) => x.id === Number(b.dataset.id));
+        if (!it) return;
+        let optionIds = [], qty = 1, note = '';
+        if (it.modifierGroups.length) {
+          const r = await pickModifiers(it);
+          if (!r) return;
+          optionIds = r.optionIds; qty = r.qty; note = r.note;
+        }
+        try { await api('POST', '/cafe/orders/' + id + '/lines', { itemId: it.id, qty, optionIds, note: note || undefined }); load(); }
+        catch (e) { E.toast(e.message, true); }
+      },
+      'cf-rm': async (b) => { try { await api('DELETE', '/cafe/orders/lines/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
+      'cf-send': (b) => E.busy(b, async () => {
+        const newLines = order.lines.filter((l) => l.status === 'NEW');
+        if (!newLines.length) { E.toast('لا بنود جديدة لإرسالها', true); return; }
+        await api('POST', '/cafe/orders/' + id + '/send', {});
+        E.toast('أُرسل للمطبخ');
+        if (autoPrintKitchen()) E.printThermal(E.kitchenTicketHtml({
+          table: order.tableName ? order.tableCode + ' — ' + order.tableName : null, orderId: order.id, at: E.today() + ' ' + new Date().toLocaleTimeString('ar'),
+          items: newLines.map((l) => ({ qty: l.qty, name: l.itemName, mod: l.modText, note: l.note, station: l.station })),
+        }));
+        load();
+      }),
+      'cf-print': (b) => E.busy(b, async () => {
+        if (order.status === 'CLOSED' && order.saleId) {
+          const sale = (await api('GET', '/pos/sales/' + order.saleId)).sale;
+          sale.cafeTable = order.tableName ? order.tableCode + ' — ' + order.tableName : null;
+          E.openThermal(sale);
+        } else {
+          E.printThermal(E.cafePreBillHtml(order));
+        }
+      }),
+      'cf-pay': () => payDialog(id, () => order.total, load),
+      'cf-transfer': () => transferDialog(id, load),
+      'cf-split': () => splitDialog(() => order, load),
+      'cf-merge': () => mergeDialog(() => order, load),
+      'cf-cancel': async () => { if (!confirm('إلغاء الطلب كاملاً؟')) return; try { await api('POST', '/cafe/orders/' + id + '/cancel', {}); location.hash = '#/cafe/tables'; } catch (e) { E.toast(e.message, true); } },
+    });
   };
 
   // اختيار المقاسات/الإضافات قبل إضافة صنف له خيارات
@@ -161,7 +165,8 @@
     });
   }
 
-  function payDialog(orderId, due, reload) {
+  function payDialog(orderId, getDue, reload) {
+    const due = getDue();
     const d = document.createElement('dialog'); d.className = 'dlg';
     d.innerHTML = '<form method="dialog"><h3>إغلاق الطلب ودفعه</h3>' +
       '<p class="muted">المطلوب تحصيله: ' + money(due) + '</p><label class="dlg-f">نقداً<input name="cash" inputmode="decimal" value="' + due + '"></label>' +
@@ -196,7 +201,8 @@
     try { await api('POST', '/cafe/orders/' + orderId + '/transfer', { tableId: Number(v.tableId) }); E.toast('نُقل الطلب'); reload(); } catch (e) { E.toast(e.message, true); }
   }
 
-  async function splitDialog(order, reload) {
+  async function splitDialog(getOrder, reload) {
+    const order = getOrder();
     const movable = order.lines.filter((l) => l.status !== 'CANCELLED');
     if (movable.length < 2) { alert('لا بنود كافية للتقسيم'); return; }
     const d = document.createElement('dialog'); d.className = 'dlg';
@@ -216,7 +222,8 @@
     d.showModal();
   }
 
-  async function mergeDialog(order, reload) {
+  async function mergeDialog(getOrder, reload) {
+    const order = getOrder();
     const { orders } = await api('GET', '/cafe/orders?status=OPEN&regId=' + order.regId);
     const others = orders.filter((o) => o.id !== order.id);
     if (!others.length) { alert('لا طلبات مفتوحة أخرى'); return; }
@@ -230,7 +237,6 @@
   // ---------- شاشة المطبخ/البار ----------
   E.pages.cafeKitchen = async function (el) {
     let station = localStorage.getItem('erp_cafe_station') || 'KITCHEN';
-    let timer = null;
     async function load() {
       const { lines } = await api('GET', '/cafe/kitchen?station=' + station);
       el.innerHTML = '<div class="row noprint" style="margin-bottom:10px">' +
@@ -243,20 +249,20 @@
           '<div class="muted" style="margin:6px 0">منذ ' + l.minutesAgo + ' د</div>' +
           '<button class="btn good noprint" data-act="cf-serve" data-id="' + l.id + '">جاهز</button></div>').join('') + '</div>'
           : '<div class="msg good">لا طلبات معلّقة</div>');
-      E.bind(el, {
-        'cf-st': (b) => { station = b.dataset.s; localStorage.setItem('erp_cafe_station', station); load(); },
-        'cf-serve': async (b) => { try { await api('POST', '/cafe/lines/serve', { lineIds: [Number(b.dataset.id)] }); load(); } catch (e) { E.toast(e.message, true); } },
-      });
     }
     await load();
-    timer = setInterval(() => { if (el.isConnected) load(); else clearInterval(timer); }, 6000);
+    E.bind(el, {
+      'cf-st': (b) => { station = b.dataset.s; localStorage.setItem('erp_cafe_station', station); load(); },
+      'cf-serve': async (b) => { try { await api('POST', '/cafe/lines/serve', { lineIds: [Number(b.dataset.id)] }); load(); } catch (e) { E.toast(e.message, true); } },
+    });
+    const timer = setInterval(() => { if (el.isConnected) load(); else clearInterval(timer); }, 6000);
   };
 
   // ---------- إعداد المقهى: الأقسام والطاولات ----------
   E.pages.cafeFloor = async function (el) {
     const list = await regs();
     if (!list.length) { el.innerHTML = E.err('أضف نقطة بيع أولاً'); return; }
-    const reg = pickReg(list);
+    let reg = pickReg(list);
     async function load() {
       const [{ areas }, { tables }] = await Promise.all([api('GET', '/cafe/areas?regId=' + reg.id), api('GET', '/cafe/tables?regId=' + reg.id)]);
       el.innerHTML = E.head('الأقسام والطاولات', 'نقطة البيع: ' + esc(reg.name)) + regSelHtml(list, reg) +
@@ -269,41 +275,43 @@
             '<td class="noprint"><button class="btn alt sm" data-act="tg" data-id="' + t.id + '" data-a="' + (t.active === 'Y' ? 'N' : 'Y') + '">' + (t.active === 'Y' ? 'تعطيل' : 'تفعيل') + '</button> <button class="btn danger sm" data-act="dt" data-id="' + t.id + '">حذف</button></td></tr>').join('') + '</tbody></table>' : '<div class="muted">لا طاولات بعد</div>');
       E.$('#fa', el).addEventListener('submit', async (ev) => { ev.preventDefault(); const f = new FormData(ev.target); try { await api('POST', '/cafe/areas', { regId: reg.id, name: f.get('name').trim() }); load(); } catch (e) { E.toast(e.message, true); } });
       E.$('#ft', el).addEventListener('submit', async (ev) => { ev.preventDefault(); const f = new FormData(ev.target); try { await api('POST', '/cafe/tables', { regId: reg.id, code: f.get('code').trim(), name: f.get('name').trim(), seats: f.get('seats'), areaId: f.get('areaId') || null }); load(); } catch (e) { E.toast(e.message, true); } });
-      E.bind(el, {
-        da: async (b) => { if (!confirm('حذف القسم؟')) return; try { await api('DELETE', '/cafe/areas/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
-        dt: async (b) => { if (!confirm('حذف الطاولة؟')) return; try { await api('DELETE', '/cafe/tables/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
-        tg: async (b) => { await api('PATCH', '/cafe/tables/' + b.dataset.id, { active: b.dataset.a === 'Y' }); load(); },
-      });
-      const sel = E.$('#regsel', el); if (sel) sel.addEventListener('change', () => { localStorage.setItem(regKey, sel.value); load(); });
+      const sel = E.$('#regsel', el); if (sel) sel.addEventListener('change', () => { reg = list.find((r) => r.id === Number(sel.value)) || reg; localStorage.setItem(regKey, sel.value); load(); });
     }
     await load();
+    E.bind(el, {
+      da: async (b) => { if (!confirm('حذف القسم؟')) return; try { await api('DELETE', '/cafe/areas/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
+      dt: async (b) => { if (!confirm('حذف الطاولة؟')) return; try { await api('DELETE', '/cafe/tables/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
+      tg: async (b) => { await api('PATCH', '/cafe/tables/' + b.dataset.id, { active: b.dataset.a === 'Y' }); load(); },
+    });
   };
 
   // ---------- إعداد المقهى: خيارات الأصناف (مقاسات وإضافات) ----------
   E.pages.cafeModifiers = async function (el) {
+    let groups = [];
     async function load() {
-      const [{ groups }, { items }] = await Promise.all([api('GET', '/cafe/modifier-groups'), api('GET', '/inventory/items')]);
+      const [g, { items }] = await Promise.all([api('GET', '/cafe/modifier-groups'), api('GET', '/inventory/items')]);
+      groups = g.groups;
       el.innerHTML = E.head('خيارات الأصناف', 'مجموعات مثل «المقاس» (اختيار واحد إلزامي) أو «إضافات» (اختيار متعدد اختياري) بسعر إضافي لكل خيار') +
         '<div class="card"><h3>مجموعة جديدة</h3><form id="fg" class="row"><label>الاسم<input name="name" required maxlength="80" placeholder="مثال: المقاس"></label>' +
         '<label class="chk"><input type="checkbox" name="required"> إلزامية</label><label class="chk"><input type="checkbox" name="multi"> اختيار متعدد</label><button class="btn">إضافة</button></form></div>' +
-        groups.map((g) => '<div class="card"><h3>' + esc(g.name) + (g.required === 'Y' ? ' <span class="tag warn">إلزامية</span>' : '') + (g.multi === 'Y' ? ' <span class="tag">متعدد</span>' : '') + ' <span class="noprint"><button class="btn alt sm" data-act="dg" data-id="' + g.id + '">حذف المجموعة</button></span></h3>' +
-          (g.options.length ? '<table><tbody>' + g.options.map((o) => '<tr><td>' + esc(o.name) + '</td><td>+' + money(o.priceDelta) + '</td><td class="noprint"><button class="btn alt sm" data-act="do" data-id="' + o.id + '">حذف</button></td></tr>').join('') + '</tbody></table>' : '<div class="muted">لا خيارات بعد</div>') +
-          '<form class="row noprint" data-gid="' + g.id + '"><label>خيار جديد<input name="name" required maxlength="80" size="12"></label><label>سعر إضافي<input name="priceDelta" inputmode="decimal" size="6" value="0"></label><button class="btn alt sm">إضافة</button></form></div>').join('') +
+        groups.map((g2) => '<div class="card"><h3>' + esc(g2.name) + (g2.required === 'Y' ? ' <span class="tag warn">إلزامية</span>' : '') + (g2.multi === 'Y' ? ' <span class="tag">متعدد</span>' : '') + ' <span class="noprint"><button class="btn alt sm" data-act="dg" data-id="' + g2.id + '">حذف المجموعة</button></span></h3>' +
+          (g2.options.length ? '<table><tbody>' + g2.options.map((o) => '<tr><td>' + esc(o.name) + '</td><td>+' + money(o.priceDelta) + '</td><td class="noprint"><button class="btn alt sm" data-act="do" data-id="' + o.id + '">حذف</button></td></tr>').join('') + '</tbody></table>' : '<div class="muted">لا خيارات بعد</div>') +
+          '<form class="row noprint" data-gid="' + g2.id + '"><label>خيار جديد<input name="name" required maxlength="80" size="12"></label><label>سعر إضافي<input name="priceDelta" inputmode="decimal" size="6" value="0"></label><button class="btn alt sm">إضافة</button></form></div>').join('') +
         '<div class="card"><h3>ربط الخيارات بالأصناف</h3><label>الصنف<select id="cf-item"><option value="">اختر صنفاً…</option>' + items.map((it) => '<option value="' + it.id + '">' + esc(it.code) + ' — ' + esc(it.name) + '</option>').join('') + '</select></label><div id="cf-link"></div></div>';
       E.$('#fg', el).addEventListener('submit', async (ev) => { ev.preventDefault(); const f = new FormData(ev.target); try { await api('POST', '/cafe/modifier-groups', { name: f.get('name').trim(), required: !!f.get('required'), multi: !!f.get('multi') }); load(); } catch (e) { E.toast(e.message, true); } });
       E.$$('form[data-gid]', el).forEach((f) => f.addEventListener('submit', async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); try { await api('POST', '/cafe/modifier-groups/' + f.dataset.gid + '/options', { name: fd.get('name').trim(), priceDelta: fd.get('priceDelta') }); load(); } catch (e) { E.toast(e.message, true); } }));
-      E.bind(el, {
-        dg: async (b) => { if (!confirm('حذف المجموعة بخياراتها؟')) return; await api('DELETE', '/cafe/modifier-groups/' + b.dataset.id); load(); },
-        do: async (b) => { await api('DELETE', '/cafe/modifier-options/' + b.dataset.id); load(); },
-      });
       E.$('#cf-item', el).addEventListener('change', async (ev) => {
-        const id = ev.target.value, box = E.$('#cf-link', el);
-        if (!id) { box.innerHTML = ''; return; }
-        const linked = new Set((await api('GET', '/cafe/items/' + id + '/modifier-groups')).groupIds);
-        box.innerHTML = '<form id="fl">' + groups.map((g) => '<label class="chk" style="display:block"><input type="checkbox" name="g" value="' + g.id + '"' + (linked.has(g.id) ? ' checked' : '') + '> ' + esc(g.name) + '</label>').join('') + '<button class="btn sm" style="margin-top:8px">حفظ</button></form>';
-        E.$('#fl', box).addEventListener('submit', async (ev2) => { ev2.preventDefault(); const ids = [...new FormData(ev2.target).getAll('g')].map(Number); await api('PUT', '/cafe/items/' + id + '/modifier-groups', { groupIds: ids }); E.toast('حُفظ'); });
+        const itemId = ev.target.value, box = E.$('#cf-link', el);
+        if (!itemId) { box.innerHTML = ''; return; }
+        const linked = new Set((await api('GET', '/cafe/items/' + itemId + '/modifier-groups')).groupIds);
+        box.innerHTML = '<form id="fl">' + groups.map((g2) => '<label class="chk" style="display:block"><input type="checkbox" name="g" value="' + g2.id + '"' + (linked.has(g2.id) ? ' checked' : '') + '> ' + esc(g2.name) + '</label>').join('') + '<button class="btn sm" style="margin-top:8px">حفظ</button></form>';
+        E.$('#fl', box).addEventListener('submit', async (ev2) => { ev2.preventDefault(); const ids = [...new FormData(ev2.target).getAll('g')].map(Number); await api('PUT', '/cafe/items/' + itemId + '/modifier-groups', { groupIds: ids }); E.toast('حُفظ'); });
       });
     }
     await load();
+    E.bind(el, {
+      dg: async (b) => { if (!confirm('حذف المجموعة بخياراتها؟')) return; await api('DELETE', '/cafe/modifier-groups/' + b.dataset.id); load(); },
+      do: async (b) => { await api('DELETE', '/cafe/modifier-options/' + b.dataset.id); load(); },
+    });
   };
 })(window.ERP);

@@ -1,7 +1,7 @@
 ; مثبّت السيرفر (NSIS): قاعدة Oracle + واجهة الويب + إتاحتها لأجهزة الشبكة (العميل ونقاط البيع لهما مثبّتاهما). يُبنى بـ: makensis erp-setup.nsi  (المتغير STAGE = مجلد الملفات المجهّزة)
 Unicode true
 !define APP "ERP"
-!define VER "0.37.1"
+!define VER "0.37.2"
 Name "${APP} Server ${VER}"
 OutFile "ERP-Server-Setup.exe"
 InstallDir "$LOCALAPPDATA\ERP"
