@@ -117,13 +117,36 @@
       (t.sellerVatNo ? '<div>الرقم الضريبي <span dir="ltr">' + esc(t.sellerVatNo) + '</span></div>' : '') + (l.crNo ? '<div>السجل التجاري <span dir="ltr">' + esc(l.crNo) + '</span></div>' : '') +
       (t.sellerAddress ? '<div>' + esc(t.sellerAddress) + '</div>' : '') + (l.phone ? '<div dir="ltr">' + esc(l.phone) + '</div>' : '') + '</div><hr class="dd">' +
       '<div class="c ttl">' + (sale ? 'فاتورة ضريبية مبسطة' : 'إشعار دائن (مرتجع)') + '<small>' + (sale ? 'Simplified Tax Invoice' : 'Credit Note (Return)') + '</small></div>' +
-      row('رقم', 'No.', esc(s.no)) + row('التاريخ', 'Date', esc(s.date)) + (s.origSaleId ? row('مرتجع على', 'Return of', String(s.origSaleId)) : '') + '<hr class="dd">' +
+      row('رقم', 'No.', esc(s.no)) + row('التاريخ', 'Date', esc(s.date)) + (s.cafeTable ? row('الطاولة', 'Table', esc(s.cafeTable)) : '') + (s.origSaleId ? row('مرتجع على', 'Return of', String(s.origSaleId)) : '') + '<hr class="dd">' +
       s.lines.map((x) => '<div class="it">' + esc(x.description) + '</div><div class="rl sub"><span dir="ltr">' + q3(x.qty) + ' × ' + money(x.price) + (dis && x.discountPct ? ' (−' + x.discountPct + '%)' : '') + '</span><b dir="ltr">' + money(x.net) + '</b></div>').join('') + '<hr class="dd">' +
       row('المجموع قبل الضريبة', 'Subtotal', money(s.subtotal)) + row('ضريبة القيمة المضافة', 'VAT', money(s.vat)) + '<hr>' + row('الإجمالي', 'Total SAR', money(s.total), true) + '<hr class="dd">' +
       pay + (s.changeDue ? row('الباقي', 'Change', money(s.changeDue)) : '') +
       (qr ? '<div class="qr">' + qr + '</div>' : '') + (s.status === 'VOID' ? '<div class="c ttl">*** ملغاة / VOID ***</div>' : '') +
       '<div class="c ft">' + (l.footerNote ? esc(l.footerNote).replace(/\n/g, '<br>') : 'شكراً لزيارتكم') + '<small>Thank you for your visit</small></div></div>';
   };
+  // ---------- تذكرة مطبخ/بار 80مم: أصناف فقط بلا أسعار ولا ضريبة، لتُطبع فور الإرسال ----------
+  E.kitchenTicketHtml = (t) => {
+    const STN = { KITCHEN: 'مطبخ', BAR: 'بار' };
+    return '<div class="th">' +
+      '<div class="c ttl" style="font-size:20px">' + (t.table ? esc(t.table) : 'طلب سفري #' + t.orderId) + '<small>Table / Order</small></div><hr class="dd">' +
+      '<div class="rl"><span>الوقت</span><b dir="ltr">' + esc(t.at) + '</b></div><hr class="dd">' +
+      t.items.map((x) => '<div class="it" style="font-size:16px"><b dir="ltr">' + q3(x.qty) + '×</b> ' + esc(x.name) + (x.station ? ' <small>[' + (STN[x.station] || x.station) + ']</small>' : '') +
+        (x.mod ? '<div style="font-size:13px">' + esc(x.mod) + '</div>' : '') + (x.note ? '<div style="font-size:13px">ملاحظة: ' + esc(x.note) + '</div>' : '') + '</div>').join('<hr class="dd">') +
+      '</div>';
+  };
+
+  // ---------- فاتورة مبدئية (قبل الدفع): لمراجعة العميل، ليست فاتورة ضريبية ولا تحمل رمز الهيئة ----------
+  E.cafePreBillHtml = (o) => {
+    const t = E.tax, row = (ar, val, big) => '<div class="rl' + (big ? ' big' : '') + '"><span>' + ar + '</span><b dir="ltr">' + val + '</b></div>';
+    return '<div class="th"><div class="c"><b class="nm">' + esc(t.sellerName || 'نظام ERP') + '</b></div><hr class="dd">' +
+      '<div class="c ttl">فاتورة مبدئية<small>Provisional Bill — Not a Tax Invoice</small></div>' +
+      row('الطاولة', esc(o.tableName ? o.tableCode + ' — ' + o.tableName : 'سفري #' + o.id)) + row('الوقت', esc(o.openedAt)) + '<hr class="dd">' +
+      o.lines.filter((x) => x.status !== 'CANCELLED').map((x) => '<div class="it">' + esc(x.itemName) + (x.modText ? '<div style="font-size:12px">' + esc(x.modText) + '</div>' : '') + '</div>' +
+        '<div class="rl sub"><span dir="ltr">' + q3(x.qty) + ' × ' + money(x.price) + '</span><b dir="ltr">' + money(x.qty * x.price) + '</b></div>').join('') + '<hr class="dd">' +
+      row('المجموع قبل الضريبة', money(o.subtotal)) + row('الضريبة', money(o.vat)) + '<hr>' + row('الإجمالي', money(o.total), true) + '<hr class="dd">' +
+      '<div class="c ft">هذه فاتورة مبدئية غير ضريبية<small>Provisional — not a tax invoice</small></div></div>';
+  };
+
   // معاينة الإيصال قبل الطباعة
   E.openThermal = (s) => {
     const dlg = document.createElement('dialog'); dlg.className = 'docdlg thdlg'; dlg.id = 'docdlg';

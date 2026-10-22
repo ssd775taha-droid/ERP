@@ -13,6 +13,7 @@
     return list.find((r) => r.id === saved) || list[0];
   }
   const regSelHtml = (list, cur) => list.length > 1 ? '<select id="regsel" class="noprint">' + list.map((r) => '<option value="' + r.id + '"' + (r.id === cur.id ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select>' : '';
+  const autoPrintKitchen = () => { try { return localStorage.getItem('erp_cafe_autoprint_kitchen') !== '0'; } catch (e) { return true; } };   // مفعّلة افتراضياً
 
   const STATUS_LBL = { NEW: 'جديد', SENT: 'أُرسل للمطبخ', SERVED: 'قُدِّم', CANCELLED: 'أُلغي' };
   const lineHtml = (l) => '<div class="card cf-line" data-id="' + l.id + '">' +
@@ -69,8 +70,11 @@
         '<div class="cards" style="margin:10px 0">' + '<div class="stat"><div class="muted">قبل الضريبة</div><b>' + money(order.subtotal) + '</b></div>' +
         '<div class="stat"><div class="muted">الضريبة</div><b>' + money(order.vat) + '</b></div>' + '<div class="stat"><div class="muted">الإجمالي (المطلوب تحصيله)</div><b>' + money(order.total) + '</b></div>' + '</div>' +
         (order.lines.length ? order.lines.map(lineHtml).join('') : '<div class="msg warn">لا بنود بعد</div>') +
-        (closed ? '' : '<div class="row noprint" style="margin-top:14px">' +
+        (closed ? '<div class="row noprint"><button class="btn alt" data-act="cf-print">طباعة الفاتورة</button></div>' :
+          '<label class="chk noprint" style="display:block;margin-bottom:6px"><input type="checkbox" id="cf-ap"' + (autoPrintKitchen() ? ' checked' : '') + '> طباعة تذكرة المطبخ/البار تلقائياً عند الإرسال</label>' +
+          '<div class="row noprint" style="margin-top:4px">' +
           '<button class="btn" data-act="cf-send">إرسال الجديد للمطبخ</button>' +
+          '<button class="btn alt" data-act="cf-print">طباعة الفاتورة</button>' +
           '<button class="btn good" data-act="cf-pay">إغلاق ودفع</button>' +
           (order.tableId ? '<button class="btn alt" data-act="cf-transfer">نقل الطاولة</button>' : '') +
           '<button class="btn alt" data-act="cf-split">تقسيم الفاتورة</button>' +
@@ -84,6 +88,7 @@
           const matches = q ? menu.filter((it) => it.name.toLowerCase().includes(q) || it.code.toLowerCase().includes(q)).slice(0, 12) : [];
           E.$('#cf-pick', el).innerHTML = matches.length ? '<div class="cf-grid">' + matches.map((it) => '<button class="cf-item noprint" data-act="cf-add" data-id="' + it.id + '"><b>' + esc(it.code) + '</b><div>' + esc(it.name) + '</div><div class="muted">' + money(it.price) + '</div></button>').join('') + '</div>' : '';
         });
+        E.$('#cf-ap', el).addEventListener('change', (ev) => { try { localStorage.setItem('erp_cafe_autoprint_kitchen', ev.target.checked ? '1' : '0'); } catch (e) { /* التخزين غير متاح */ } });
       }
       E.bind(el, {
         'cf-add': async (b) => {
@@ -99,7 +104,26 @@
           catch (e) { E.toast(e.message, true); }
         },
         'cf-rm': async (b) => { try { await api('DELETE', '/cafe/orders/lines/' + b.dataset.id); load(); } catch (e) { E.toast(e.message, true); } },
-        'cf-send': (b) => E.busy(b, async () => { await api('POST', '/cafe/orders/' + id + '/send', {}); E.toast('أُرسل للمطبخ'); load(); }),
+        'cf-send': (b) => E.busy(b, async () => {
+          const newLines = order.lines.filter((l) => l.status === 'NEW');
+          if (!newLines.length) { E.toast('لا بنود جديدة لإرسالها', true); return; }
+          await api('POST', '/cafe/orders/' + id + '/send', {});
+          E.toast('أُرسل للمطبخ');
+          if (autoPrintKitchen()) E.printThermal(E.kitchenTicketHtml({
+            table: order.tableName ? order.tableCode + ' — ' + order.tableName : null, orderId: order.id, at: E.today() + ' ' + new Date().toLocaleTimeString('ar'),
+            items: newLines.map((l) => ({ qty: l.qty, name: l.itemName, mod: l.modText, note: l.note, station: l.station })),
+          }));
+          load();
+        }),
+        'cf-print': (b) => E.busy(b, async () => {
+          if (order.status === 'CLOSED' && order.saleId) {
+            const sale = (await api('GET', '/pos/sales/' + order.saleId)).sale;
+            sale.cafeTable = order.tableName ? order.tableCode + ' — ' + order.tableName : null;
+            E.openThermal(sale);
+          } else {
+            E.printThermal(E.cafePreBillHtml(order));
+          }
+        }),
         'cf-pay': () => payDialog(id, order.total, load),
         'cf-transfer': () => transferDialog(id, load),
         'cf-split': () => splitDialog(order, load),
