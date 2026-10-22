@@ -53,6 +53,10 @@ Docker: `docker compose up -d --build` (البيانات في الوحدة `erp-
 
 فحص الصحة: `GET /healthz`.
 
+## نظام ERP على Oracle
+
+مجلد `oracle/` مستقل عن تطبيق Node أعلاه: مخطط Oracle 19c وحزم PL/SQL (المحاسبة والمبيعات والمشتريات) وتصميم شاشات Oracle Forms وتقارير Oracle Reports. التفاصيل وخطوات التثبيت في [`oracle/README.md`](oracle/README.md).
+
 ## المعمارية
 
 - `public/`: واجهة الموقع الأصلية (الغلاف `index.html` + 7 أقسام) دون تغيير تصميمها.

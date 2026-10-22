@@ -1,3 +1,12 @@
 node_modules/
 data/
 *.sqlite*
+oracle/local/.env
+oracle/local/logs/
+oracle/local/.env-xe
+webui/.env
+webui/node_modules/
+.env-docker
+installer/ERP-Setup.exe
+installer/ERP-*-Setup.exe
+installer/.cache/
