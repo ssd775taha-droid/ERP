@@ -422,10 +422,11 @@ const FS = (function () {
     const f = s.fin || {}; let left = Math.max(0, investment);
     /* أصول مشتراة بالتقسيط: الجزء المموّل من البائع يُعامل كتمويل يُسدَّد على أقساط، ويُخصم أولاً من حاجة التمويل الذاتي */
     const inst = (s.assets || []).map(g => ({ name: 'أقساط: ' + (g.name || 'أصل'), amt: sum(g.items, qp) * Math.min(100, Math.max(0, num(g.ip))) / 100, rate: num(g.ir), grace: num(g.ig), term: Math.max(1, num(g.it) || 1), method: 'annuity' })).filter(x => x.amt > 0);
-    const raw = inst.concat([{ name: f.name || 'القرض الرئيسي', amt: num(f.loan), rate: num(f.rate), grace: num(f.grace), term: num(f.term), method: f.method }], (Array.isArray(f.more) ? f.more : []).map(m => ({ name: m.n || 'مصدر تمويل', amt: num(m.amt), rate: num(m.rate), grace: num(m.grace), term: num(m.term), method: m.method })));
+    const raw = inst.concat([{ name: f.name || 'القرض الرئيسي', amt: num(f.loan), rate: num(f.rate), grace: num(f.grace), term: num(f.term), method: f.method, main: true }], (Array.isArray(f.more) ? f.more : []).map(m => ({ name: m.n || 'مصدر تمويل', amt: num(m.amt), rate: num(m.rate), grace: num(m.grace), term: num(m.term), method: m.method })));
     /* عند تحديد مبلغ التمويل الذاتي يصبح القرض الرئيسي هو الباقي من الاستثمار بعد التمويل الذاتي والأقساط والمصادر الأخرى */
     if (f.eqOn) { const others = raw.reduce((a, x, i) => a + (i === inst.length ? 0 : x.amt), 0); raw[inst.length].amt = Math.max(0, investment - Math.max(0, num(f.eq)) - others); }
-    return raw.filter(x => x.amt > 0).map(x => { const a = Math.min(x.amt, left); left -= a; return Object.assign({}, x, { req: x.amt, amt: a }); }).filter(x => x.amt > 0);
+    /* دون تحديد تمويل ذاتي، مبلغ القرض الرئيسي كما كُتب تماماً بلا أي قصّ على إجمالي الاستثمار */
+    return raw.filter(x => x.amt > 0).map(x => { const a = (x.main && !f.eqOn) ? x.amt : Math.min(x.amt, left); left -= a; return Object.assign({}, x, { req: x.amt, amt: a }); }).filter(x => x.amt > 0);
   }
   /* الملخصات الأساسية للمدخلات (سنة الأساس) */
   function base(s) {
@@ -853,7 +854,9 @@ function themeCss(css, T, scope) {
 function reviewChecks(s, R) {
   const o = [], b = R.base, Y = R.years, a0 = s.assume, has = v => v && String(v).trim();
   if (s.fin.eqOn && Math.abs(R.equity - FS.num(s.fin.eq)) > 1) o.push('التمويل الذاتي الفعلي ' + fmt(R.equity) + ' يختلف عن المحدد ' + fmt(FS.num(s.fin.eq)) + (R.equity > FS.num(s.fin.eq) ? ' لأن الأقساط ومصادر التمويل الأخرى تغطي جزءاً أكبر من المتبقي.' : ' لأن المبلغ المحدد يتجاوز المطلوب بعد مصادر التمويل الأخرى.'));
-  if (R.srcs.filter(x => !x.t0).reduce((a, x) => a + x.req, 0) > R.investment + 1) o.push('مجموع مبالغ القروض ومصادر التمويل أكبر من إجمالي الاستثمار، فاحتُسب التمويل بقدر الاستثمار فقط.');
+  { const req0 = R.srcs.filter(x => !x.t0).reduce((a, x) => a + x.req, 0), amt0 = R.srcs.filter(x => !x.t0).reduce((a, x) => a + x.amt, 0);
+    if (req0 > amt0 + 1) o.push('مجموع مبالغ القروض ومصادر التمويل أكبر من إجمالي الاستثمار، فاحتُسبت بعض المصادر الإضافية بأقل من المطلوب.');
+    else if (req0 > R.investment + 1) o.push('مجموع مبالغ القروض ومصادر التمويل (' + fmt(req0) + ') أكبر من إجمالي الاستثمار (' + fmt(R.investment) + ')، فيظهر التمويل الذاتي بالسالب. راجع المبالغ إن لم يكن ذلك مقصوداً.'); }
   if (R.srcs.length && R.loan[R.N - 1].close > 1) o.push('القرض لا يُسدَّد كاملاً خلال مدة الدراسة. يبقى ' + fmt(R.loan[R.N - 1].close) + ' في نهاية السنة ' + R.N + '.');
   b.groups.forEach(g => { if (g.cost > 0 && !(g.dep > 0)) o.push('مجموعة "' + g.name + '" بلا معدل إهلاك. اتركه صفراً للأراضي فقط.'); });
   const zeroP = s.products.filter(r => !(FS.qp(r) > 0)).length; if (zeroP) o.push(zeroP + ' من المنتجات بلا كمية أو سعر، فلا تدخل في الإيرادات.');
