@@ -3,6 +3,8 @@
 // برابط ثابت (نطاقك): ضع رمز النفق في data/tunnel-token.txt أو في المتغير TUNNEL_TOKEN، ويُضبط اسم المضيف في لوحة Cloudflare.
 // يتطلب تثبيت cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
 // مشاركة عبر شبكة الواي فاي المحلية فقط (بلا إنترنت): أنشئ ملف data/lan.txt (أي محتوى) أو اضبط LAN=1.
+// هذا الوضع نفسه يفعّل أيضاً المشاركة عبر Tailscale إن كان مثبّتاً ومسجَّل الدخول على هذا الجهاز،
+// فعنوانه (يبدأ عادة بـ 100.) يعمل من أي مكان متصل بالإنترنت لأي جهاز على نفس شبكة Tailscale (tailnet).
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -20,14 +22,25 @@ const lanMode = process.env.LAN === '1' || fs.existsSync(path.join(dataDir, 'lan
 const hasTunnel = !lanMode && process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
 
 if (!hasTunnel && !lanMode) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
+function isTailscaleIp(ip) {
+  // نطاق CGNAT الذي تستخدمه Tailscale لعناوين الأجهزة (100.64.0.0/10)
+  const m = ip.match(/^100\.(\d+)\./);
+  return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127;
+}
 if (lanMode) {
-  var lanIps = [];
+  var lanIps = [], tsIps = [];
   for (const addrs of Object.values(os.networkInterfaces())) {
-    for (const a of addrs || []) if (a.family === 'IPv4' && !a.internal) lanIps.push(a.address);
+    for (const a of addrs || []) if (a.family === 'IPv4' && !a.internal) (isTailscaleIp(a.address) ? tsIps : lanIps).push(a.address);
   }
   console.log('\nوضع مشاركة الواي فاي: أي جهاز على نفس شبكة الواي فاي يفتح أحد هذه الروابط:');
   if (lanIps.length) lanIps.forEach((ip) => console.log('  http://' + ip + ':' + port)); else console.log('  (تعذّر العثور على عنوان الشبكة؛ تأكد من اتصالك بالواي فاي)');
-  console.log('يعمل فقط لمن هو على نفس شبكة الواي فاي، ويتوقف إن أغلقت هذا الجهاز.\n');
+  console.log('يعمل فقط لمن هو على نفس شبكة الواي فاي، ويتوقف إن أغلقت هذا الجهاز.');
+  if (tsIps.length) {
+    console.log('\nمشاركة عبر Tailscale: من أي مكان متصل بالإنترنت، لأي جهاز مسجَّل على نفس شبكة Tailscale (tailnet):');
+    tsIps.forEach((ip) => console.log('  http://' + ip + ':' + port));
+    console.log('يتطلب تثبيت تطبيق Tailscale وتسجيل الدخول بنفس الحساب على الجهاز الآخر.');
+  }
+  console.log('');
 }
 
 // بدون DATABASE_URL نشغّل قاعدة بيانات PostgreSQL محلية عبر Docker (تتطلب تثبيت Docker Desktop)
