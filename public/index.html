@@ -404,7 +404,7 @@ function pwFields(a,b){return '<label class="f">كلمة المرور الجدي
 function authView(v){
   C.view=v;authEl.hidden=false;var h="";
   if(v==="boot")h='<h1>تمام برو</h1><p class="sub">جارٍ الاتصال بقاعدة بيانات المنصة…</p>';
-  else if(v==="err")h='<h1>تعذّر فتح المنصة</h1>'+note()+'<p class="sub">افتح المنصة من claude.ai وأنت مسجّل الدخول، وتأكد أن مالك المنصة شاركها معك بصلاحية «مساهم» أو أعلى.</p><button class="btn" type="button" id="again">إعادة المحاولة</button>';
+  else if(v==="err")h='<h1>تعذّر فتح المنصة</h1>'+note()+'<p class="sub">تحقّق من اتصالك بالإنترنت أو بشبكة الواي فاي، ثم أعد المحاولة.</p><button class="btn" type="button" id="again">إعادة المحاولة</button>';
   else if(v==="nosetup")h='<h1>تمام برو</h1><p class="sub">لم يُنشئ مالك النظام حسابات الدخول بعد. اطلب منه فتح المنصة وإنشاء حسابه أولاً.</p>';
   else if(v==="setup")h='<h1>إنشاء حساب مالك النظام</h1><p class="sub">هذا أول تشغيل. أنشئ حسابك، ثم أضف بقية المستخدمين من صفحة «المستخدمون».</p>'+note()+'<form id="f-setup" novalidate><label class="f">الاسم الكامل<input id="su-name" type="text" autocomplete="name" required></label><label class="f">اسم المستخدم<input id="su-user" type="text" autocomplete="username" dir="ltr" autocapitalize="none" spellcheck="false" required></label>'+pwFields("su-p1","su-p2")+'<button class="btn" type="submit" id="su-go">إنشاء الحساب والدخول</button></form>';
   else if(v==="login")h='<h1>تسجيل الدخول</h1><p class="sub">تمام برو: المراجعة، الاستراتيجية، الحوكمة، دراسات الجدوى، المحاسبة القضائية، المهام والعمل عن بعد، تكاليف المقاهي.</p>'+note()+'<form id="f-login" novalidate><label class="f">اسم المستخدم أو البريد الإلكتروني<input id="li-user" type="text" autocomplete="username" dir="ltr" autocapitalize="none" spellcheck="false" required></label><label class="f">كلمة المرور<input id="li-pw" type="password" autocomplete="current-password" dir="ltr" required></label><label class="ck"><input type="checkbox" id="li-show"> إظهار كلمة المرور</label><button class="btn" type="submit" id="li-go">دخول</button></form>'+(C.owner?'<button class="lnk" type="button" id="to-reset">نسيت كلمة المرور؟ أعد تعيينها بصفتك مالك المنصة</button>':'<p class="sub" style="font-size:13px">نسيت كلمة المرور؟ اطلب من مالك النظام إعادة تعيينها.</p>');
@@ -489,21 +489,26 @@ function logsHTML(){
 function usersView(full){
   if(!isAdm())return;
   if(full||!$("u-list")){
-    usersIn.innerHTML='<div class="intro"><h1>المستخدمون</h1><p>أنشئ حساباً لكل من يعمل على المنصة، وحدد الأقسام التي يدخلها. يُطلب من المستخدم الجديد تغيير كلمة المرور المؤقتة عند أول دخول.</p></div><div id="u-note"></div>'
-    +'<div class="panel"><h2>إضافة مستخدم</h2><form id="f-add" novalidate><div class="ugrid"><label class="f">الاسم الكامل<input id="nu-name" type="text" autocomplete="off" required></label><label class="f">اسم المستخدم<input id="nu-user" type="text" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" required></label><label class="f">البريد الإلكتروني<input id="nu-email" type="email" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" required></label><label class="f">الدور'+roleSel("","staff",false,"nu-role")+'</label><label class="f">كلمة مرور مؤقتة<input id="nu-pw" type="text" dir="ltr" autocomplete="off" spellcheck="false" required></label></div><div class="ctl" id="nu-mods">'+modChecks("",ALL,false)+'</div><button class="btn" type="submit" id="nu-go" style="align-self:flex-start">إضافة المستخدم</button></form></div>'
+    usersIn.innerHTML='<div class="intro"><h1>المستخدمون</h1><p>أنشئ حساباً لكل من يعمل على المنصة، وحدد الأقسام التي يدخلها. سلّمه اسم المستخدم وكلمة المرور ليدخل بهما من صفحة الدخول.</p></div><div id="u-note"></div>'
+    +'<div class="panel"><h2>إضافة مستخدم</h2><form id="f-add" novalidate><div class="ugrid"><label class="f">الاسم الكامل<input id="nu-name" type="text" autocomplete="off" required></label><label class="f">اسم المستخدم<input id="nu-user" type="text" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" required></label><label class="f">البريد الإلكتروني<input id="nu-email" type="email" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" required></label><label class="f">الدور'+roleSel("","staff",false,"nu-role")+'</label><label class="f">كلمة المرور<input id="nu-pw" type="text" dir="ltr" autocomplete="off" spellcheck="false" required></label></div><div class="ctl" id="nu-mods">'+modChecks("",ALL,false)+'</div><button class="btn" type="submit" id="nu-go" style="align-self:flex-start">إضافة المستخدم</button></form></div>'
     +'<div class="panel"><h2>الحسابات</h2><div id="u-list"></div></div><div class="panel"><h2>سجل الدخول وإجراءات الإدارة</h2><div id="u-log"></div></div>'
     +'<p class="foot">الدخول باسم المستخدم وكلمة المرور يحدد من يفتح المنصة وأي الأقسام يرى. أما قراءة البيانات نفسها فتضبطها مشاركة المنصة في Claude: شارِكها فقط مع من تثق به، وبصلاحية «محرر» لمن يعمل على المراجعة.</p>';
   }
   $("u-note").innerHTML=note();$("u-list").innerHTML=usersList();$("u-log").innerHTML=logsHTML();
 }
 function loadLogs(){C.db.collection(LOGC).orderBy("at","desc").limit(40).get().then(function(q){C.logs=q.docs.map(function(d){return d.data()||{}});if(cur==="users")$("u-log").innerHTML=logsHTML()},function(){C.logs=[];if(cur==="users")$("u-log").innerHTML=logsHTML()})}
+// يبحث عن معرّف حساب الدخول الحقيقي على الخادم بالاسم، لتحديث كلمة مروره الفعلية (وليس بيانات القسم المحلية فقط)
+function srvUserId(username){return fetch("/api/admin/users",{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(j){var u=(j.users||[]).find(function(x){return x.username===username});return u?u.id:null})}
 function addUser(){
   var name=val("nu-name").trim(),k=ukey(val("nu-user")),pw=val("nu-pw"),role=val("nu-role"),em=ukey(val("nu-email"));
   var ms=Array.prototype.filter.call(document.querySelectorAll("#nu-mods input"),function(i){return i.checked}).map(function(i){return i.value});
-  var er=!name?"اكتب الاسم الكامل.":!okMail(em)?"اكتب بريداً إلكترونياً صحيحاً.":mailTaken(em,"")?"هذا البريد مسجل لحساب آخر.":!okUser(k)?"اسم المستخدم من 3 إلى 30 حرفاً إنجليزياً أو رقماً، ويجوز فيه . و _ و -":C.accts[k]?"اسم المستخدم مستعمل. اختر اسماً آخر.":weak(pw)?"كلمة المرور المؤقتة يجب أن تكون 8 أحرف على الأقل وفيها حرف ورقم.":!ROLES[role]?"اختر الدور.":"";
+  var er=!name?"اكتب الاسم الكامل.":!okMail(em)?"اكتب بريداً إلكترونياً صحيحاً.":mailTaken(em,"")?"هذا البريد مسجل لحساب آخر.":!okUser(k)?"اسم المستخدم من 3 إلى 30 حرفاً إنجليزياً أو رقماً، ويجوز فيه . و _ و -":C.accts[k]?"اسم المستخدم مستعمل. اختر اسماً آخر.":weak(pw)?"كلمة المرور يجب أن تكون 8 أحرف على الأقل وفيها حرف ورقم.":!ROLES[role]?"اختر الدور.":"";
   if(er){C.msg=er;C.ok="";$("u-note").innerHTML=note();return}
   C.busy=true;busyBtn("nu-go","جارٍ الإضافة…");
-  newCred(pw).then(function(cr){return acc(k).set(Object.assign({user:k,name:name,email:em,role:role,mods:role==="owner"?ALL.slice():ms,active:true,must:true,fails:0,lockUntil:"",createdAt:now(),by:C.me.key},cr))}).then(function(){logAdm('add',k);C.busy=false;C.msg="";C.ok="أُضيف «"+name+"». سلّمه اسم المستخدم (أو بريده الإلكتروني) وكلمة المرور المؤقتة.";usersView(true)},function(e){C.busy=false;C.msg=saveErr(e);C.ok="";usersView(true)});
+  // في وضع الخادم: ننشئ حساب الدخول الحقيقي أولاً عبر واجهة الإدارة، ثم حساب الأقسام محلياً بنفس اسم المستخدم
+  var srvRole=role==="owner"?"owner":"member";
+  var mkDoc=function(){return acc(k).set({user:k,name:name,email:em,role:role,mods:role==="owner"?ALL.slice():ms,active:true,must:false,fails:0,lockUntil:"",createdAt:now(),by:C.me.key})};
+  (window.__tpSrvMode?fetch("/api/admin/users",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:k,name:name,password:pw,role:srvRole})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j&&j.error||"تعذّر إنشاء الحساب");return j})}).then(mkDoc):newCred(pw).then(function(cr){return mkDoc().then(function(){return acc(k).update(cr)})})).then(function(){logAdm('add',k);C.busy=false;C.msg="";C.ok="أُضيف «"+name+"». سلّمه اسم المستخدم وكلمة المرور ليسجّل دخوله من صفحة الدخول.";usersView(true)},function(e){C.busy=false;C.msg=e&&e.message?e.message:saveErr(e);C.ok="";usersView(true)});
 }
 function userAct(a,k){
   if(a==="cancel"){C.ask="";C.rst="";return usersView()}
@@ -511,8 +516,10 @@ function userAct(a,k){
   if(a==="mailsave"){var em=ukey(val("em-"+k));if(em&&!okMail(em)){C.msg="اكتب بريداً إلكترونياً صحيحاً.";C.ok="";return usersView()}if(em&&mailTaken(em,k)){C.msg="هذا البريد مسجل لحساب آخر.";C.ok="";return usersView()}
     return acc(k).update({email:em}).then(function(){logAdm("mail",k);C.msg="";C.ok="حُفظ البريد الإلكتروني للحساب "+k+".";usersView()},uErr)}
   if(a==="rst"){C.rst=k;C.ask="";usersView();var i=$("rst-pw");if(i)i.focus();return}
-  if(a==="rstdo"){var pw=val("rst-pw");if(weak(pw)){C.msg="كلمة المرور المؤقتة يجب أن تكون 8 أحرف على الأقل وفيها حرف ورقم.";C.ok="";return usersView()}
-    return newCred(pw).then(function(cr){cr.must=k!==C.me.key;cr.fails=0;cr.lockUntil="";return acc(k).update(cr)}).then(function(){logAdm("pw",k);C.rst="";C.msg="";C.ok="حُفظت كلمة المرور الجديدة للحساب "+k+".";usersView()},uErr)}
+  if(a==="rstdo"){var pw=val("rst-pw");if(weak(pw)){C.msg="كلمة المرور يجب أن تكون 8 أحرف على الأقل وفيها حرف ورقم.";C.ok="";return usersView()}
+    var setLocal=function(){return acc(k).update({fails:0,lockUntil:""})};
+    var doReset=window.__tpSrvMode?srvUserId(k).then(function(id){if(!id)throw new Error("تعذّر العثور على حساب الدخول لهذا المستخدم على الخادم.");return fetch("/api/admin/users/"+id,{method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j&&j.error||"تعذّر حفظ كلمة المرور");return j})})}).then(setLocal):newCred(pw).then(function(cr){cr.must=k!==C.me.key;return acc(k).update(cr)}).then(setLocal);
+    return doReset.then(function(){logAdm("pw",k);C.rst="";C.msg="";C.ok="حُفظت كلمة المرور الجديدة للحساب "+k+".";usersView()},function(e){C.rst="";C.msg=e&&e.message?e.message:saveErr(e);C.ok="";usersView()})}
   if(a==="unlock")return acc(k).update({fails:0,lockUntil:""}).catch(uErr);
   if(k===C.me.key)return;
   if(a==="toggle"){if(u.active!==false&&u.role==="owner"&&owners().length<2){C.msg="لا بد من بقاء حساب مالك فعّال واحد على الأقل.";C.ok="";return usersView()}return acc(k).update({active:u.active===false}).then(function(){logAdm(u.active===false?"enable":"disable",k)}).catch(uErr)}
@@ -1208,7 +1215,6 @@ function init(){
   C.msg="";authView("boot");
   var c=window.claude,nul=function(){return null};
   if(!c||!c.use){C.msg="قاعدة بيانات المنصة غير متاحة في هذا العرض.";return authView("err")}
-  if(!(window.crypto&&crypto.subtle)){C.msg="هذا المتصفح لا يدعم التشفير اللازم لتسجيل الدخول.";return authView("err")}
   Promise.all([c.use("db").catch(nul),c.use("user").catch(nul)]).then(function(r){
     C.db=r[0];C.user=r[1];
     if(!C.db){C.msg="قاعدة بيانات المنصة غير متاحة في هذا العرض.";return authView("err")}

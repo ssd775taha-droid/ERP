@@ -2,19 +2,80 @@
 // بلا إعداد: رابط مؤقت trycloudflare.com يتغيّر كل تشغيل.
 // برابط ثابت (نطاقك): ضع رمز النفق في data/tunnel-token.txt أو في المتغير TUNNEL_TOKEN، ويُضبط اسم المضيف في لوحة Cloudflare.
 // يتطلب تثبيت cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
+// مشاركة عبر شبكة الواي فاي المحلية فقط (بلا إنترنت): أنشئ ملف data/lan.txt (أي محتوى) أو اضبط LAN=1.
+// هذا الوضع نفسه يفعّل أيضاً المشاركة عبر Tailscale إن كان مثبّتاً ومسجَّل الدخول على هذا الجهاز،
+// فعنوانه (يبدأ عادة بـ 100.) يعمل من أي مكان متصل بالإنترنت لأي جهاز على نفس شبكة Tailscale (tailnet).
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
 
 const port = process.env.PORT || '3000';
-// بدون cloudflared (أو LOCAL_ONLY=1) تعمل المنصة على هذا الجهاز فقط عبر http://localhost
-const hasTunnel = process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
-const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: '127.0.0.1' };
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'data');
+const LOCAL_DB_URL = 'postgres://erp:erp@127.0.0.1:5432/erp';
+// وضع الواي فاي: نربط الخادم بكل واجهات الشبكة بدل localhost فقط، ليصله أي جهاز على نفس الشبكة
+const lanMode = process.env.LAN === '1' || fs.existsSync(path.join(dataDir, 'lan.txt'));
+// بدون cloudflared (أو LOCAL_ONLY=1) تعمل المنصة على هذا الجهاز فقط عبر http://localhost
+// وضع الواي فاي يوقف النفق العام: النفق يفرض كوكي مشفّرة (Secure) لا تعمل على رابط http العادي لعنوان الشبكة المحلية
+const hasTunnel = !lanMode && process.env.LOCAL_ONLY !== '1' && !spawnSync('cloudflared', ['--version'], { stdio: 'ignore' }).error;
 
-if (!hasTunnel) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
+if (!hasTunnel && !lanMode) console.log('وضع محلي: المنصة على http://localhost:' + port + ' (للرابط العام ثبّت cloudflared)');
+function isTailscaleIp(ip) {
+  // نطاق CGNAT الذي تستخدمه Tailscale لعناوين الأجهزة (100.64.0.0/10)
+  const m = ip.match(/^100\.(\d+)\./);
+  return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127;
+}
+if (lanMode) {
+  var lanIps = [], tsIps = [];
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const a of addrs || []) if (a.family === 'IPv4' && !a.internal) (isTailscaleIp(a.address) ? tsIps : lanIps).push(a.address);
+  }
+  console.log('\nوضع مشاركة الواي فاي: أي جهاز على نفس شبكة الواي فاي يفتح أحد هذه الروابط:');
+  if (lanIps.length) lanIps.forEach((ip) => console.log('  http://' + ip + ':' + port)); else console.log('  (تعذّر العثور على عنوان الشبكة؛ تأكد من اتصالك بالواي فاي)');
+  console.log('يعمل فقط لمن هو على نفس شبكة الواي فاي، ويتوقف إن أغلقت هذا الجهاز.');
+  if (tsIps.length) {
+    console.log('\nمشاركة عبر Tailscale: من أي مكان متصل بالإنترنت، لأي جهاز مسجَّل على نفس شبكة Tailscale (tailnet):');
+    tsIps.forEach((ip) => console.log('  http://' + ip + ':' + port));
+    console.log('يتطلب تثبيت تطبيق Tailscale وتسجيل الدخول بنفس الحساب على الجهاز الآخر.');
+  }
+  console.log('');
+}
+
+// بدون DATABASE_URL نشغّل قاعدة بيانات PostgreSQL محلية عبر Docker (تتطلب تثبيت Docker Desktop)
+function dockerComposeCmd(args) {
+  let r = spawnSync('docker', ['compose', ...args], { cwd: root, stdio: 'inherit' });
+  if (r.error) r = spawnSync('docker-compose', args, { cwd: root, stdio: 'inherit' });
+  return r;
+}
+function waitForDb(tries = 30) {
+  return new Promise((resolve, reject) => {
+    const attempt = (n) => {
+      const c = net.connect({ port: 5432, host: '127.0.0.1' });
+      c.once('connect', () => { c.destroy(); resolve(); });
+      c.once('error', () => {
+        c.destroy();
+        if (n <= 0) return reject(new Error('تعذّر الاتصال بقاعدة البيانات المحلية بعد المحاولات'));
+        setTimeout(() => attempt(n - 1), 1000);
+      });
+    };
+    attempt(tries);
+  });
+}
+async function ensureLocalDatabase() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  console.log('لا يوجد DATABASE_URL: يتم تشغيل قاعدة بيانات PostgreSQL محلية عبر Docker...');
+  const r = dockerComposeCmd(['up', '-d', 'db']);
+  if (r.error || r.status !== 0) {
+    console.error('تعذّر تشغيل قاعدة البيانات المحلية. ثبّت Docker Desktop (https://www.docker.com/products/docker-desktop/) وشغّله، ثم أعد المحاولة.');
+    process.exit(4);
+  }
+  await waitForDb();
+  return LOCAL_DB_URL;
+}
+
+const env = { ...process.env, PORT: port, COOKIE_SECURE: hasTunnel ? '1' : '0', TRUST_PROXY: hasTunnel ? '1' : '0', HOST: lanMode ? '0.0.0.0' : '127.0.0.1' };
 
 // نتأكد أن المنفذ فارغ: نسخة قديمة عالقة تعني أن المتصفح والنفق قد يصلان إلى قاعدتي بيانات مختلفتين
 function portBusy(host) {
@@ -35,6 +96,7 @@ if ((await portBusy('127.0.0.1')) || (await portBusy('::1'))) {
   console.error(`المنفذ ${port} مشغول بنسخة أخرى من المنصة. أغلقها أولًا (taskkill /f /im node.exe /im cloudflared.exe) ثم أعد التشغيل.`);
   process.exit(3);
 }
+env.DATABASE_URL = await ensureLocalDatabase();
 let stopping = false;
 const app = spawn(process.execPath, ['server/index.js'], { cwd: root, env, stdio: 'inherit' });
 
