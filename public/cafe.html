@@ -222,6 +222,7 @@ const L={ar:{
   okS:'ضمن المستهدف',highS:'أعلى من المستهدف',noPrice:'بلا سعر',example:'مثال',search:'بحث',all:'الكل',selAll:'تحديد الكل',selHint:'يُصدَّر المحدَّد فقط، وإن لم تحددوا شيئاً يُصدَّر كل المعروض.',
   report:'التقرير',rCosting:'ملخص التكاليف',rCards:'بطاقات الرسبي',rMenu:'قائمة الأسعار',repLang:'لغة التقرير',lUi:'لغة الواجهة',lAr:'العربية',lEn:'English',lBoth:'باللغتين',export:'تصدير',
   newProdT:'منتج جديد',newPrepT:'مستحضر جديد',editRecipe:'تعديل رسبي',nameAr:'الاسم بالعربية',nameEn:'الاسم بالإنجليزية',priceInc:'سعر البيع شامل الضريبة',sizesT:'الأحجام والأسعار',sizeN:'حجم',sizeAr:'اسم الحجم بالعربية',sizeEn:'اسم الحجم بالإنجليزية',addSize:'إضافة حجم',addSizeHint:'تُنسخ مكوّنات الحجم السابق لتعدّلوا كمياتها.',sizeOne:'السعر والمكوّنات',rmSize:'حذف الحجم',
+  readyProd:'منتج جاهز (بلا رسبي)',readyProdHint:'للمنتج الذي تشترونه جاهزاً وتبيعونه كما هو (مثل عصير أو مياه معبأة): تكتبون تكلفة الوحدة مباشرة بدل بناء قائمة مكوّنات.',directCost:'تكلفة الوحدة',
   component:'المكوّن',material:'المادة',qty:'الكمية',unit:'الوحدة',unitCost:'تكلفة الوحدة',lineCost:'تكلفة البند',note:'ملاحظة',remove:'إزالة',addLine:'إضافة مكوّن',method:'طريقة التحضير',gMat:'المواد الخام',gPrep:'المستحضرات',
   yieldQty:'كمية الناتج',yieldUnit:'وحدة الناتج',yield:'الناتج',batchCost:'تكلفة التحضيرة',costPerUnit:'تكلفة الوحدة',
   gpCup:'مجمل الربح للكوب',suggestInc:'السعر المقترح شامل الضريبة',saveProd:'حفظ',cancel:'إلغاء',choose:'— اختر —',
@@ -276,6 +277,7 @@ const L={ar:{
   okS:'On target',highS:'Above target',noPrice:'No price',example:'Sample',search:'Search',all:'All',selAll:'Select all',selHint:'Only ticked rows are exported; with none ticked, everything shown is exported.',
   report:'Report',rCosting:'Costing summary',rCards:'Recipe cards',rMenu:'Price list',repLang:'Report language',lUi:'Interface language',lAr:'العربية',lEn:'English',lBoth:'Both languages',export:'Export',
   newProdT:'New product',newPrepT:'New preparation',editRecipe:'Edit recipe',nameAr:'Arabic name',nameEn:'English name',priceInc:'Selling price incl. VAT',sizesT:'Sizes and prices',sizeN:'Size',sizeAr:'Size name (Arabic)',sizeEn:'Size name (English)',addSize:'Add size',addSizeHint:'The previous size’s components are copied for you to adjust.',sizeOne:'Price and components',rmSize:'Remove size',
+  readyProd:'Ready-made product (no recipe)',readyProdHint:'For a product you buy ready-made and resell as-is (a bottled drink, for example): type the unit cost directly instead of building a components list.',directCost:'Unit cost',
   component:'Component',material:'Material',qty:'Quantity',unit:'Unit',unitCost:'Unit cost',lineCost:'Line cost',note:'Note',remove:'Remove',addLine:'Add component',method:'Preparation method',gMat:'Raw materials',gPrep:'Preparations',
   yieldQty:'Yield quantity',yieldUnit:'Yield unit',yield:'Yield',batchCost:'Batch cost',costPerUnit:'Cost per unit',
   gpCup:'Gross profit per cup',suggestInc:'Suggested price incl. VAT',saveProd:'Save',cancel:'Cancel',choose:'— Select —',
@@ -366,16 +368,16 @@ const hit=(x,q)=>!q||((x.name||'')+' '+(x.nameEn||'')).toLowerCase().includes(q.
 function toast(s){const el=$('toast');el.textContent=s;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,3000)}
 
 /* ---------- model ---------- */
-const norm=p=>({type:'product',cat:'ساخن',method:'',...p,sizes:p.sizes&&p.sizes.length?p.sizes:[{name:'',nameEn:'',price:p.price||0}],lines:(p.lines||[]).map(l=>({m:l.m,note:l.note||'',qtys:l.qtys||[l.qty]}))});
+const norm=p=>({type:'product',cat:'ساخن',method:'',ready:false,...p,sizes:p.sizes&&p.sizes.length?p.sizes:[{name:'',nameEn:'',price:p.price||0}],lines:(p.lines||[]).map(l=>({m:l.m,note:l.note||'',qtys:l.qtys||[l.qty]}))});
 const prods=()=>S.products.filter(p=>p.type!=='prep'),preps=()=>S.products.filter(p=>p.type==='prep');
 const mat=id=>byId(S.materials,id),prepOf=id=>S.products.find(x=>x.id===id&&x.type==='prep'),comp=id=>mat(id)||prepOf(id);
 const unitCost=m=>m&&m.packSize>0?m.price/m.packSize/(1-Math.min(num(m.waste),.95)):0;
 function cCost(id,seen){const m=mat(id);if(m)return unitCost(m);const p=prepOf(id);if(!p||seen.has(id))return 0;const s=new Set(seen);s.add(id);const y=num(p.yieldQty);return y>0?cost(p,0,s)/y:0}
 const cUnit=id=>{const m=mat(id);return m?m.unit:(prepOf(id)||{}).yieldUnit||''};
-function cost(p,i,seen){seen=seen||new Set([p.id]);return(p.lines||[]).reduce((s,l)=>s+num(l.qtys[i])*cCost(l.m,seen),0)}
+function cost(p,i,seen){if(p.ready)return num(p.sizes[i]&&p.sizes[i].cost);seen=seen||new Set([p.id]);return(p.lines||[]).reduce((s,l)=>s+num(l.qtys[i])*cCost(l.m,seen),0)}
 function calc(c,price){const ex=num(price)/(1+S.cfg.vat);return{c,ex,ratio:ex>0?c/ex:NaN,gp:ex-c,margin:ex>0?(ex-c)/ex:NaN,suggest:c/S.cfg.target*(1+S.cfg.vat)}}
 const stats=(p,i)=>calc(cost(p,i),p.sizes[i].price);
-const dCost=(d,j)=>{const seen=new Set([d.id]);return d.sizes[j].lines.reduce((s,l)=>s+num(l.qty)*cCost(l.m,seen),0)};
+const dCost=(d,j)=>{if(d.ready)return num(d.sizes[j].cost);const seen=new Set([d.id]);return d.sizes[j].lines.reduce((s,l)=>s+num(l.qty)*cCost(l.m,seen),0)};
 const stKey=r=>!isFinite(r)?'noPrice':r>S.cfg.target?'highS':'okS';
 const statusChip=r=>`<span class="chip ${!isFinite(r)?'wr':r>S.cfg.target?'bd':'ok'}">${t(stKey(r))}</span>`;
 const usedIn=id=>S.products.filter(p=>(p.lines||[]).some(l=>l.m===id)).length;
@@ -591,15 +593,16 @@ function editor(){const d=S.draft,isP=d.type==='prep',n=d.sizes.length;
   <label class="f" for="ed-nameEn">${t('nameEn')}<input id="ed-nameEn" dir="ltr" data-ed="nameEn" value="${esc(d.nameEn)}"></label>
   ${isP?`<label class="f" for="ed-yq">${t('yieldQty')}<input id="ed-yq" type="number" step="any" min="0" data-ed="yieldQty" value="${esc(d.yieldQty)}"></label>${sel('ed-yu',t('yieldUnit'),Object.keys(UNITS).map(u=>[u,un(u)]),d.yieldUnit,'data-ed="yieldUnit"')}`
        :sel('ed-cat',t('cat'),Object.keys(CATS).map(c=>[c,ct(c)]),d.cat,'data-ed="cat"')}</div>
+  ${isP?'':`<label class="row" style="gap:6px"><input type="checkbox" id="ed-ready" data-ed="ready" ${d.ready?'checked':''}>${t('readyProd')}</label><p class="sub">${t('readyProdHint')}</p>`}
   ${d.sizes.map((s,j)=>`<div class="szblock">
     ${isP?`<h3>${t('ingredients')}</h3>`:`<div class="row sp"><h3 id="ed-s${j}-h"></h3>${n>1?`<button class="btn sm danger" data-act="rmsize" data-id="${j}">${t('rmSize')}</button>`:''}</div>
     <div class="grid"><label class="f" for="ed-s${j}-a">${t('sizeAr')}<input id="ed-s${j}-a" data-sz="${j}" data-sk="name" value="${esc(s.name)}"></label><label class="f" for="ed-s${j}-e">${t('sizeEn')}<input id="ed-s${j}-e" dir="ltr" data-sz="${j}" data-sk="nameEn" value="${esc(s.nameEn)}"></label>
     <label class="f" for="ed-s${j}-p">${t('priceInc')}<input id="ed-s${j}-p" type="number" step="any" min="0" data-sz="${j}" data-sk="price" value="${esc(s.price)}"></label><label class="f" for="ed-s${j}-k">${t('sku')}<input id="ed-s${j}-k" dir="ltr" data-sz="${j}" data-sk="sku" value="${esc(s.sku||'')}"></label><label class="f" for="ed-s${j}-c">${t('calories')}<input id="ed-s${j}-c" type="number" min="0" step="any" data-sz="${j}" data-sk="cal" value="${esc(s.cal||'')}"></label></div>`}
-    <div class="scroll"><table><thead><tr><th>${t('component')}</th><th class="n">${t('qty')}</th><th>${t('unit')}</th><th class="n">${t('unitCost')}</th><th class="n">${t('lineCost')}</th><th>${t('note')}</th><th></th></tr></thead><tbody>
+    ${(!isP&&d.ready)?`<div class="grid"><label class="f" for="ed-s${j}-dc">${t('directCost')}<input id="ed-s${j}-dc" type="number" step="any" min="0" data-sz="${j}" data-sk="cost" value="${esc(s.cost??'')}"></label></div>`:`<div class="scroll"><table><thead><tr><th>${t('component')}</th><th class="n">${t('qty')}</th><th>${t('unit')}</th><th class="n">${t('unitCost')}</th><th class="n">${t('lineCost')}</th><th>${t('note')}</th><th></th></tr></thead><tbody>
     ${s.lines.map((l,i)=>{const k=`ed-s${j}-l${i}`;return`<tr><td><select id="${k}-m" data-sj="${j}" data-li="${i}" data-lk="m" aria-label="${t('component')}">${compOpts(l.m,d.id)}</select></td>
       <td><input id="${k}-q" type="number" step="any" min="0" data-sj="${j}" data-li="${i}" data-lk="qty" value="${esc(l.qty??'')}" aria-label="${t('qty')}"></td><td id="${k}-u"></td><td class="n" id="${k}-uc"></td><td class="n" id="${k}-c"></td>
       <td><input id="${k}-n" data-sj="${j}" data-li="${i}" data-lk="note" value="${esc(l.note||'')}" aria-label="${t('note')}"></td><td><button class="btn sm danger" data-act="rmline" data-id="${j}:${i}">${t('remove')}</button></td></tr>`}).join('')}
-    </tbody></table></div><div class="row sp"><button class="btn" data-act="addline" data-id="${j}">${t('addLine')}</button><b class="tot" id="ed-s${j}-t"></b></div></div>`).join('')}
+    </tbody></table></div><div class="row sp"><button class="btn" data-act="addline" data-id="${j}">${t('addLine')}</button><b class="tot" id="ed-s${j}-t"></b></div>`}</div>`).join('')}
   ${!isP&&n<MAXS?`<div class="row"><button class="btn" data-act="addsize">${t('addSize')}</button><span class="sub">${t('addSizeHint')}</span></div>`:''}
   ${isP?'':`<div class="grid"><label class="f" for="ed-prep">${t('prepMin')}<input id="ed-prep" type="number" min="0" step="any" data-ed="prepMin" value="${esc(d.prepMin??'')}"></label>
     <div class="f"><span>${t('allergens')}</span><div class="row">${Object.keys(ALG).map(k=>`<label class="row" style="gap:4px"><input type="checkbox" data-alg="${k}" ${d.allergens.includes(k)?'checked':''}>${ALG[k][lang==='en'?1:0]}</label>`).join('')}</div></div></div>
@@ -608,7 +611,7 @@ function editor(){const d=S.draft,isP=d.type==='prep',n=d.sizes.length;
   <div id="ed-tot"></div>
   <div class="row"><button class="btn primary" data-act="saveprod">${t('saveProd')}</button><button class="btn" data-act="closeprod">${t('cancel')}</button></div></div>`}
 function edTotals(){const d=S.draft,box=$('ed-tot');if(!d||!box)return;const seen=new Set([d.id]),set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
-  d.sizes.forEach((s,j)=>{s.lines.forEach((l,i)=>{const k=`ed-s${j}-l${i}`,uc=cCost(l.m,seen);set(k+'-u',un(cUnit(l.m)));set(k+'-uc',fmt(uc,4));set(k+'-c',fmt(num(l.qty)*uc,3))});set(`ed-s${j}-t`,t('total')+': '+fmt(dCost(d,j),3));set(`ed-s${j}-h`,d.sizes.length>1?t('sizeN')+' '+(j+1)+(nm(s)?': '+nm(s):''):t('sizeOne'))});
+  d.sizes.forEach((s,j)=>{if(!d.ready){s.lines.forEach((l,i)=>{const k=`ed-s${j}-l${i}`,uc=cCost(l.m,seen);set(k+'-u',un(cUnit(l.m)));set(k+'-uc',fmt(uc,4));set(k+'-c',fmt(num(l.qty)*uc,3))});set(`ed-s${j}-t`,t('total')+': '+fmt(dCost(d,j),3))}set(`ed-s${j}-h`,d.sizes.length>1?t('sizeN')+' '+(j+1)+(nm(s)?': '+nm(s):''):t('sizeOne'))});
   if(d.type==='prep'){const c=dCost(d,0),y=num(d.yieldQty);box.innerHTML=tbl([[t('batchCost'),'n'],[t('costPerUnit'),'n']],[`<tr><td class="n">${fmt(c)}</td><td class="n">${fmt(y>0?c/y:0,4)}</td></tr>`],'')}
   else box.innerHTML=tbl([[t('size')],[t('cost'),'n'],[t('ratio'),'n'],[t('gpCup'),'n'],[t('suggestInc'),'n'],[t('status')]],d.sizes.map((sz,j)=>{const s=calc(dCost(d,j),sz.price);return`<tr><td>${esc(nm(sz))||'—'}</td><td class="n">${fmt(s.c)}</td><td class="n">${pct(s.ratio)}</td><td class="n">${fmt(s.gp)}</td><td class="n">${fmt(s.suggest)}</td><td>${statusChip(s.ratio)}</td></tr>`}),'')}
 
@@ -912,7 +915,7 @@ $('view').addEventListener('input',e=>{const el=e.target,d=S.draft,ds=el.dataset
   if(ds.sx){if(!S.sx)S.sx={...curExp()};S.sx[ds.sx]=el.value;const o=$('eng-out');if(o)o.innerHTML=engOut();return}
   if(ds.sup!=null){const x=S.msup[+ds.sup];x[ds.k]=el.value;const c=$('sp'+ds.sup+'-u');if(c)c.textContent=fmt(num(x.packSize)>0?num(x.price)/num(x.packSize):0,4);return}
   if(!d)return;
-  if(ds.ed){d[ds.ed]=el.value;edTotals()}else if(ds.sz!=null){d.sizes[+ds.sz][ds.sk]=el.value;edTotals()}
+  if(ds.ed){d[ds.ed]=el.type==='checkbox'?el.checked:el.value;if(ds.ed==='ready')return render();edTotals()}else if(ds.sz!=null){d.sizes[+ds.sz][ds.sk]=el.value;edTotals()}
   else if(ds.lk){d.sizes[+ds.sj].lines[+ds.li][ds.lk]=el.value;edTotals()}});
 $('view').addEventListener('change',async e=>{const el=e.target,ds=el.dataset;if(el.closest('[data-hd]'))hdPreview();if(el.type!=='file'&&el.closest(DIRTY))S.dirty=true;
   if(ds.sim&&el.type==='checkbox'){S.sim[ds.sim]=el.checked;const o=$('sim-out');if(o)o.innerHTML=simOut();return}
@@ -1004,8 +1007,8 @@ $('view').addEventListener('click',async e=>{const b=e.target.closest('[data-act
   else if(a==='rmpimg'){d.img='';render()}
   else if(a==='saveprod'){if(!(d.name.trim()||d.nameEn.trim()))return toast(t('needName'));const isP=d.type==='prep';if(isP&&!(num(d.yieldQty)>0))return toast(t('needYield'));
     const mp=new Map();d.sizes.forEach((z,j)=>z.lines.forEach(l=>{if(!l.m||!(num(l.qty)>0))return;const k=l.m+'|'+(l.note||'').trim();let o=mp.get(k);if(!o){o={m:l.m,note:(l.note||'').trim(),qtys:d.sizes.map(()=>0)};mp.set(k,o)}o.qtys[j]+=num(l.qty)}));const lines=[...mp.values()];
-    const data={type:d.type,name:d.name.trim(),nameEn:d.nameEn.trim(),cat:d.cat,method:d.method||'',sizes:d.sizes.map(s=>({name:(s.name||'').trim(),nameEn:(s.nameEn||'').trim(),price:num(s.price),sku:(s.sku||'').trim(),cal:num(s.cal)})),lines,prepMin:num(d.prepMin),allergens:d.allergens||[],img:d.img||'',example:!!d.example};
-    if(isP){data.yieldQty=num(d.yieldQty);data.yieldUnit=d.yieldUnit}
+    const data={type:d.type,name:d.name.trim(),nameEn:d.nameEn.trim(),cat:d.cat,method:d.method||'',sizes:d.sizes.map(s=>({name:(s.name||'').trim(),nameEn:(s.nameEn||'').trim(),price:num(s.price),sku:(s.sku||'').trim(),cal:num(s.cal),cost:num(s.cost)})),lines,prepMin:num(d.prepMin),allergens:d.allergens||[],img:d.img||'',example:!!d.example};
+    if(isP){data.yieldQty=num(d.yieldQty);data.yieldUnit=d.yieldUnit}else{data.ready=!!d.ready}
     if(await save('products',d.id,data)){logAct(d.isNew?'lAdd':'lEdit',isP?'kPrep':'kProduct',data.name||data.nameEn);S.draft=null;S.dirty=false;toast(t('saved'));render();window.scrollTo({top:0})}}
   else if(a==='impno'){S.imp=null;render()}
   else if(a==='impgo'){b.disabled=true;const r=S.imp;for(const m of r.mats)if(!await save('materials',m.id,m.data))return render();for(const p of r.prods)if(!await save('products',p.id,p.data))return render();logAct('lImport','kData',r.mats.length+' + '+r.prods.length);S.imp=null;toast(t('impDone'));render()}});
