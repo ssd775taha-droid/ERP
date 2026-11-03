@@ -1,12 +1,30 @@
 # تشغيل التطبيق مع HTTPS تلقائي عبر Caddy. المتغير DOMAIN مثل: 1-2-3-4.sslip.io أو نطاقك الخاص.
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-erp}"
+      POSTGRES_DB: erp
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   app:
     build: ../..
     restart: unless-stopped
     environment:
+      DATABASE_URL: "postgres://erp:${POSTGRES_PASSWORD:-erp}@db:5432/erp"
       COOKIE_SECURE: "1"
       TRUST_PROXY: "1"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - erp-data:/data
   caddy:
@@ -24,4 +42,5 @@ services:
       - app
 volumes:
   erp-data:
+  pg-data:
   caddy-data:

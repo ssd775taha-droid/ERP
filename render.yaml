@@ -1,5 +1,8 @@
 # نشر على Render: Dashboard > New > Blueprint > اختر المستودع.
-# القرص الدائم يتطلب خطة مدفوعة (starter)؛ بدونه تضيع البيانات عند كل إعادة تشغيل.
+# القرص الدائم يتطلب خطة مدفوعة (starter)؛ بدونه تضيع نسخ الاحتياط المحلية عند كل إعادة تشغيل.
+databases:
+  - name: tamam-pro-db
+    plan: starter
 services:
   - type: web
     name: tamam-pro
@@ -11,6 +14,10 @@ services:
       mountPath: /data
       sizeGB: 1
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tamam-pro-db
+          property: connectionString
       - key: COOKIE_SECURE
         value: "1"
       - key: TRUST_PROXY

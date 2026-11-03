@@ -13,9 +13,9 @@ function cookie(req, name) {
   return m ? decodeURIComponent(m.slice(name.length + 1)) : null;
 }
 
-function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite'), secureCookie = process.env.COOKIE_SECURE === '1' } = {}) {
-  if (dbFile !== ':memory:') require('node:fs').mkdirSync(path.dirname(dbFile), { recursive: true });
-  const store = new Store(dbFile);
+async function createApp({ ai = createAi(), databaseUrl = process.env.DATABASE_URL, secureCookie = process.env.COOKIE_SECURE === '1' } = {}) {
+  if (!databaseUrl) throw new Error('DATABASE_URL غير مضبوط: يلزم رابط اتصال PostgreSQL');
+  const store = await new Store(databaseUrl).init();
   const auth = new Auth(store);
   const app = express();
   const clients = new Set();
@@ -47,8 +47,7 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
       if (!ok) return next(httpError(403, 'طلب مرفوض (مصدر غير مطابق)'));
     }
     req.token = cookie(req, 'sid');
-    req.user = auth.fromToken(req.token);
-    next();
+    auth.fromToken(req.token).then((u) => { req.user = u; next(); }, next);
   });
   // الحجم الكبير (حتى 25 ميغابايت) للمستخدمين المسجّلين فقط
   app.use((req, res, next) => (req.user ? express.json({ limit: '25mb' })(req, res, next) : next()));
@@ -61,15 +60,15 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
 
   app.get('/favicon.ico', (req, res) => res.redirect(301, '/favicon.svg'));
 
-  app.get('/healthz', (req, res) => {
-    store.db.prepare('SELECT 1').get();
+  app.get('/healthz', wrap(async (req, res) => {
+    await store.pool.query('SELECT 1');
     res.json({ ok: true });
-  });
+  }));
 
   // ---- المصادقة ----
-  app.get('/api/auth/state', (req, res) => res.json({ needsSetup: auth.userCount() === 0, user: req.user }));
+  app.get('/api/auth/state', wrap(async (req, res) => res.json({ needsSetup: (await auth.userCount()) === 0, user: req.user })));
   app.post('/api/auth/setup', wrap(async (req, res) => {
-    if (auth.userCount()) throw httpError(403, 'تم الإعداد مسبقاً');
+    if (await auth.userCount()) throw httpError(403, 'تم الإعداد مسبقاً');
     await auth.createUser({ ...req.body, role: 'owner' });
     const { token, user } = await auth.login(req.body.username, req.body.password, req.ip);
     setCookie(res, token, 43200);
@@ -80,14 +79,14 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
     setCookie(res, token, 43200);
     res.json({ user });
   }));
-  app.post('/api/auth/logout', (req, res) => {
-    if (req.token) auth.logout(req.token);
+  app.post('/api/auth/logout', wrap(async (req, res) => {
+    if (req.token) await auth.logout(req.token);
     setCookie(res, '', 0);
     res.json({ ok: true });
-  });
+  }));
 
   // ---- إدارة المستخدمين (للمالك) ----
-  app.get('/api/admin/users', needOwner, (req, res) => res.json({ users: auth.list() }));
+  app.get('/api/admin/users', needOwner, wrap(async (req, res) => res.json({ users: await auth.list() })));
   app.post('/api/admin/users', needOwner, wrap(async (req, res) => {
     res.json({ id: await auth.createUser({ ...req.body, role: req.body.role || 'member' }) });
   }));
@@ -97,24 +96,24 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
   }));
 
   // ---- قاعدة البيانات ----
-  app.post('/api/db', needUser, (req, res) => {
+  app.post('/api/db', needUser, wrap(async (req, res) => {
     const { op, path: p, data, where, orderBy, limit } = req.body || {};
     switch (op) {
-      case 'get': { const d = store.getDoc(p); return res.json({ exists: !!d, data: d }); }
-      case 'set': notify(store.setDoc(p, data).path); return res.json({ ok: true });
-      case 'update': notify(store.updateDoc(p, data).path); return res.json({ ok: true });
-      case 'delete': notify(store.deleteDoc(p).path); return res.json({ ok: true });
-      case 'add': { const d = store.addDoc(p, data); notify(d.path); return res.json({ id: d.id, path: d.path }); }
-      case 'query': return res.json({ docs: store.query(p, { where, orderBy, limit }) });
+      case 'get': { const d = await store.getDoc(p); return res.json({ exists: !!d, data: d }); }
+      case 'set': notify((await store.setDoc(p, data)).path); return res.json({ ok: true });
+      case 'update': notify((await store.updateDoc(p, data)).path); return res.json({ ok: true });
+      case 'delete': notify((await store.deleteDoc(p)).path); return res.json({ ok: true });
+      case 'add': { const d = await store.addDoc(p, data); notify(d.path); return res.json({ id: d.id, path: d.path }); }
+      case 'query': return res.json({ docs: await store.query(p, { where, orderBy, limit }) });
       default: throw httpError(400, 'عملية غير معروفة');
     }
-  });
-  app.post('/api/profiles', needUser, (req, res) => {
+  }));
+  app.post('/api/profiles', needUser, wrap(async (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.slice(0, 500).map(String) : [];
     const out = {};
-    for (const u of auth.list()) if (ids.includes(u.id)) out[u.id] = { name: u.name, avatarUrl: '' };
+    for (const u of await auth.list()) if (ids.includes(u.id)) out[u.id] = { name: u.name, avatarUrl: '' };
     res.json({ profiles: out });
-  });
+  }));
   app.get('/api/ai/status', needUser, (req, res) => res.json({ enabled: ai.enabled() }));
   app.post('/api/ai', needUser, wrap(async (req, res) => {
     const ctl = new AbortController();
@@ -145,17 +144,18 @@ function createApp({ ai = createAi(), dbFile = process.env.DB_FILE || path.join(
     res.status(status).json({ error: status === 500 ? 'خطأ في الخادم' : err.message });
   });
 
-  return { app, store, auth, close: () => { for (const c of clients) c.end(); store.close(); } };
+  return { app, store, auth, close: async () => { for (const c of clients) c.end(); await store.close(); } };
 }
 
 if (require.main === module) {
-  const port = Number(process.env.PORT) || 3000;
-  const { app, store } = createApp();
-  const file = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'erp.sqlite');
-  if (process.env.BACKUP !== '0') {
-    schedule(store, process.env.BACKUP_DIR || path.join(path.dirname(file), 'backups'), { keep: Number(process.env.BACKUP_KEEP) || 14 });
-  }
-  app.listen(port, process.env.HOST || undefined, () => console.log(`تمام برو يعمل على http://localhost:${port}`));
+  (async () => {
+    const port = Number(process.env.PORT) || 3000;
+    const { app, store } = await createApp();
+    if (process.env.BACKUP !== '0') {
+      schedule(store, process.env.BACKUP_DIR || path.join(__dirname, '..', 'data', 'backups'), { keep: Number(process.env.BACKUP_KEEP) || 14 });
+    }
+    app.listen(port, process.env.HOST || undefined, () => console.log(`تمام برو يعمل على http://localhost:${port}`));
+  })().catch((e) => { console.error('تعذّر بدء التشغيل:', e); process.exit(1); });
 }
 
 module.exports = { createApp };

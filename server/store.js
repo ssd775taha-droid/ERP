@@ -1,5 +1,5 @@
-// مخزن مستندات بأسلوب Firestore فوق SQLite: المسار الزوجي مستند، والفردي مجموعة.
-const { DatabaseSync } = require('node:sqlite');
+// مخزن مستندات بأسلوب Firestore فوق PostgreSQL: المسار الزوجي مستند، والفردي مجموعة.
+const { Pool } = require('pg');
 
 const OPS = new Set(['==', '!=', '<', '<=', '>', '>=', 'in', 'not-in', 'array-contains', 'array-contains-any']);
 
@@ -69,72 +69,77 @@ function match(v, op, x) {
   }
 }
 
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS docs (
+    path TEXT PRIMARY KEY, parent TEXT NOT NULL, id TEXT NOT NULL,
+    data JSONB NOT NULL, updated BIGINT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS docs_parent ON docs(parent);
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
+    role TEXT NOT NULL, pass TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created BIGINT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires BIGINT NOT NULL
+  );
+`;
+
 class Store {
-  constructor(file) {
-    this.db = new DatabaseSync(file);
-    this.db.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA foreign_keys = ON;
-      CREATE TABLE IF NOT EXISTS docs (
-        path TEXT PRIMARY KEY, parent TEXT NOT NULL, id TEXT NOT NULL,
-        data TEXT NOT NULL, updated INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS docs_parent ON docs(parent);
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
-        role TEXT NOT NULL, pass TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS sessions (
-        token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        expires INTEGER NOT NULL
-      );
-    `);
-    this.q = {
-      get: this.db.prepare('SELECT data FROM docs WHERE path = ?'),
-      put: this.db.prepare(`INSERT INTO docs (path, parent, id, data, updated) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(path) DO UPDATE SET data = excluded.data, updated = excluded.updated`),
-      del: this.db.prepare('DELETE FROM docs WHERE path = ?'),
-      list: this.db.prepare('SELECT id, data FROM docs WHERE parent = ?'),
-    };
+  constructor(connectionString) {
+    this.pool = new Pool({ connectionString });
+  }
+  async init() {
+    await this.pool.query(SCHEMA);
+    return this;
   }
 
-  getDoc(path) {
+  async getDoc(path) {
     const { path: p } = docParts(path);
-    const r = this.q.get.get(p);
-    return r ? JSON.parse(r.data) : null;
+    const r = await this.pool.query('SELECT data FROM docs WHERE path = $1', [p]);
+    return r.rows[0] ? r.rows[0].data : null;
   }
-  setDoc(path, data) {
+  async setDoc(path, data) {
     const d = docParts(path);
     if (data == null || typeof data !== 'object' || Array.isArray(data)) throw httpError(400, 'بيانات المستند يجب أن تكون كائناً');
-    this.q.put.run(d.path, d.parent, d.id, JSON.stringify(data), Date.now());
+    await this.pool.query(
+      `INSERT INTO docs (path, parent, id, data, updated) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (path) DO UPDATE SET data = excluded.data, updated = excluded.updated`,
+      [d.path, d.parent, d.id, JSON.stringify(data), Date.now()],
+    );
     return d;
   }
-  updateDoc(path, patch) {
+  async updateDoc(path, patch) {
     const d = docParts(path);
-    const cur = this.getDoc(d.path);
+    const cur = await this.getDoc(d.path);
     if (!cur) throw httpError(404, 'المستند غير موجود');
     for (const [k, v] of Object.entries(patch || {})) setField(cur, k, v);
-    this.q.put.run(d.path, d.parent, d.id, JSON.stringify(cur), Date.now());
+    await this.pool.query(
+      `INSERT INTO docs (path, parent, id, data, updated) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (path) DO UPDATE SET data = excluded.data, updated = excluded.updated`,
+      [d.path, d.parent, d.id, JSON.stringify(cur), Date.now()],
+    );
     return d;
   }
-  deleteDoc(path) {
+  async deleteDoc(path) {
     const d = docParts(path);
-    this.q.del.run(d.path);
+    await this.pool.query('DELETE FROM docs WHERE path = $1', [d.path]);
     return d;
   }
-  addDoc(col, data) {
+  async addDoc(col, data) {
     const c = colPath(col);
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
     return this.setDoc(`${c}/${id}`, data);
   }
-  query(col, { where = [], orderBy = [], limit } = {}) {
+  async query(col, { where = [], orderBy = [], limit } = {}) {
     const c = colPath(col);
-    let rows = this.q.list.all(c).map((r) => ({ id: r.id, data: JSON.parse(r.data) }));
+    const r = await this.pool.query('SELECT id, data FROM docs WHERE parent = $1', [c]);
+    let rows = r.rows.map((row) => ({ id: row.id, data: row.data }));
     for (const [f, op, v] of where) {
       if (!OPS.has(op)) throw httpError(400, 'عامل مقارنة غير مدعوم');
-      rows = rows.filter((r) => match(getField(r.data, f), op, v));
+      rows = rows.filter((row) => match(getField(row.data, f), op, v));
     }
-    for (const [f] of orderBy) rows = rows.filter((r) => getField(r.data, f) !== undefined);
+    for (const [f] of orderBy) rows = rows.filter((row) => getField(row.data, f) !== undefined);
     const order = orderBy.length ? orderBy : [];
     rows.sort((a, b) => {
       for (const [f, dir] of order) {
@@ -146,8 +151,8 @@ class Store {
     if (Number.isInteger(limit) && limit >= 0) rows = rows.slice(0, limit);
     return rows;
   }
-  close() {
-    this.db.close();
+  async close() {
+    await this.pool.end();
   }
 }
 

@@ -3,6 +3,8 @@ cd /d "%~dp0..\.."
 if not exist data mkdir data
 where node >nul 2>&1
 if errorlevel 1 goto nonode
+where docker >nul 2>&1
+if errorlevel 1 goto nodocker
 if not exist node_modules call npm install --omit=dev
 set "RB=%~dp0run.bat"
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
@@ -30,6 +32,11 @@ pause
 exit /b 0
 :nonode
 echo Node.js is not installed. Install it from https://nodejs.org then run this file again.
+pause
+exit /b 1
+:nodocker
+echo Docker Desktop is not installed. The database now runs via Docker.
+echo Install it from https://www.docker.com/products/docker-desktop/ then run this file again.
 pause
 exit /b 1
 :nostartup
